@@ -1,0 +1,2361 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ARANA TIME — ระบบเข้า-ออกงานหลายสาขา</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Prompt:wght@500;600;700&family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+<style>
+  :root{
+    --pink:#EC4899; --pink-dark:#DB2777; --pink-pale:#FCE7F3;
+    --bg:#FFF5F9; --card:#FFFFFF; --border:#F6DCEA;
+    --text:#241827; --muted:#9CA3AF; --navy:#20293D;
+    --green:#16A34A; --amber:#D97706; --red:#DC2626; --blue:#4F46E5;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:'Sarabun',sans-serif;}
+  h1,h2,h3{font-family:'Prompt',sans-serif;}
+  .hidden{display:none !important;}
+
+  .phonewrap{max-width:460px;margin:0 auto;min-height:100vh;background:var(--bg);position:relative;padding-bottom:78px;}
+
+  /* ---------- login ---------- */
+  .loginwrap{padding:56px 22px 24px;}
+  .logo{text-align:center;margin-bottom:26px;}
+  .logo .mark{font-family:'Prompt',sans-serif;font-weight:700;font-size:23px;color:var(--pink-dark);letter-spacing:.5px;}
+  .logo .subm{color:var(--muted);font-size:13px;margin-top:4px;}
+  .rolepick{display:flex;gap:8px;margin-bottom:16px;background:#fff;border:1px solid var(--border);border-radius:14px;padding:5px;}
+  .rolebtn{flex:1;padding:11px;border-radius:10px;border:none;background:none;cursor:pointer;font-weight:600;font-size:13.5px;color:var(--muted);}
+  .rolebtn.active{background:var(--pink);color:#fff;}
+  .backlink{background:none;border:none;color:var(--muted);font-size:13px;cursor:pointer;margin-bottom:14px;padding:0;}
+  .pinpad{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:14px;}
+  .pinkey{padding:16px;border-radius:12px;border:1px solid var(--border);background:#fff;font-size:18px;font-weight:600;cursor:pointer;}
+  .pindots{display:flex;justify-content:center;gap:10px;margin:16px 0;}
+  .pindot{width:14px;height:14px;border-radius:50%;border:1.5px solid var(--pink);}
+  .pindot.filled{background:var(--pink);}
+
+  /* ---------- shared ui ---------- */
+  .card{background:var(--card);border-radius:18px;border:1px solid var(--border);padding:18px;box-shadow:0 6px 18px -12px #00000022;}
+  .sectitle{display:flex;align-items:center;gap:8px;margin-bottom:10px;font-family:'Prompt',sans-serif;font-weight:600;font-size:14.5px;color:var(--pink-dark);}
+  .btn{background:var(--pink);color:#fff;border:none;border-radius:10px;padding:11px 18px;font-weight:600;font-size:14px;cursor:pointer;}
+  .btn.block{width:100%;}
+  .btn.ghost{background:none;border:1.5px solid var(--pink);color:var(--pink-dark);}
+  .btn.gray{background:#F3F4F6;color:var(--text);}
+  .btn.sm{padding:7px 12px;font-size:12.5px;border-radius:8px;}
+  .btn:disabled{opacity:.5;cursor:not-allowed;}
+  label{display:block;font-size:12.5px;color:var(--muted);margin:12px 0 6px;}
+  input[type=text],input[type=password],input[type=number],input[type=date],input[type=time],select,textarea{
+    width:100%;background:#FAF6F8;border:1px solid var(--border);border-radius:10px;
+    padding:10px 12px;color:var(--text);font-size:13.5px;font-family:inherit;
+  }
+  textarea{min-height:70px;resize:vertical;}
+  .msg{font-size:12.5px;margin-top:8px;}
+  .msg.ok{color:var(--green);} .msg.err{color:var(--red);}
+  .empty{padding:16px;text-align:center;color:var(--muted);font-size:13px;}
+  .avatar{width:40px;height:40px;border-radius:50%;flex-shrink:0;background:linear-gradient(135deg,#8B5CF6,#EC4899);
+    color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-family:'Prompt',sans-serif;}
+  .listrow{display:flex;align-items:center;gap:12px;padding:13px 0;border-bottom:1px solid var(--border);}
+  .card > .listrow:last-child{border-bottom:none;}
+  .listrow .info{flex:1;min-width:0;}
+  .listrow .name{font-weight:600;font-size:14px;}
+  .listrow .meta{font-size:11.5px;color:var(--muted);margin-top:1px;}
+  .badge{font-size:11px;font-weight:600;padding:4px 10px;border-radius:99px;font-family:'Prompt',sans-serif;white-space:nowrap;}
+  .badge.idle{background:#F3F4F6;color:#9CA3AF;}
+  .badge.in{background:var(--pink-pale);color:var(--pink-dark);}
+  .badge.out{background:#EEF2FF;color:var(--blue);}
+  .badge.late{background:#FEF3C7;color:var(--amber);}
+  .badge.pending{background:#FEF3C7;color:var(--amber);}
+  .badge.approved{background:#DCFCE7;color:var(--green);}
+  .badge.rejected{background:#FEE2E2;color:var(--red);}
+  .statgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:16px;}
+  .stat{background:var(--card);border-radius:14px;padding:12px;border:1px solid var(--border);}
+  .stat .t{font-size:12px;font-weight:600;color:var(--pink-dark);margin-bottom:6px;}
+  .stat .num{font-family:'Prompt',sans-serif;font-weight:700;font-size:22px;}
+  .stat .lbl{font-size:10.5px;color:var(--muted);}
+  .overlay{position:fixed;inset:0;background:#150a12cc;display:none;align-items:center;justify-content:center;z-index:60;padding:16px;}
+  .overlay.show{display:flex;}
+  .modal{background:#fff;border-radius:20px;width:100%;max-width:440px;padding:22px;max-height:90vh;overflow:auto;}
+  .modal h3{margin:0 0 4px;font-size:17px;}
+  .modal .hint{color:var(--muted);font-size:12.5px;margin-bottom:14px;}
+  .modalfoot{display:flex;gap:8px;margin-top:18px;}
+  .row2{display:flex;gap:8px;}
+  .row2 > *{flex:1;}
+  .dsel{display:flex;gap:6px;}
+  .dsel select{flex:1;background:#FAF6F8;border:1px solid var(--border);border-radius:10px;padding:10px 4px;color:var(--text);font-size:13px;font-family:inherit;}
+
+  /* ---------- app header ---------- */
+  .apphead{
+    background:linear-gradient(120deg,#F2377A 0%,#EC4899 55%,#F472B6 100%);
+    padding:20px 20px 24px;color:#fff;border-radius:0 0 28px 28px;
+  }
+  .apphead .top{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;}
+  .apphead .eyebrow{font-size:11.5px;letter-spacing:1.5px;text-transform:uppercase;opacity:.85;display:flex;align-items:center;gap:6px;}
+  .apphead .eyebrow .dot{width:7px;height:7px;border-radius:50%;background:#fff;}
+  .apphead h1{font-size:19px;margin:0 0 2px;}
+  .apphead .meta{font-size:12.5px;opacity:.9;}
+  .ibtn{background:#ffffff28;border:1px solid #ffffff4d;color:#fff;width:34px;height:34px;border-radius:11px;cursor:pointer;font-size:13px;}
+  .accountmenu{position:relative;}
+  .dropdownpanel{
+    position:absolute;top:44px;right:0;background:#fff;border-radius:14px;border:1px solid var(--border);
+    box-shadow:0 12px 30px -10px rgba(0,0,0,.3);min-width:190px;padding:14px;display:none;z-index:30;
+  }
+  .dropdownpanel.show{display:block;}
+  .dropdownpanel .dname{font-weight:700;font-size:13.5px;color:var(--text);font-family:'Prompt',sans-serif;}
+  .dropdownpanel .drole{font-size:11.5px;color:var(--muted);margin-bottom:12px;}
+  .content{padding:0 18px;margin-top:14px;}
+  section{margin-bottom:20px;}
+
+  /* ---------- home / scan ---------- */
+  .scancard{text-align:center;padding:24px 18px;}
+  .scanring{width:92px;height:92px;border-radius:50%;margin:0 auto 14px;background:linear-gradient(135deg,#8B5CF6,#EC4899);
+    display:flex;align-items:center;justify-content:center;font-size:32px;box-shadow:0 0 0 6px var(--pink-pale);color:#fff;}
+  .scancard h3{margin:0 0 4px;font-size:16px;}
+  .scancard p{color:var(--muted);font-size:12.5px;margin:0 0 16px;}
+
+  .qa-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;}
+  .qa{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:12px 6px;text-align:center;position:relative;cursor:pointer;}
+  .qa .ic{width:38px;height:38px;border-radius:11px;background:var(--pink-pale);display:flex;align-items:center;justify-content:center;margin:0 auto 6px;color:var(--pink-dark);}
+  .qa .lbl{font-size:10.5px;color:var(--text);font-weight:600;}
+  .qa .qbadge{
+    position:absolute;top:6px;right:20%;min-width:17px;height:17px;padding:0 4px;border-radius:99px;
+    background:var(--red);color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 2px #fff;
+  }
+
+  /* ---------- calendar ---------- */
+  .calnav{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+  .calnav .m{font-weight:600;font-family:'Prompt',sans-serif;font-size:14.5px;}
+  .calgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;text-align:center;}
+  .calgrid .dow{font-size:10.5px;color:var(--muted);font-weight:600;padding-bottom:4px;}
+  .calday{aspect-ratio:1;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:12px;background:#FAF6F8;}
+  .calday.holiday{background:#FEE2E2;color:var(--red);font-weight:600;}
+  .calday.leave{background:#EEF2FF;color:var(--blue);font-weight:600;}
+  .calday.late{box-shadow:inset 0 0 0 2px var(--amber);}
+  .calday.today{background:var(--pink);color:#fff;font-weight:700;}
+  .legend{display:flex;gap:14px;margin-top:12px;flex-wrap:wrap;}
+  .legend .li{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted);}
+  .legend .sw{width:10px;height:10px;border-radius:3px;}
+
+  /* ---------- AC checklist ---------- */
+  .acrow{display:flex;align-items:center;gap:12px;padding:13px 0;border-bottom:1px solid var(--border);}
+  .card > .acrow:last-child{border-bottom:none;}
+  .check{width:24px;height:24px;border-radius:8px;border:2px solid var(--border);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#fff;font-size:13px;font-weight:700;}
+  .check.done{background:var(--green);border-color:var(--green);}
+
+  /* ---------- notifications ---------- */
+  .noti{display:flex;gap:12px;padding:14px 0;border-bottom:1px solid var(--border);}
+  .card > .noti:last-child{border-bottom:none;}
+  .noti .ic{width:36px;height:36px;border-radius:11px;background:var(--pink-pale);color:var(--pink-dark);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:15px;}
+  .noti .body{flex:1;min-width:0;}
+  .noti .t{font-size:13px;font-weight:600;}
+  .noti .d{font-size:11.5px;color:var(--muted);margin-top:2px;}
+  .noti .time{font-size:10.5px;color:var(--muted);white-space:nowrap;}
+  .noti.unread{background:#FFF9FB;margin:0 -18px;padding:14px 18px;}
+  .navbadge{
+    position:absolute;top:2px;right:22%;min-width:15px;height:15px;padding:0 3px;border-radius:99px;
+    background:var(--red);color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;
+  }
+
+  /* ---------- profile ---------- */
+  .menu-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
+  .menu-item{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px 8px;text-align:center;cursor:pointer;}
+  .menu-item .ic{width:40px;height:40px;border-radius:12px;background:var(--pink-pale);display:flex;align-items:center;justify-content:center;margin:0 auto 8px;color:var(--pink-dark);font-size:17px;}
+  .menu-item .lbl{font-size:11px;font-weight:600;}
+  .profilehead{display:flex;align-items:center;gap:14px;padding:6px 0 20px;}
+  .profilehead .avatar{width:58px;height:58px;font-size:20px;}
+  .profilehead .n{font-family:'Prompt',sans-serif;font-weight:700;font-size:16px;}
+  .profilehead .r{font-size:12.5px;color:var(--muted);}
+
+  /* ---------- bottom nav ---------- */
+  .bottomnav{
+    position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:460px;
+    background:#fff;border-top:1px solid var(--border);display:flex;padding:8px 6px calc(8px + env(safe-area-inset-bottom));
+    box-shadow:0 -6px 20px -14px rgba(0,0,0,.2);z-index:10;
+  }
+  .navbtn{flex:1;background:none;border:none;display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 2px;color:var(--muted);position:relative;}
+  .navbtn.active{color:var(--pink-dark);}
+  .navbtn .lbl{font-size:10px;font-weight:600;}
+  .navbtn svg{width:20px;height:20px;}
+
+  /* ---------- admin-specific ---------- */
+  .branchselect{position:relative;margin-bottom:16px;}
+  .branchselect select{appearance:none;-webkit-appearance:none;padding-right:36px;font-weight:600;color:var(--pink-dark);border-color:var(--pink-pale);background:#fff;}
+  .branchselect::after{content:'';position:absolute;right:14px;top:50%;width:8px;height:8px;border-right:2px solid var(--pink-dark);border-bottom:2px solid var(--pink-dark);transform:translateY(-65%) rotate(45deg);pointer-events:none;}
+  .settingsrow{display:flex;align-items:center;gap:12px;padding:14px 0;border-bottom:1px solid var(--border);}
+  .card > .settingsrow:last-child{border-bottom:none;}
+  .switch{position:relative;display:inline-block;width:42px;height:24px;flex-shrink:0;}
+  .switch input{opacity:0;width:0;height:0;}
+  .switch .track{position:absolute;inset:0;background:#E5E7EB;border-radius:99px;transition:.2s;cursor:pointer;}
+  .switch .track::before{content:'';position:absolute;width:18px;height:18px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.2);}
+  .switch input:checked + .track{background:var(--pink);}
+  .switch input:checked + .track::before{transform:translateX(18px);}
+  .settingsrow .ic{width:36px;height:36px;border-radius:11px;background:var(--pink-pale);color:var(--pink-dark);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:15px;}
+  .settingsrow .info{flex:1;min-width:0;}
+  .settingsrow .name{font-weight:600;font-size:13.5px;}
+  .settingsrow .meta{font-size:11.5px;color:var(--muted);margin-top:1px;}
+  .miniempcard{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:12px;display:flex;align-items:center;gap:10px;margin-bottom:8px;}
+  .miniempcard .info{flex:1;min-width:0;}
+  .miniempcard .name{font-weight:600;font-size:13px;}
+  .miniempcard .stats{display:flex;gap:8px;margin-top:3px;font-size:10.5px;}
+  .miniempcard .stats span{color:var(--muted);}
+  .miniempcard .stats b{font-weight:700;}
+  .actionrow{display:flex;gap:8px;margin-top:8px;}
+  .btn-mini{flex:1;padding:8px;border-radius:9px;border:none;font-size:12px;font-weight:600;cursor:pointer;}
+  .btn-mini.approve{background:var(--green);color:#fff;}
+  .btn-mini.reject{background:#F3F4F6;color:var(--text);}
+  .taglist{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
+  .tagchip{background:var(--pink-pale);color:var(--pink-dark);font-size:11.5px;padding:5px 10px;border-radius:99px;display:flex;align-items:center;gap:6px;}
+  .tagchip button{background:none;border:none;color:var(--pink-dark);font-weight:700;cursor:pointer;padding:0;}
+
+  /* ---------- camera ---------- */
+  .camwrap{position:fixed;inset:0;background:#0b0710;display:none;z-index:70;flex-direction:column;align-items:center;justify-content:center;}
+  .camwrap.show{display:flex;}
+  .camstage{position:relative;width:min(92vw,400px);aspect-ratio:3/4;border-radius:22px;overflow:hidden;background:#000;}
+  .camstage video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1);}
+  .camring{position:absolute;inset:0;border:3px solid #ffffff44;border-radius:22px;pointer-events:none;}
+  .camring.match{border-color:var(--green);}
+  .camstatus{color:#fff;text-align:center;margin-top:16px;font-size:14px;min-height:20px;max-width:340px;}
+  .camstatus b{color:#F9A8D4;}
+  .camclose{position:absolute;top:14px;right:14px;width:34px;height:34px;border-radius:50%;background:#ffffff22;border:none;color:#fff;font-size:16px;cursor:pointer;z-index:2;}
+  .camfoot{margin-top:16px;display:flex;gap:10px;}
+</style>
+</head>
+<body>
+<div class="phonewrap">
+
+<!-- ============ LOGIN ============ -->
+<div id="loginView" class="loginwrap">
+  <div class="logo"><div class="mark">ARANA TIME</div><div class="subm">ระบบเข้า-ออกงานหลายสาขา</div></div>
+  <div class="rolepick">
+    <button class="rolebtn active" id="roleEmpBtn">พนักงาน</button>
+    <button class="rolebtn" id="roleAdminBtn">เจ้าของ/HR</button>
+  </div>
+
+  <div id="empLoginStep1" class="card">
+    <label>เลือกชื่อของคุณ</label>
+    <select id="empSelect"></select>
+    <button class="btn block" style="margin-top:14px;" id="empNextBtn">ถัดไป</button>
+    <div class="msg err" id="empLoginMsg"></div>
+  </div>
+
+  <div id="empLoginStep2" class="card hidden">
+    <button class="backlink" id="empBackBtn">‹ กลับ</button>
+    <div id="pinPromptTitle" style="font-weight:600;text-align:center;"></div>
+    <div class="pindots" id="pinDots"></div>
+    <div class="pinpad" id="pinPad"></div>
+    <div class="msg err" id="pinMsg" style="text-align:center;"></div>
+  </div>
+
+  <div id="adminLoginBox" class="card hidden">
+    <label>รหัสผ่านเจ้าของ/HR</label>
+    <input type="password" id="adminPassInput" placeholder="รหัสผ่าน">
+    <button class="btn block" style="margin-top:14px;" id="adminLoginBtn">เข้าสู่ระบบ</button>
+    <div class="msg err" id="adminLoginMsg"></div>
+    <div class="hint" style="margin-top:10px;">รหัสผ่านเริ่มต้น: <b>admin1234</b> — เปลี่ยนได้ในหน้าตั้งค่าหลังเข้าสู่ระบบ</div>
+  </div>
+</div>
+
+<!-- ============ EMPLOYEE VIEW ============ -->
+<div id="employeeView" class="hidden">
+  <div class="apphead">
+    <div class="top">
+      <div class="eyebrow"><span class="dot"></span>ARANA TIME</div>
+      <div class="accountmenu">
+        <button class="ibtn" id="empAccountBtn">▾</button>
+        <div class="dropdownpanel" id="empDropdown">
+          <div class="dname" id="empDropdownName">-</div>
+          <div class="drole">พนักงาน</div>
+          <button class="btn sm block" id="empLogoutBtn">ออกจากระบบ</button>
+        </div>
+      </div>
+    </div>
+    <h1 id="empPageTitle">สวัสดี</h1>
+    <div class="meta" id="empPageMeta">—</div>
+  </div>
+  <div class="content">
+
+    <!-- HOME -->
+    <div id="etabHome">
+      <section>
+        <div class="card scancard">
+          <div class="scanring">◎</div>
+          <h3 id="empScanTitle">สแกนใบหน้าเพื่อเช็กอิน</h3>
+          <p>ต้องอยู่ในพื้นที่สาขาของคุณเท่านั้นจึงจะเช็กอินได้</p>
+          <button class="btn" id="empScanBtn" disabled>กำลังโหลดระบบจดจำใบหน้า…</button>
+          <div class="msg" id="empScanNote"></div>
+        </div>
+      </section>
+      <section>
+        <div class="qa-grid">
+          <div class="qa" id="qaAc"><div class="ic">AC</div><div class="lbl">ปิดแอร์</div></div>
+          <div class="qa" id="qaClean"><div class="ic">◫</div><div class="lbl">ความสะอาด</div></div>
+          <div class="qa" id="qaOt"><div class="ic">◷</div><div class="lbl">ขอ OT</div></div>
+          <div class="qa" id="qaLeave"><div class="ic">✎</div><div class="lbl">ยื่นใบลา</div></div>
+          <div class="qa hidden" id="qaGroom"><div class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9 10h.01M15 10h.01M8 15c1 1.3 2.5 2 4 2s3-.7 4-2"/></svg></div><div class="lbl">ความเรียบร้อย</div></div>
+          <div class="qa" id="qaCal"><div class="ic">▦</div><div class="lbl">ปฏิทิน</div></div>
+          <div class="qa" id="qaNoti"><div class="ic">◔</div><div class="lbl">แจ้งเตือน</div></div>
+          <div class="qa" id="qaProfile"><div class="ic">☰</div><div class="lbl">โปรไฟล์</div></div>
+        </div>
+      </section>
+      <section>
+        <div class="sectitle">สรุปเดือนนี้</div>
+        <div class="statgrid">
+          <div class="stat"><div class="t">ตรงเวลา</div><div class="num" style="color:var(--green);" id="mOnTime">0</div><div class="lbl">วัน</div></div>
+          <div class="stat"><div class="t">มาสาย</div><div class="num" style="color:var(--amber);" id="mLate">0</div><div class="lbl">วัน</div></div>
+          <div class="stat"><div class="t">ขาด</div><div class="num" style="color:var(--red);" id="mAbsent">0</div><div class="lbl">วัน</div></div>
+          <div class="stat"><div class="t">ลาไปแล้ว</div><div class="num" style="color:var(--blue);" id="mLeave">0</div><div class="lbl">วัน</div></div>
+        </div>
+      </section>
+      <section>
+        <div class="sectitle">ประวัติล่าสุด<button class="btn ghost sm" style="margin-left:auto;" id="exportMyLogBtn">Report</button></div>
+        <div class="card" id="myLogList" style="padding:0 16px;"></div>
+      </section>
+    </div>
+
+    <!-- CALENDAR -->
+    <div id="etabCal" class="hidden">
+      <section>
+        <div class="calnav">
+          <button class="ibtn" style="background:var(--pink-pale);color:var(--pink-dark);border:none;" id="calPrevBtn">‹</button>
+          <div class="m" id="calMonthLabel">-</div>
+          <button class="ibtn" style="background:var(--pink-pale);color:var(--pink-dark);border:none;" id="calNextBtn">›</button>
+        </div>
+        <div class="card">
+          <div class="calgrid" id="calGrid"></div>
+          <div class="legend">
+            <div class="li"><span class="sw" style="background:#FEE2E2;"></span>วันหยุดบริษัท</div>
+            <div class="li"><span class="sw" style="background:#EEF2FF;"></span>วันลาของฉัน</div>
+            <div class="li"><span class="sw" style="background:var(--pink);"></span>วันนี้</div>
+            <div class="li"><span class="sw" style="border:2px solid var(--amber);background:none;"></span>มาสาย</div>
+          </div>
+        </div>
+      </section>
+      <section>
+        <div class="sectitle">วันหยุดบริษัทเดือนนี้</div>
+        <div class="card" id="calHolidayList" style="padding:0 16px;"></div>
+      </section>
+    </div>
+
+    <!-- LEAVE -->
+    <div id="etabLeave" class="hidden">
+      <section><button class="btn block" id="openLeaveFormBtn">+ ยื่นใบลาใหม่</button></section>
+      <section>
+        <div class="sectitle">ใบลาของฉัน<button class="btn ghost sm" style="margin-left:auto;" id="exportMyLeaveBtn">Report</button></div>
+        <div class="card" id="myLeaveList" style="padding:0 16px;"></div>
+      </section>
+    </div>
+
+    <!-- AC CHECKLIST -->
+    <div id="etabAc" class="hidden">
+      <section>
+        <div class="sectitle" id="acSectitle">จุดปิดแอร์</div>
+        <div style="color:var(--muted);font-size:12px;margin:-6px 0 14px;">ครบทุกจุด = สาขาปิดแอร์ครบ</div>
+        <div class="card" id="acPointList" style="padding:0 16px;"></div>
+      </section>
+    </div>
+
+    <!-- CLEANING CHECKLIST -->
+    <div id="etabClean" class="hidden">
+      <section>
+        <div class="sectitle" id="cleanSectitle">ตรวจความสะอาด</div>
+        <div style="color:var(--muted);font-size:12px;margin:-6px 0 14px;">ครบทุกจุด = ตรวจความสะอาดครบ</div>
+        <div class="card" id="cleanPointList" style="padding:0 16px;"></div>
+      </section>
+    </div>
+
+    <!-- OT -->
+    <div id="etabOt" class="hidden">
+      <section><button class="btn block" id="openOtFormBtn">+ ขอ OT ใหม่</button></section>
+      <section>
+        <div class="sectitle">คำขอ OT ของฉัน</div>
+        <div class="card" id="myOtList" style="padding:0 16px;"></div>
+      </section>
+    </div>
+
+    <!-- NOTIFICATIONS -->
+    <div id="etabNoti" class="hidden">
+      <section>
+        <div class="sectitle">แจ้งเตือน</div>
+        <div class="card" id="notiList" style="padding:0 16px;"></div>
+      </section>
+    </div>
+
+    <!-- PROFILE -->
+    <div id="etabProfile" class="hidden">
+      <div class="profilehead">
+        <div class="avatar" id="profAvatar">-</div>
+        <div><div class="n" id="profName">-</div><div class="r" id="profRole">พนักงาน</div></div>
+      </div>
+      <div class="menu-grid">
+        <div class="menu-item" id="menuPin"><div class="ic">⚿</div><div class="lbl">เปลี่ยน PIN</div></div>
+        <div class="menu-item" id="menuFace"><div class="ic">◎</div><div class="lbl">ลงทะเบียนหน้าใหม่</div></div>
+        <div class="menu-item" id="menuHome"><div class="ic">◐</div><div class="lbl" id="menuHomeLbl">ตั้งพิกัดบ้าน</div></div>
+        <div class="menu-item" id="menuCalShort"><div class="ic">▦</div><div class="lbl">วันหยุดบริษัท</div></div>
+        <div class="menu-item" id="menuAcShort"><div class="ic">AC</div><div class="lbl">จุดปิดแอร์</div></div>
+        <div class="menu-item" id="menuLogout"><div class="ic">⏻</div><div class="lbl">ออกจากระบบ</div></div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="bottomnav">
+    <button class="navbtn active" data-etab="Home" onclick="switchETab('Home')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7"/><path d="M5 10v9a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1v-9"/></svg><span class="lbl">หน้าแรก</span></button>
+    <button class="navbtn" data-etab="Cal" onclick="switchETab('Cal')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg><span class="lbl">ปฏิทิน</span></button>
+    <button class="navbtn" data-etab="Leave" onclick="switchETab('Leave')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></svg><span class="lbl">ใบลา</span></button>
+    <button class="navbtn" data-etab="Noti" onclick="switchETab('Noti')" style="position:relative;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg><span class="lbl">แจ้งเตือน</span><span class="navbadge hidden" id="notiNavBadge">0</span></button>
+    <button class="navbtn" data-etab="Profile" onclick="switchETab('Profile')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg><span class="lbl">โปรไฟล์</span></button>
+  </div>
+</div>
+
+<!-- ============ ADMIN VIEW ============ -->
+<div id="adminView" class="hidden">
+  <div class="apphead">
+    <div class="top">
+      <div class="eyebrow"><span class="dot"></span>ARANA TIME · ผู้ดูแลระบบ</div>
+      <div class="accountmenu">
+        <button class="ibtn" id="adminAccountBtn">▾</button>
+        <div class="dropdownpanel" id="adminDropdown">
+          <div class="dname">เจ้าของ / HR</div>
+          <div class="drole">ผู้ดูแลระบบ</div>
+          <button class="btn sm block" id="adminLogoutBtn">ออกจากระบบ</button>
+        </div>
+      </div>
+    </div>
+    <h1 id="adminPageTitle">ภาพรวมองค์กร</h1>
+    <div class="meta" id="adminPageMeta">3 สาขา + Back Office</div>
+  </div>
+  <div class="content">
+
+    <!-- Overview -->
+    <div id="atabOverview">
+      <section>
+        <div class="card" style="margin-bottom:16px;">
+          <div style="font-weight:600;font-size:13.5px;margin-bottom:8px;">ส่งออกข้อมูลเงินเดือน (เดือนนี้)</div>
+          <div class="row2">
+            <button class="btn ghost sm" id="exportLogsBtn">ประวัติเข้า-ออกงาน</button>
+            <button class="btn ghost sm" id="exportSummaryBtn">สรุปรายเดือน</button>
+          </div>
+          <div class="row2" style="margin-top:8px;">
+            <button class="btn ghost sm" id="exportLateMatrixBtn">ตารางนาทีมาสาย</button>
+            <button class="btn ghost sm" id="exportLeaveMatrixBtn">ตารางขาด/ลา</button>
+          </div>
+        </div>
+        <div class="branchselect"><select id="branchFilterSelect"></select></div>
+        <label style="margin-top:0;">ช่วงวันที่ดูภาพรวม</label>
+        <div class="row2">
+          <div><div id="overviewFrom_holder"></div></div>
+          <div><div id="overviewTo_holder"></div></div>
+        </div>
+        <div class="statgrid" style="margin-top:14px;">
+          <div class="stat"><div class="t">เข้างานแล้ว</div><div class="num" style="color:var(--pink-dark);font-size:17px;" id="oIn">0/0</div><div class="lbl">คน</div></div>
+          <div class="stat"><div class="t">มาสาย</div><div class="num" style="color:var(--amber);font-size:17px;" id="oLate">0/0</div><div class="lbl">คน</div></div>
+          <div class="stat"><div class="t">ขาดงาน</div><div class="num" style="color:var(--red);font-size:17px;" id="oAbsent">0/0</div><div class="lbl">คน</div></div>
+          <div class="stat"><div class="t">ลา</div><div class="num" style="color:var(--blue);font-size:17px;" id="oLeaveToday">0/0</div><div class="lbl">คน</div></div>
+          <div class="stat"><div class="t">ขอ OT</div><div class="num" style="color:var(--pink-dark);font-size:17px;" id="oOt">0/0</div><div class="lbl">คน</div></div>
+          <div class="stat"><div class="t">แจ้งปิดแอร์</div><div class="num" style="color:var(--pink-dark);font-size:17px;" id="oAc">0/0</div><div class="lbl">จุด</div></div>
+          <div class="stat"><div class="t">ตรวจความสะอาด</div><div class="num" style="color:var(--pink-dark);font-size:17px;" id="oClean">0/0</div><div class="lbl">จุด</div></div>
+          <div class="stat"><div class="t">ความเรียบร้อย</div><div class="num" style="color:var(--pink-dark);font-size:17px;" id="oGroom">0/0</div><div class="lbl">คน</div></div>
+        </div>
+      </section>
+      <section>
+        <div class="sectitle">สรุปรายพนักงาน (เดือนนี้)</div>
+        <div id="empSummaryList"></div>
+      </section>
+    </div>
+
+    <!-- Employees -->
+    <div id="atabEmployees" class="hidden">
+      <section>
+        <button class="btn block" style="margin-bottom:16px;" id="addEmpAdminBtn">+ เพิ่มพนักงาน</button>
+        <div class="card" id="adminEmpList" style="padding:0 16px;"></div>
+      </section>
+    </div>
+
+    <!-- Leaves -->
+    <div id="atabLeaves" class="hidden">
+      <section>
+        <div class="sectitle">ใบลารออนุมัติ</div>
+        <div class="card" id="pendingLeaveList" style="padding:0 16px;margin-bottom:20px;"></div>
+      </section>
+      <section>
+        <div class="sectitle">ประวัติใบลาทั้งหมด<button class="btn ghost sm" style="margin-left:auto;" id="exportLeaveReportBtn">Report</button></div>
+        <div class="card" id="allLeaveList" style="padding:0 16px;"></div>
+      </section>
+      <section>
+        <div class="sectitle">คำขอ OT รออนุมัติ</div>
+        <div class="card" id="pendingOtList" style="padding:0 16px;margin-bottom:20px;"></div>
+      </section>
+      <section>
+        <div class="sectitle">ประวัติ OT ทั้งหมด<button class="btn ghost sm" style="margin-left:auto;" id="exportOtReportBtn">Report</button></div>
+        <div class="card" id="allOtList" style="padding:0 16px;"></div>
+      </section>
+    </div>
+
+    <!-- Settings -->
+    <div id="atabSettings" class="hidden">
+      <section>
+        <div class="card" id="dbStatusCard" style="display:flex;align-items:center;gap:10px;"></div>
+      </section>
+      <section>
+        <div class="sectitle">สาขา</div>
+        <div class="card" id="branchEditor" style="margin-bottom:0;"></div>
+      </section>
+      <section>
+        <div class="sectitle">จุดปิดแอร์ต่อสาขา</div>
+        <div class="card" id="acPointEditor"></div>
+      </section>
+      <section>
+        <div class="sectitle">จุดตรวจความสะอาดต่อสาขา</div>
+        <div class="card" id="cleanPointEditor"></div>
+      </section>
+      <section>
+        <div class="sectitle">วันหยุดบริษัท</div>
+        <div class="card" id="holidayEditor"></div>
+      </section>
+      <section>
+        <div class="sectitle">เกณฑ์สาย / ขาด</div>
+        <div class="card">
+          <label>มาสาย = เลยเวลาเข้างานเกินกี่นาที</label>
+          <input type="number" id="graceMinutesInput" min="0">
+          <button class="btn sm" style="margin-top:10px;" id="saveRulesBtn">บันทึกเกณฑ์</button>
+        </div>
+      </section>
+      <section>
+        <div class="sectitle">Telegram Bot Token (ใช้ร่วมกันทุกกลุ่ม)</div>
+        <div class="card">
+          <label>Bot Token</label>
+          <input type="password" id="centralToken">
+          <label>Chat ID ส่วนกลาง (คำขอลา / ขอ OT / ผลอนุมัติ OT)</label>
+          <input type="text" id="centralChat">
+          <div class="modalfoot"><button class="btn ghost sm" id="testCentralTgBtn">ทดสอบส่งข้อความ</button></div>
+          <div class="msg" id="centralTgMsg"></div>
+          <button class="btn sm" style="margin-top:10px;" id="saveCentralBtn">บันทึก</button>
+        </div>
+      </section>
+      <section>
+        <div class="sectitle">ห้อง Telegram เพิ่มเติม (สำรองไว้ใช้ในอนาคต)</div>
+        <div class="card" id="telegramRoomsEditor"></div>
+      </section>
+      <section>
+        <div class="sectitle">ทดสอบระบบแจ้งเตือนอัตโนมัติ</div>
+        <div class="card">
+          <div style="color:var(--muted);font-size:12px;margin-bottom:10px;">กดเพื่อสั่งให้ทำงานทันที ไม่ต้องรอถึงเวลาจริง — ใช้เช็กว่าระบบตั้งไว้ถูกต้อง</div>
+          <button class="btn ghost sm block" id="testDailyLeaveBtn" style="margin-bottom:8px;">ทดสอบสรุปวันลา (ปกติ 10:30 น.)</button>
+          <button class="btn ghost sm block" id="testAcReminderBtn" style="margin-bottom:8px;">ทดสอบเตือนปิดแอร์ (ปกติ 23:00 น.)</button>
+          <button class="btn ghost sm block" id="testFacilityReminderBtn">ทดสอบเตือนความสะอาด/ความเรียบร้อย (ปกติ 11:30 น.)</button>
+          <div class="msg" id="scheduledTestMsg"></div>
+        </div>
+      </section>
+      <section>
+        <div class="sectitle">การแจ้งเตือน (Telegram)</div>
+        <div class="card" id="notifyTypesEditor"></div>
+      </section>
+      <section>
+        <div class="sectitle">รหัสผ่านเจ้าของ/HR</div>
+        <div class="card">
+          <label>รหัสผ่านใหม่</label>
+          <input type="password" id="newAdminPass">
+          <button class="btn sm" style="margin-top:10px;" id="changeAdminPassBtn">เปลี่ยนรหัสผ่าน</button>
+          <div class="msg" id="adminPassMsg"></div>
+        </div>
+      </section>
+    </div>
+
+  </div>
+
+  <div class="bottomnav">
+    <button class="navbtn active" data-atab="Overview" onclick="switchATab('Overview')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7"/><path d="M5 10v9a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1v-9"/></svg><span class="lbl">ภาพรวม</span></button>
+    <button class="navbtn" data-atab="Employees" onclick="switchATab('Employees')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg><span class="lbl">พนักงาน</span></button>
+    <button class="navbtn" data-atab="Leaves" onclick="switchATab('Leaves')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></svg><span class="lbl">ใบลา</span></button>
+    <button class="navbtn" data-atab="Settings" onclick="switchATab('Settings')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><span class="lbl">ตั้งค่า</span></button>
+  </div>
+</div>
+
+<!-- Leave request modal -->
+<div class="overlay" id="leaveOverlay">
+  <div class="modal">
+    <h3>ยื่นใบลา</h3>
+    <label>ประเภทการลา</label>
+    <select id="leaveType">
+      <option value="sick_cert">ลาป่วย (มีใบรับรองแพทย์)</option>
+      <option value="sick_nocert">ลาป่วย (ไม่มีใบรับรองแพทย์)</option>
+      <option value="personal_nodeduct">ลากิจ (ไม่หักเงิน)</option>
+      <option value="personal_deduct">ลากิจ (หักเงิน)</option>
+      <option value="traditional">ลาใช้สิทธิ์วันหยุดประเพณี</option>
+      <option value="vacation">ลาพักร้อน</option>
+      <option value="hourly_sick">ลาเป็นชั่วโมง (ป่วย)</option>
+      <option value="hourly_personal">ลาเป็นชั่วโมง (กิจ)</option>
+      <option value="maternity">ลาคลอด</option>
+    </select>
+
+    <div id="leaveDateRangeFields" class="row2">
+      <div><label>วันที่เริ่ม</label><div id="leaveFrom_holder"></div></div>
+      <div><label>ถึงวันที่</label><div id="leaveTo_holder"></div></div>
+    </div>
+
+    <div id="leaveHourlyFields" class="hidden">
+      <label>วันที่ลา</label>
+      <div id="leaveSingleDate_holder"></div>
+      <div class="row2">
+        <div><label>เวลาเริ่ม</label><input type="time" id="leaveHourStart"></div>
+        <div><label>เวลาสิ้นสุด</label><input type="time" id="leaveHourEnd"></div>
+      </div>
+    </div>
+
+    <label>เหตุผล</label>
+    <textarea id="leaveReason" placeholder="ระบุเหตุผลการลา"></textarea>
+
+    <label>แนบหลักฐาน (เช่น ใบรับรองแพทย์) — ถ้ามี</label>
+    <input type="file" id="leaveEvidenceInput" accept="image/*" capture="environment">
+
+    <div class="modalfoot">
+      <button class="btn block" id="submitLeaveBtn">ส่งใบลา</button>
+      <button class="btn gray" id="closeLeaveBtn">ยกเลิก</button>
+    </div>
+    <div class="msg" id="leaveFormMsg"></div>
+  </div>
+</div>
+
+<!-- OT request modal -->
+<div class="overlay" id="otOverlay">
+  <div class="modal">
+    <h3>ขอทำ OT</h3>
+    <label>วันที่ทำ OT</label>
+    <div id="otDate_holder"></div>
+    <div class="row2">
+      <div><label>เวลาเริ่ม</label><input type="time" id="otHourStart"></div>
+      <div><label>เวลาสิ้นสุด</label><input type="time" id="otHourEnd"></div>
+    </div>
+    <label>เหตุผล / งานที่ต้องทำ</label>
+    <textarea id="otReason" placeholder="ระบุเหตุผลการขอ OT"></textarea>
+    <div class="modalfoot">
+      <button class="btn block" id="submitOtBtn">ส่งคำขอ OT</button>
+      <button class="btn gray" id="closeOtBtn">ยกเลิก</button>
+    </div>
+    <div class="msg" id="otFormMsg"></div>
+  </div>
+</div>
+
+<!-- Change PIN modal -->
+<div class="overlay" id="changePinOverlay">
+  <div class="modal">
+    <h3>เปลี่ยน PIN</h3>
+    <div class="hint">ตั้ง PIN ใหม่ 4 หลัก</div>
+    <div class="pindots" id="newPinDots"></div>
+    <div class="pinpad" id="newPinPad"></div>
+    <div class="msg" id="changePinMsg" style="text-align:center;"></div>
+    <div class="modalfoot"><button class="btn gray block" id="closeChangePinBtn">ยกเลิก</button></div>
+  </div>
+</div>
+
+<!-- Employee editor modal (admin) -->
+<div class="overlay" id="empEditOverlay">
+  <div class="modal">
+    <h3 id="empEditTitle">แก้ไขพนักงาน</h3>
+    <label>ชื่อ-นามสกุล</label>
+    <input type="text" id="editEmpName">
+    <div class="row2">
+      <div><label>ชื่อเล่น</label><input type="text" id="editEmpNickname"></div>
+      <div><label>แผนก</label><input type="text" id="editEmpDept" placeholder="เช่น หน้าร้าน, บัญชี"></div>
+    </div>
+    <label>ตำแหน่งงาน</label>
+    <input type="text" id="editEmpJobTitle" placeholder="เช่น พนักงานเคาน์เตอร์, ช่างเทคนิค">
+    <label>สาขา</label>
+    <select id="editEmpBranch"></select>
+    <label>วันที่เริ่มงาน</label>
+    <div id="editEmpStartDate_holder"></div>
+    <div class="row2">
+      <div><label>เวลาเข้างาน</label><input type="time" id="editEmpShiftStart"></div>
+      <div><label>เวลาออกงาน</label><input type="time" id="editEmpShiftEnd"></div>
+    </div>
+    <label>อีเมล (ถ้ามี)</label>
+    <input type="text" id="editEmpEmail" placeholder="name@example.com">
+    <label>ตั้งรหัส PIN ให้พนักงาน (4 หลัก)</label>
+    <input type="text" id="editEmpPin" maxlength="4" inputmode="numeric" placeholder="เว้นว่างได้ถ้าให้พนักงานตั้งเอง">
+    <label>พิกัดบ้าน (สำหรับสุ่มตรวจวันลาป่วย)</label>
+    <div class="settingsrow" style="padding:8px 0;" id="empHomeLocationRow">
+      <div class="ic">◐</div>
+      <div class="info"><div class="name" id="empHomeLocationStatus">พนักงานยังไม่ได้ตั้งพิกัดบ้าน</div><div class="meta">พนักงานตั้งเองได้จากหน้าโปรไฟล์ของตัวเอง</div></div>
+      <a href="#" target="_blank" id="empHomeLocationLink" class="btn ghost sm hidden">แผนที่</a>
+    </div>
+    <div class="modalfoot">
+      <button class="btn ghost sm" id="resetPinBtn">รีเซ็ต PIN</button>
+      <button class="btn ghost sm" id="editEmpFaceBtn">ลงทะเบียนใบหน้าใหม่</button>
+    </div>
+    <div class="msg" id="empEditMsg"></div>
+    <div class="modalfoot">
+      <button class="btn block" id="saveEmpEditBtn">บันทึก</button>
+      <button class="btn gray" id="deleteEmpBtn">ลบพนักงาน</button>
+    </div>
+    <div class="modalfoot"><button class="btn gray block" id="closeEmpEditBtn">ปิด</button></div>
+  </div>
+</div>
+
+<!-- Camera overlay -->
+<div class="camwrap" id="camWrap">
+  <div class="camstage">
+    <video id="camVideo" autoplay playsinline muted></video>
+    <div class="camring" id="camRing"></div>
+    <button class="camclose" id="camClose">✕</button>
+  </div>
+  <div class="camstatus" id="camStatusText">กำลังเปิดกล้อง…</div>
+  <div class="camfoot" id="camFoot"></div>
+</div>
+<canvas id="hiddenCanvas" style="display:none"></canvas>
+
+</div>
+
+<script>
+const MODEL_URL = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js/weights';
+const MATCH_THRESHOLD = 0.5;
+const uid = ()=> crypto.randomUUID();
+
+// ===== Supabase config =====
+const SUPABASE_URL = 'https://zjrlttyhdfcdjdnrvega.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpqcmx0dHloZGZjZGpkbnJ2ZWdhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY1MjA5ODYsImV4cCI6MjEwMjA5Njk4Nn0.sBOAB63PfUk-jeKn9-XIAKcScXG1GYfAoPd87bm215w';
+
+function defaultDB(){
+  return {
+    branches: [
+      {id:'b1', name:'สาขา 1', lat:null, lng:null, radius:100, chatIdCheckinout:'', chatIdFacility:'', chatIdLeaveApproval:'', acPoints:[{id:uid(),name:'เคาน์เตอร์ต้อนรับ'},{id:uid(),name:'ออฟฟิศ'}], cleaningPoints:[{id:uid(),name:'พื้นร้าน'},{id:uid(),name:'ห้องน้ำ'}]},
+      {id:'b2', name:'สาขา 2', lat:null, lng:null, radius:100, chatIdCheckinout:'', chatIdFacility:'', chatIdLeaveApproval:'', acPoints:[{id:uid(),name:'เคาน์เตอร์ต้อนรับ'},{id:uid(),name:'ออฟฟิศ'}], cleaningPoints:[{id:uid(),name:'พื้นร้าน'},{id:uid(),name:'ห้องน้ำ'}]},
+      {id:'b3', name:'สาขา 3', lat:null, lng:null, radius:100, chatIdCheckinout:'', chatIdFacility:'', chatIdLeaveApproval:'', acPoints:[{id:uid(),name:'เคาน์เตอร์ต้อนรับ'},{id:uid(),name:'ออฟฟิศ'}], cleaningPoints:[{id:uid(),name:'พื้นร้าน'},{id:uid(),name:'ห้องน้ำ'}]},
+      {id:'hq', name:'Back Office', lat:null, lng:null, radius:100, chatIdCheckinout:'', chatIdFacility:'', chatIdLeaveApproval:'', acPoints:[{id:uid(),name:'ออฟฟิศ'}], cleaningPoints:[{id:uid(),name:'ออฟฟิศ'}]}
+    ],
+    employees: [],
+    logs: [],
+    leaves: [],
+    otRequests: [],
+    notifications: [],
+    settings: { centralToken:'', centralChatId:'', graceMinutes:15, adminPassword:'admin1234', holidays:[], telegramRooms:[],
+      notifyTypes: { checkin:true, checkout:true, ac:true, clean:true, groom:true, leaveSubmit:true, leaveDecision:true, otSubmit:true, otDecision:true } }
+  };
+}
+let db = defaultDB();
+let session = { role:null, employeeId:null };
+let modelsReady = false;
+let camStream = null, scanLoopId = null, scanBusy = false, camMode = null, camTarget = null;
+let pinBuffer = '', pinMode = null, pinTargetEmp = null, pinSetStage = 0, pinFirstEntry = '';
+let newPinBuffer = '', newPinStage = 1, newPinFirst = '';
+let branchFilter = 'all';
+let calCursor = new Date();
+
+// ===== Custom day/month/year date picker (avoids native mm/dd/yyyy locale confusion) =====
+const TH_MONTHS_SHORT = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+function dateSelectHTML(prefix){
+  const dOpts = Array.from({length:31},(_,i)=>`<option value="${i+1}">${i+1}</option>`).join('');
+  const mOpts = TH_MONTHS_SHORT.map((m,i)=>`<option value="${i+1}">${m}</option>`).join('');
+  const y0 = new Date().getFullYear()-1;
+  const yOpts = Array.from({length:5},(_,i)=>y0+i).map(y=>`<option value="${y}">${y}</option>`).join('');
+  return `<div class="dsel">
+    <select id="${prefix}_d"><option value="">วัน</option>${dOpts}</select>
+    <select id="${prefix}_m"><option value="">เดือน</option>${mOpts}</select>
+    <select id="${prefix}_y"><option value="">ปี</option>${yOpts}</select>
+  </div>`;
+}
+function getDateVal(prefix){
+  const d=document.getElementById(prefix+'_d')?.value, m=document.getElementById(prefix+'_m')?.value, y=document.getElementById(prefix+'_y')?.value;
+  if(!d||!m||!y) return '';
+  return `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+}
+function setDateVal(prefix, iso){
+  const dEl=document.getElementById(prefix+'_d'), mEl=document.getElementById(prefix+'_m'), yEl=document.getElementById(prefix+'_y');
+  if(!dEl) return;
+  if(!iso){ dEl.value=''; mEl.value=''; yEl.value=''; return; }
+  const [y,m,d] = iso.split('-');
+  dEl.value = String(parseInt(d,10));
+  mEl.value = String(parseInt(m,10));
+  yEl.value = y;
+}
+function wireDateChange(prefix, cb){
+  ['_d','_m','_y'].forEach(suf=>{
+    const el = document.getElementById(prefix+suf);
+    if(el) el.addEventListener('change', cb);
+  });
+}
+['overviewFrom','overviewTo','leaveFrom','leaveTo','leaveSingleDate','otDate','editEmpStartDate','newHolidayDate'].forEach(p=>{
+  const holder = document.getElementById(p+'_holder');
+  if(holder) holder.innerHTML = dateSelectHTML(p);
+});
+
+// ===== Storage layer: Supabase (mapped to existing normalized tables) =====
+function sbHeaders(extra){
+  return { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}`, ...extra };
+}
+async function sbSelectAll(table){
+  try{
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?select=*`, { headers: sbHeaders() });
+    if(!res.ok) return [];
+    return await res.json();
+  }catch(e){ console.error('sbSelectAll', table, e); return []; }
+}
+async function sbUpsertRow(table, row, conflictCol='id'){
+  try{
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?on_conflict=${conflictCol}`, {
+      method:'POST',
+      headers: sbHeaders({ 'Content-Type':'application/json', Prefer:'resolution=merge-duplicates' }),
+      body: JSON.stringify(row)
+    });
+    if(!res.ok){
+      const errBody = await res.text().catch(()=> '');
+      console.error('sbUpsertRow failed', table, res.status, errBody);
+      return { ok:false, error: errBody || `HTTP ${res.status}` };
+    }
+    return { ok:true };
+  }catch(e){ console.error('sbUpsertRow', table, e); return { ok:false, error: e.message }; }
+}
+async function sbReplaceAll(table, rows, conflictCol='id'){
+  try{
+    await fetch(`${SUPABASE_URL}/rest/v1/${table}?id=not.is.null`, { method:'DELETE', headers: sbHeaders() });
+    if(rows.length){
+      await fetch(`${SUPABASE_URL}/rest/v1/${table}?on_conflict=${conflictCol}`, {
+        method:'POST',
+        headers: sbHeaders({ 'Content-Type':'application/json' }),
+        body: JSON.stringify(rows)
+      });
+    }
+  }catch(e){ console.error('sbReplaceAll', table, e); }
+}
+
+// ---- row <-> app-object mappers (snake_case DB columns <-> camelCase JS objects) ----
+const rowToBranch = r => ({ id:r.id, name:r.name, lat:r.lat, lng:r.lng, radius:r.radius, chatIdCheckinout:r.chat_id_checkinout||r.chat_id||'', chatIdFacility:r.chat_id_facility||r.chat_id||'', chatIdLeaveApproval:r.chat_id_leave_approval||'', acPoints:r.ac_points||[], cleaningPoints:r.cleaning_points||[] });
+const branchToRow = b => ({ id:b.id, name:b.name, lat:b.lat, lng:b.lng, radius:b.radius, chat_id_checkinout:b.chatIdCheckinout||'', chat_id_facility:b.chatIdFacility||'', chat_id_leave_approval:b.chatIdLeaveApproval||'', ac_points:b.acPoints||[], cleaning_points:b.cleaningPoints||[] });
+
+const rowToEmployee = r => ({ id:r.id, name:r.name, nickname:r.nickname||'', department:r.department||'', jobTitle:r.job_title||'', branchId:r.branch_id||'', startDate:r.start_date||'', shiftStart:r.shift_start||'', shiftEnd:r.shift_end||'', email:r.email||'', pin:r.pin||null, descriptor:r.descriptor||null, homeLat:r.home_lat??null, homeLng:r.home_lng??null });
+const employeeToRow = e => ({ id:e.id, name:e.name, nickname:e.nickname||null, department:e.department||null, job_title:e.jobTitle||null, branch_id:e.branchId||null, start_date:e.startDate||null, shift_start:e.shiftStart||null, shift_end:e.shiftEnd||null, email:e.email||null, pin:e.pin||null, descriptor:e.descriptor||null, home_lat:e.homeLat??null, home_lng:e.homeLng??null });
+
+const rowToLog = r => ({ id:r.id, employeeId:r.employee_id, type:r.type, time:r.time, branchId:r.branch_id, lateMinutes:r.late_minutes||0, sent:r.sent, acPointId:r.ac_point_id||null, cleanPointId:r.clean_point_id||null });
+const logToRow = l => ({ id:l.id, employee_id:l.employeeId, type:l.type, time:l.time, branch_id:l.branchId||null, late_minutes:l.lateMinutes||0, sent:l.sent, ac_point_id:l.acPointId||null, clean_point_id:l.cleanPointId||null });
+
+const rowToLeave = r => ({ id:r.id, employeeId:r.employee_id, kind:r.kind, from:r.from_date, to:r.to_date, hourStart:r.from_time||null, hourEnd:r.to_time||null, reason:r.reason||'', status:r.status, requestedAt:r.requested_at, decidedAt:r.decided_at||null, evidenceSent:r.evidence_sent??null, evidenceFileId:r.evidence_file_id||null });
+const leaveToRow = l => ({ id:l.id, employee_id:l.employeeId, kind:l.kind, from_date:l.from, to_date:l.to, from_time:l.hourStart||null, to_time:l.hourEnd||null, reason:l.reason||null, status:l.status, requested_at:l.requestedAt, decided_at:l.decidedAt||null, evidence_sent:l.evidenceSent??null, evidence_file_id:l.evidenceFileId||null, days: (l.from && l.to) ? (Math.round((new Date(l.to)-new Date(l.from))/86400000)+1) : null });
+
+const rowToOt = r => ({ id:r.id, employeeId:r.employee_id, date:r.date, hourStart:r.hour_start, hourEnd:r.hour_end, reason:r.reason||'', status:r.status, requestedAt:r.requested_at, decidedAt:r.decided_at||null });
+const otToRow = o => ({ id:o.id, employee_id:o.employeeId, date:o.date, hour_start:o.hourStart, hour_end:o.hourEnd, reason:o.reason||null, status:o.status, requested_at:o.requestedAt, decided_at:o.decidedAt||null });
+
+const rowToNoti = r => ({ id:r.id, employeeId:r.employee_id, title:r.title, body:r.body, time:r.time, read:!!r.read });
+const notiToRow = n => ({ id:n.id, employee_id:n.employeeId, title:n.title, body:n.body, time:n.time, read:!!n.read });
+
+const rowToSettings = r => ({ centralToken:r.central_token||'', centralChatId:r.central_chat_id||'', graceMinutes:r.grace_minutes??15, adminPassword:r.admin_password||'admin1234', holidays:r.holidays||[], notifyTypes:r.notify_types||{}, telegramRooms:r.telegram_rooms||[] });
+const settingsToRow = s => ({ id:1, central_token:s.centralToken||'', central_chat_id:s.centralChatId||'', grace_minutes:s.graceMinutes??15, admin_password:s.adminPassword||'admin1234', holidays:s.holidays||[], notify_types:s.notifyTypes||{}, telegram_rooms:s.telegramRooms||[] });
+
+async function loadDB(){
+  const [branchRows, empRows, logRows, leaveRows, otRows, notiRows, settingsRows] = await Promise.all([
+    sbSelectAll('branches'), sbSelectAll('employees'), sbSelectAll('logs'),
+    sbSelectAll('leaves'), sbSelectAll('ot_requests'), sbSelectAll('notifications'), sbSelectAll('settings')
+  ]);
+  db = defaultDB();
+  if(branchRows.length) db.branches = branchRows.map(rowToBranch);
+  db.employees = empRows.map(rowToEmployee);
+  db.logs = logRows.map(rowToLog);
+  db.leaves = leaveRows.map(rowToLeave);
+  db.otRequests = otRows.map(rowToOt);
+  db.notifications = notiRows.map(rowToNoti);
+  if(settingsRows.length) db.settings = { ...defaultDB().settings, ...rowToSettings(settingsRows[0]) };
+  db.settings.notifyTypes = { ...defaultDB().settings.notifyTypes, ...(db.settings.notifyTypes||{}) };
+  db.settings.telegramRooms = db.settings.telegramRooms || [];
+}
+async function saveDB(){
+  await Promise.all([
+    sbUpsertRow('settings', settingsToRow(db.settings))
+  ]);
+}
+
+async function saveLogRow(row){ await sbUpsertRow('logs', logToRow(row)); }
+async function saveLeaveRow(row){ await sbUpsertRow('leaves', leaveToRow(row)); }
+async function saveOtRow(row){ await sbUpsertRow('ot_requests', otToRow(row)); }
+async function saveNotificationRow(row){ await sbUpsertRow('notifications', notiToRow(row)); }
+
+async function saveEmployeeRow(row){ return await sbUpsertRow('employees', employeeToRow(row)); }
+async function saveBranchRow(row){ return await sbUpsertRow('branches', branchToRow(row)); }
+
+async function sbCallFunction(fnName){
+  try{
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fnName}`, {
+      method:'POST',
+      headers: sbHeaders({ 'Content-Type':'application/json' }),
+      body: JSON.stringify({})
+    });
+    if(!res.ok){
+      const errBody = await res.text().catch(()=> '');
+      return { ok:false, error: errBody || `HTTP ${res.status}` };
+    }
+    return { ok:true };
+  }catch(e){ return { ok:false, error: e.message }; }
+}
+async function sbDeleteRow(table, id, idCol='id'){
+  try{
+    await fetch(`${SUPABASE_URL}/rest/v1/${table}?${idCol}=eq.${id}`, { method:'DELETE', headers: sbHeaders() });
+  }catch(e){ console.error('sbDeleteRow', table, e); }
+}
+async function deleteEmployeeRow(id){ await sbDeleteRow('employees', id); }
+async function deleteBranchRow(id){ await sbDeleteRow('branches', id); }
+
+function renderDbStatus(){
+  const el = document.getElementById('dbStatusCard'); if(!el) return;
+  el.innerHTML = `<div class="ic" style="background:#DCFCE7;color:var(--green);">✓</div>
+    <div class="info"><div class="name" style="color:var(--green);">เชื่อมต่อ Supabase แล้ว</div></div>`;
+}
+
+function haversine(lat1,lng1,lat2,lng2){
+  const R=6371000, toRad=d=>d*Math.PI/180;
+  const dLat=toRad(lat2-lat1), dLng=toRad(lng2-lng1);
+  const a=Math.sin(dLat/2)**2 + Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLng/2)**2;
+  return R * 2*Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+function getPosition(){
+  return new Promise(resolve=>{
+    if(!navigator.geolocation) return resolve(null);
+    navigator.geolocation.getCurrentPosition(pos=>resolve({lat:pos.coords.latitude,lng:pos.coords.longitude}), ()=>resolve(null), {enableHighAccuracy:true, timeout:8000});
+  });
+}
+
+async function tgSendMessage(token, chatId, text){
+  if(!token||!chatId) return {ok:false, reason:'ไม่ได้ตั้งค่า Telegram'};
+  try{
+    const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_id:chatId, text, parse_mode:'HTML'})});
+    const data = await res.json();
+    return {ok:!!data.ok, reason:data.ok?'':(data.description||'ส่งไม่สำเร็จ')};
+  }catch(e){ return {ok:false, reason:'เชื่อมต่อ Telegram ไม่สำเร็จ'}; }
+}
+async function tgSendPhoto(token, chatId, blob, caption){
+  if(!token||!chatId) return {ok:false, reason:'ไม่ได้ตั้งค่า Telegram'};
+  try{
+    const form = new FormData();
+    form.append('chat_id',chatId); form.append('caption',caption); form.append('parse_mode','HTML'); form.append('photo',blob,'capture.jpg');
+    const res = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`,{method:'POST',body:form});
+    const data = await res.json();
+    const sizes = data?.result?.photo;
+    const fileId = sizes && sizes.length ? sizes[sizes.length-1].file_id : null;
+    return {ok:!!data.ok, reason:data.ok?'':(data.description||'ส่งไม่สำเร็จ'), fileId};
+  }catch(e){ return {ok:false, reason:'เชื่อมต่อ Telegram ไม่สำเร็จ'}; }
+}
+async function tgSendPhotoById(token, chatId, fileId, caption){
+  if(!token||!chatId||!fileId) return {ok:false, reason:'ข้อมูลไม่ครบ'};
+  try{
+    const res = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_id:chatId, photo:fileId, caption, parse_mode:'HTML'})});
+    const data = await res.json();
+    return {ok:!!data.ok, reason:data.ok?'':(data.description||'ส่งไม่สำเร็จ')};
+  }catch(e){ return {ok:false, reason:'เชื่อมต่อ Telegram ไม่สำเร็จ'}; }
+}
+async function gatedTelegramPhoto(notifyKey, chatId, file, caption){
+  if(!db.settings.notifyTypes[notifyKey]) return false;
+  if(!chatId) return false;
+  const result = await tgSendPhoto(db.settings.centralToken, chatId, file, caption);
+  return result.ok;
+}
+async function pushNotification(employeeId, title, body){
+  const notiRow = {id:uid(), employeeId, title, body, time:new Date().toISOString(), read:false};
+  db.notifications.unshift(notiRow);
+  await saveNotificationRow(notiRow);
+}
+
+async function initFaceApi(){
+  try{
+    await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+    await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
+    await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
+    modelsReady = true;
+    const b = document.getElementById('empScanBtn');
+    if(b) b.disabled=false;
+    updateScanButtonLabel();
+  }catch(e){
+    const note = document.getElementById('empScanNote');
+    if(note) note.textContent = 'โหลดระบบจดจำใบหน้าไม่สำเร็จ ตรวจสอบอินเทอร์เน็ต';
+  }
+}
+function updateScanButtonLabel(){
+  const emp = currentEmployee(); if(!emp) return;
+  const cur = todayStatus(emp.id);
+  const btn = document.getElementById('empScanBtn'); if(!btn) return;
+  btn.textContent = modelsReady ? (!cur.inTime ? 'สแกนใบหน้าเพื่อเช็กอิน' : !cur.outTime ? 'สแกนใบหน้าเพื่อเช็กเอาท์' : 'สแกนใบหน้า (เข้างานรอบใหม่)') : 'กำลังโหลดระบบจดจำใบหน้า…';
+}
+
+function currentEmployee(){ return db.employees.find(e=>e.id===session.employeeId) || null; }
+function currentBranch(emp){ return db.branches.find(b=>b.id===emp?.branchId) || null; }
+function dateKey(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+function todayKey(d=new Date()){ return d.toDateString(); }
+function isHoliday(date){ return db.settings.holidays.some(h=>h.date===dateKey(date)); }
+function todayStatus(empId){
+  const logs = db.logs.filter(l=>l.employeeId===empId && (l.type==='IN'||l.type==='OUT') && todayKey(new Date(l.time))===todayKey());
+  const ins = logs.filter(l=>l.type==='IN').sort((a,b)=>new Date(b.time)-new Date(a.time));
+  const outs = logs.filter(l=>l.type==='OUT').sort((a,b)=>new Date(b.time)-new Date(a.time));
+  const lastIn = ins[0], lastOut = outs[0];
+  const hasOpenIn = lastIn && (!lastOut || new Date(lastOut.time) < new Date(lastIn.time));
+  return { inTime: hasOpenIn ? lastIn.time : null, outTime: (!hasOpenIn && lastOut) ? lastOut.time : null };
+}
+const fmtTime = d => d.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
+const fmtDateShort = d => d.toLocaleDateString('th-TH',{day:'numeric',month:'short'});
+
+function isApprovedLeaveOnDate(empId, date){
+  return db.leaves.some(l => l.employeeId===empId && l.status==='approved' && new Date(l.from) <= date && date <= new Date(l.to));
+}
+function monthlySummary(empId, month=new Date().getMonth(), year=new Date().getFullYear()){
+  let onTime=0, late=0, absent=0, leaveDays=0;
+  const emp = db.employees.find(e=>e.id===empId);
+  const today = new Date();
+  let start = new Date(year, month, 1);
+  if(emp?.startDate){
+    const empStart = new Date(emp.startDate+'T00:00:00');
+    if(empStart > start) start = empStart;
+  }
+  const end = new Date(Math.min(new Date(year, month+1, 0).getTime(), today.getTime()));
+  for(let d=new Date(start); d<=end; d.setDate(d.getDate()+1)){
+    if(isHoliday(d)) continue;
+    const dayKey = todayKey(d);
+    const inLog = db.logs.find(l=>l.employeeId===empId && l.type==='IN' && todayKey(new Date(l.time))===dayKey);
+    if(isApprovedLeaveOnDate(empId, d)){ leaveDays++; continue; }
+    if(inLog){ if(inLog.lateMinutes>0) late++; else onTime++; }
+    else { absent++; }
+  }
+  return {onTime, late, absent, leaveDays};
+}
+
+function showView(view){
+  document.getElementById('loginView').classList.toggle('hidden', view!=='login');
+  document.getElementById('employeeView').classList.toggle('hidden', view!=='employee');
+  document.getElementById('adminView').classList.toggle('hidden', view!=='admin');
+}
+
+// ================= LOGIN =================
+function renderEmpSelect(){
+  const sel = document.getElementById('empSelect');
+  sel.innerHTML = db.employees.length ? db.employees.map(e=>`<option value="${e.id}">${e.name}</option>`).join('') : `<option value="">— ยังไม่มีพนักงาน กรุณาให้ HR เพิ่มก่อน —</option>`;
+}
+document.getElementById('roleEmpBtn').onclick = ()=>{
+  document.getElementById('roleEmpBtn').classList.add('active');
+  document.getElementById('roleAdminBtn').classList.remove('active');
+  document.getElementById('empLoginStep1').classList.remove('hidden');
+  document.getElementById('empLoginStep2').classList.add('hidden');
+  document.getElementById('adminLoginBox').classList.add('hidden');
+};
+document.getElementById('roleAdminBtn').onclick = ()=>{
+  document.getElementById('roleAdminBtn').classList.add('active');
+  document.getElementById('roleEmpBtn').classList.remove('active');
+  document.getElementById('empLoginStep1').classList.add('hidden');
+  document.getElementById('empLoginStep2').classList.add('hidden');
+  document.getElementById('adminLoginBox').classList.remove('hidden');
+};
+document.getElementById('empNextBtn').onclick = ()=>{
+  const id = document.getElementById('empSelect').value;
+  if(!id){ document.getElementById('empLoginMsg').textContent = 'ยังไม่มีรายชื่อพนักงาน'; return; }
+  const emp = db.employees.find(e=>e.id===id);
+  pinTargetEmp = emp;
+  document.getElementById('empLoginStep1').classList.add('hidden');
+  document.getElementById('empLoginStep2').classList.remove('hidden');
+  if(!emp.pin){
+    pinMode = 'setup'; pinSetStage = 1; pinFirstEntry='';
+    document.getElementById('pinPromptTitle').textContent = `ตั้ง PIN ใหม่สำหรับ ${emp.name} (4 หลัก)`;
+  } else {
+    pinMode = 'verify';
+    document.getElementById('pinPromptTitle').textContent = `กรอก PIN ของ ${emp.name}`;
+  }
+  pinBuffer=''; renderPinDots(); buildPinPad();
+};
+document.getElementById('empBackBtn').onclick = ()=>{
+  document.getElementById('empLoginStep1').classList.remove('hidden');
+  document.getElementById('empLoginStep2').classList.add('hidden');
+  pinBuffer=''; document.getElementById('pinMsg').textContent='';
+};
+function buildPinPad(){
+  const pad = document.getElementById('pinPad'); pad.innerHTML='';
+  ['1','2','3','4','5','6','7','8','9','⌫','0','✓'].forEach(k=>{
+    const btn = document.createElement('button'); btn.className='pinkey'; btn.textContent=k;
+    btn.onclick = ()=>handlePinKey(k); pad.appendChild(btn);
+  });
+}
+function renderPinDots(){ document.getElementById('pinDots').innerHTML = [0,1,2,3].map(i=>`<div class="pindot ${i<pinBuffer.length?'filled':''}"></div>`).join(''); }
+function handlePinKey(k){
+  const msg = document.getElementById('pinMsg'); msg.textContent='';
+  if(k==='⌫'){ pinBuffer = pinBuffer.slice(0,-1); renderPinDots(); return; }
+  if(k==='✓'){ submitPin(); return; }
+  if(pinBuffer.length<4){ pinBuffer += k; renderPinDots(); }
+  if(pinBuffer.length===4) setTimeout(submitPin, 150);
+}
+async function submitPin(){
+  const msg = document.getElementById('pinMsg');
+  if(pinBuffer.length<4){ msg.textContent='กรอกให้ครบ 4 หลัก'; return; }
+  if(pinMode==='setup'){
+    if(pinSetStage===1){
+      pinFirstEntry = pinBuffer; pinBuffer='';
+      document.getElementById('pinPromptTitle').textContent = 'กรอก PIN อีกครั้งเพื่อยืนยัน';
+      pinSetStage = 2; renderPinDots(); return;
+    } else {
+      if(pinBuffer !== pinFirstEntry){
+        msg.textContent = 'PIN ไม่ตรงกัน กรุณาลองใหม่';
+        pinSetStage=1; pinBuffer=''; pinFirstEntry='';
+        document.getElementById('pinPromptTitle').textContent = `ตั้ง PIN ใหม่สำหรับ ${pinTargetEmp.name} (4 หลัก)`;
+        renderPinDots(); return;
+      }
+      pinTargetEmp.pin = pinFirstEntry; await saveEmployeeRow(pinTargetEmp);
+      session = {role:'employee', employeeId:pinTargetEmp.id}; pinBuffer='';
+      if(!pinTargetEmp.descriptor){ enterEmployeeView(); openCamera('enroll', pinTargetEmp); } else enterEmployeeView();
+    }
+  } else {
+    if(pinBuffer !== pinTargetEmp.pin){ msg.textContent='PIN ไม่ถูกต้อง'; pinBuffer=''; renderPinDots(); return; }
+    session = {role:'employee', employeeId:pinTargetEmp.id}; pinBuffer='';
+    if(!pinTargetEmp.descriptor){ enterEmployeeView(); openCamera('enroll', pinTargetEmp); } else enterEmployeeView();
+  }
+}
+document.getElementById('adminLoginBtn').onclick = ()=>{
+  const pass = document.getElementById('adminPassInput').value;
+  if(pass === db.settings.adminPassword){ session = {role:'admin', employeeId:null}; enterAdminView(); }
+  else document.getElementById('adminLoginMsg').textContent = 'รหัสผ่านไม่ถูกต้อง';
+};
+function doLogout(){
+  session = {role:null, employeeId:null};
+  document.getElementById('adminPassInput').value=''; document.getElementById('adminLoginMsg').textContent='';
+  showView('login'); renderEmpSelect();
+  document.getElementById('empLoginStep1').classList.remove('hidden');
+  document.getElementById('empLoginStep2').classList.add('hidden');
+  document.getElementById('roleEmpBtn').click();
+}
+document.getElementById('empLogoutBtn').onclick = doLogout;
+document.getElementById('adminLogoutBtn').onclick = doLogout;
+document.getElementById('menuLogout').onclick = doLogout;
+function setupAccountMenu(btnId, panelId){
+  const btn = document.getElementById(btnId), panel = document.getElementById(panelId);
+  btn.onclick = (e)=>{ e.stopPropagation(); panel.classList.toggle('show'); };
+  panel.addEventListener('click', e=> e.stopPropagation());
+  document.addEventListener('click', ()=> panel.classList.remove('show'));
+}
+setupAccountMenu('empAccountBtn','empDropdown');
+setupAccountMenu('adminAccountBtn','adminDropdown');
+
+// ================= EMPLOYEE VIEW =================
+function enterEmployeeView(){ showView('employee'); switchETab('Home'); }
+function switchETab(tab){
+  ['Home','Cal','Leave','Ac','Clean','Ot','Noti','Profile'].forEach(t=>{
+    const el = document.getElementById('etab'+t); if(el) el.classList.toggle('hidden', t!==tab);
+  });
+  document.querySelectorAll('#employeeView .navbtn').forEach(b=> b.classList.toggle('active', b.dataset.etab===tab));
+  const emp = currentEmployee(); if(!emp) return;
+  const br = currentBranch(emp);
+  const titles = {Home:`สวัสดี, ${emp.name.split(' ')[0]}`, Cal:'ปฏิทินการทำงาน', Leave:'ใบลาของฉัน', Ac:'จุดปิดแอร์', Clean:'ตรวจความสะอาด', Ot:'ขอ OT', Noti:'แจ้งเตือน', Profile:'โปรไฟล์'};
+  const metas = {Home:`${br?.name||'-'} · กะ ${emp.shiftStart||'-'}–${emp.shiftEnd||'-'} น.`, Cal:br?.name||'-', Leave:'ยื่นและติดตามใบลาของคุณ', Ac:br?.name||'-', Clean:br?.name||'-', Ot:'ยื่นและติดตามคำขอ OT', Noti:'ประวัติการแจ้งเตือนของคุณ', Profile:'จัดการบัญชีของคุณ'};
+  document.getElementById('empPageTitle').textContent = titles[tab];
+  document.getElementById('empPageMeta').textContent = metas[tab];
+  document.getElementById('empDropdownName').textContent = emp.name;
+  if(tab==='Home') renderEmployeeHome();
+  if(tab==='Cal') renderCalendar();
+  if(tab==='Leave') renderLeaveTab();
+  if(tab==='Ac') renderAcTab();
+  if(tab==='Clean') renderCleanTab();
+  if(tab==='Ot') renderOtTab();
+  if(tab==='Noti') renderNotiTab();
+  if(tab==='Profile') renderProfileTab();
+}
+document.getElementById('qaAc').onclick = ()=> switchETab('Ac');
+document.getElementById('qaClean').onclick = ()=> switchETab('Clean');
+document.getElementById('qaOt').onclick = ()=> switchETab('Ot');
+document.getElementById('qaGroom').onclick = ()=> submitGrooming();
+document.getElementById('qaLeave').onclick = ()=>{ switchETab('Leave'); };
+document.getElementById('qaCal').onclick = ()=> switchETab('Cal');
+document.getElementById('qaNoti').onclick = ()=> switchETab('Noti');
+document.getElementById('qaProfile').onclick = ()=> switchETab('Profile');
+document.getElementById('menuCalShort').onclick = ()=> switchETab('Cal');
+document.getElementById('menuAcShort').onclick = ()=> switchETab('Ac');
+
+function renderEmployeeHome(){
+  const emp = currentEmployee(); if(!emp) return;
+  updateScanButtonLabel();
+  const m = monthlySummary(emp.id);
+  document.getElementById('mOnTime').textContent = m.onTime;
+  document.getElementById('mLate').textContent = m.late;
+  document.getElementById('mAbsent').textContent = m.absent;
+  document.getElementById('mLeave').textContent = m.leaveDays;
+  const typeLabels = {IN:'เช็กอิน', OUT:'เช็กเอาท์', AC:'แจ้งปิดแอร์', CLEAN:'ตรวจความสะอาด', GROOM:'ความเรียบร้อยประจำวัน'};
+  const myLogs = db.logs.filter(l=>l.employeeId===emp.id).sort((a,b)=>new Date(b.time)-new Date(a.time)).slice(0,15);
+  document.getElementById('myLogList').innerHTML = myLogs.length ? myLogs.map(l=>`
+    <div class="listrow"><div class="info">
+      <div class="name">${typeLabels[l.type]||l.type} — ${fmtDateShort(new Date(l.time))} ${fmtTime(new Date(l.time))}</div>
+      <div class="meta">${l.lateMinutes>0?`สาย ${l.lateMinutes} นาที · `:''}${l.sent?'ส่งแจ้งเตือนแล้ว':'ส่งแจ้งเตือนไม่สำเร็จ'}</div>
+    </div>${l.lateMinutes>0?'<span class="badge late">สาย</span>':''}</div>`).join('') : '<div class="empty">ยังไม่มีประวัติ</div>';
+
+  const br = currentBranch(emp);
+  document.getElementById('qaGroom').classList.toggle('hidden', emp.branchId==='hq');
+  if(br){
+    const todayAcLogs = db.logs.filter(l=>l.type==='AC' && l.branchId===br.id && todayKey(new Date(l.time))===todayKey());
+    const doneAcIds = new Set(todayAcLogs.map(l=>l.acPointId));
+    const acRemaining = (br.acPoints||[]).filter(p=>!doneAcIds.has(p.id)).length;
+    let acBadge = document.getElementById('qaAcBadge');
+    if(!acBadge){ acBadge = document.createElement('div'); acBadge.className='qbadge'; acBadge.id='qaAcBadge'; document.getElementById('qaAc').appendChild(acBadge); }
+    if(acRemaining>0){ acBadge.textContent = acRemaining; acBadge.classList.remove('hidden'); } else acBadge.classList.add('hidden');
+
+    const todayCleanLogs = db.logs.filter(l=>l.type==='CLEAN' && l.branchId===br.id && todayKey(new Date(l.time))===todayKey());
+    const doneCleanIds = new Set(todayCleanLogs.map(l=>l.cleanPointId));
+    const cleanRemaining = (br.cleaningPoints||[]).filter(p=>!doneCleanIds.has(p.id)).length;
+    let cleanBadge = document.getElementById('qaCleanBadge');
+    if(!cleanBadge){ cleanBadge = document.createElement('div'); cleanBadge.className='qbadge'; cleanBadge.id='qaCleanBadge'; document.getElementById('qaClean').appendChild(cleanBadge); }
+    if(cleanRemaining>0){ cleanBadge.textContent = cleanRemaining; cleanBadge.classList.remove('hidden'); } else cleanBadge.classList.add('hidden');
+  }
+}
+
+document.getElementById('empScanBtn').onclick = async ()=>{
+  if(!modelsReady) return;
+  const emp = currentEmployee(); const br = currentBranch(emp);
+  if(!emp.descriptor){ openCamera('enroll', emp); return; }
+  const note = document.getElementById('empScanNote');
+  note.style.color = 'var(--muted)'; note.textContent = 'กำลังตรวจสอบตำแหน่ง…';
+  const pos = await getPosition();
+  if(!br || br.lat==null || br.lng==null){ note.style.color='var(--red)'; note.textContent='ยังไม่ได้ตั้งพิกัดสาขานี้ กรุณาแจ้ง HR'; return; }
+  if(!pos){ note.style.color='var(--red)'; note.textContent='ไม่สามารถเข้าถึงตำแหน่งได้ กรุณาอนุญาต GPS'; return; }
+  const dist = Math.round(haversine(pos.lat,pos.lng,br.lat,br.lng));
+  if(dist > br.radius){ note.style.color='var(--red)'; note.textContent = `อยู่นอกพื้นที่สาขา (ห่าง ${dist} ม. ต้องอยู่ในระยะ ${br.radius} ม.) ไม่สามารถเช็กอินได้`; return; }
+  note.textContent=''; openCamera('scan', emp, pos, dist);
+};
+
+// -- Calendar tab --
+function renderCalendar(){
+  const emp = currentEmployee(); if(!emp) return;
+  const y = calCursor.getFullYear(), m = calCursor.getMonth();
+  document.getElementById('calMonthLabel').textContent = calCursor.toLocaleDateString('th-TH',{month:'long', year:'numeric'});
+  const dows = ['อา','จ','อ','พ','พฤ','ศ','ส'];
+  let html = dows.map(d=>`<div class="dow">${d}</div>`).join('');
+  const firstDow = new Date(y,m,1).getDay();
+  const daysInMonth = new Date(y,m+1,0).getDate();
+  for(let i=0;i<firstDow;i++) html += `<div></div>`;
+  const today = new Date();
+  for(let d=1; d<=daysInMonth; d++){
+    const date = new Date(y,m,d);
+    let cls = 'calday';
+    const isToday = date.toDateString()===today.toDateString();
+    const inLog = db.logs.find(l=>l.employeeId===emp.id && l.type==='IN' && todayKey(new Date(l.time))===date.toDateString());
+    if(isToday) cls += ' today';
+    else if(isHoliday(date)) cls += ' holiday';
+    else if(isApprovedLeaveOnDate(emp.id, date)) cls += ' leave';
+    if(inLog && inLog.lateMinutes>0) cls += ' late';
+    html += `<div class="${cls}">${d}</div>`;
+  }
+  document.getElementById('calGrid').innerHTML = html;
+  const monthHolidays = db.settings.holidays.filter(h=>{ const hd=new Date(h.date); return hd.getFullYear()===y && hd.getMonth()===m; });
+  document.getElementById('calHolidayList').innerHTML = monthHolidays.length ? monthHolidays.map(h=>`
+    <div class="listrow"><div class="info"><div class="name">${new Date(h.date).toLocaleDateString('th-TH',{day:'numeric',month:'long'})}</div><div class="meta">${h.name}</div></div></div>
+  `).join('') : '<div class="empty">ไม่มีวันหยุดบริษัทในเดือนนี้</div>';
+}
+document.getElementById('calPrevBtn').onclick = ()=>{ calCursor = new Date(calCursor.getFullYear(), calCursor.getMonth()-1, 1); renderCalendar(); };
+document.getElementById('calNextBtn').onclick = ()=>{ calCursor = new Date(calCursor.getFullYear(), calCursor.getMonth()+1, 1); renderCalendar(); };
+
+// -- Leave tab --
+const LEAVE_KIND_LABELS = {
+  sick_cert:'ลาป่วย (มีใบรับรองแพทย์)', sick_nocert:'ลาป่วย (ไม่มีใบรับรองแพทย์)',
+  personal_nodeduct:'ลากิจ (ไม่หักเงิน)', personal_deduct:'ลากิจ (หักเงิน)',
+  traditional:'ลาใช้สิทธิ์วันหยุดประเพณี', hourly_sick:'ลาเป็นชั่วโมง (ป่วย)',
+  hourly_personal:'ลาเป็นชั่วโมง (กิจ)', maternity:'ลาคลอด',
+  sick:'ลาป่วย', personal:'ลากิจ', vacation:'ลาพักร้อน'
+};
+const HOURLY_KINDS = ['hourly_sick','hourly_personal'];
+function leaveLabel(k){ return LEAVE_KIND_LABELS[k] || k; }
+function leaveStatusLabel(s){ return s==='pending'?'รออนุมัติ':s==='approved'?'อนุมัติแล้ว':'ปฏิเสธ'; }
+function leaveRangeText(l){
+  if(HOURLY_KINDS.includes(l.kind)) return `${fmtDateShort(new Date(l.from))} · ${l.hourStart||'-'}–${l.hourEnd||'-'} น.`;
+  return `${fmtDateShort(new Date(l.from))}–${fmtDateShort(new Date(l.to))}`;
+}
+function renderLeaveTab(){
+  const emp = currentEmployee(); if(!emp) return;
+  const myLeaves = db.leaves.filter(l=>l.employeeId===emp.id).sort((a,b)=>new Date(b.requestedAt)-new Date(a.requestedAt));
+  document.getElementById('myLeaveList').innerHTML = myLeaves.length ? myLeaves.map(l=>`
+    <div class="listrow"><div class="info">
+      <div class="name">${leaveLabel(l.kind)} · ${leaveRangeText(l)}</div>
+      <div class="meta">${l.reason||''}${l.evidenceSent?' · แนบหลักฐานแล้ว':''}</div>
+    </div><span class="badge ${l.status}">${leaveStatusLabel(l.status)}</span></div>`).join('') : '<div class="empty">ยังไม่มีใบลา</div>';
+}
+document.getElementById('exportMyLeaveBtn').onclick = ()=>{
+  const emp = currentEmployee(); if(!emp) return;
+  const rows = [['ประเภทการลา','วันที่/ช่วงเวลา','เหตุผล','สถานะ','วันที่ยื่น']];
+  db.leaves.filter(l=>l.employeeId===emp.id).sort((a,b)=>new Date(a.requestedAt)-new Date(b.requestedAt)).forEach(l=>{
+    rows.push([leaveLabel(l.kind), leaveRangeText(l), l.reason||'-', leaveStatusLabel(l.status), new Date(l.requestedAt).toLocaleDateString('th-TH')]);
+  });
+  downloadCSV(`ใบลาของฉัน-${emp.name}.csv`, rows);
+};
+document.getElementById('exportMyLogBtn').onclick = ()=>{
+  const emp = currentEmployee(); if(!emp) return;
+  const rows = [['วันที่','เวลา','ประเภท','สายกี่นาที']];
+  db.logs.filter(l=>l.employeeId===emp.id && (l.type==='IN'||l.type==='OUT')).sort((a,b)=>new Date(a.time)-new Date(b.time)).forEach(l=>{
+    const t = new Date(l.time);
+    rows.push([t.toLocaleDateString('th-TH'), fmtTime(t), l.type==='IN'?'เช็กอิน':'เช็กเอาท์', l.lateMinutes||0]);
+  });
+  downloadCSV(`ประวัติเข้าออกงานของฉัน-${emp.name}.csv`, rows);
+};
+document.getElementById('leaveType').addEventListener('change', ()=>{
+  const isHourly = HOURLY_KINDS.includes(document.getElementById('leaveType').value);
+  document.getElementById('leaveDateRangeFields').classList.toggle('hidden', isHourly);
+  document.getElementById('leaveHourlyFields').classList.toggle('hidden', !isHourly);
+});
+document.getElementById('openLeaveFormBtn').onclick = ()=>{
+  document.getElementById('leaveFormMsg').textContent='';
+  document.getElementById('leaveType').value = 'sick_cert';
+  document.getElementById('leaveDateRangeFields').classList.remove('hidden');
+  document.getElementById('leaveHourlyFields').classList.add('hidden');
+  setDateVal('leaveFrom',''); setDateVal('leaveTo','');
+  setDateVal('leaveSingleDate',''); document.getElementById('leaveHourStart').value=''; document.getElementById('leaveHourEnd').value='';
+  document.getElementById('leaveReason').value=''; document.getElementById('leaveEvidenceInput').value='';
+  document.getElementById('leaveOverlay').classList.add('show');
+};
+document.getElementById('closeLeaveBtn').onclick = ()=> document.getElementById('leaveOverlay').classList.remove('show');
+document.getElementById('submitLeaveBtn').onclick = async ()=>{
+  const emp = currentEmployee();
+  const kind = document.getElementById('leaveType').value;
+  const isHourly = HOURLY_KINDS.includes(kind);
+  const reason = document.getElementById('leaveReason').value.trim();
+  const evidenceFile = document.getElementById('leaveEvidenceInput').files[0];
+  const msg = document.getElementById('leaveFormMsg');
+  let from, to, hourStart=null, hourEnd=null;
+  if(isHourly){
+    const d = getDateVal('leaveSingleDate');
+    hourStart = document.getElementById('leaveHourStart').value;
+    hourEnd = document.getElementById('leaveHourEnd').value;
+    if(!d || !hourStart || !hourEnd){ msg.className='msg err'; msg.textContent='กรุณาระบุวันที่และช่วงเวลาให้ครบ'; return; }
+    from = d; to = d;
+  } else {
+    from = getDateVal('leaveFrom');
+    to = getDateVal('leaveTo');
+    if(!from || !to){ msg.className='msg err'; msg.textContent='กรุณาระบุวันที่'; return; }
+  }
+  const leave = {id:uid(), employeeId:emp.id, kind, from, to, hourStart, hourEnd, reason, status:'pending', requestedAt:new Date().toISOString(), evidenceSent:null, evidenceFileId:null};
+  db.leaves.push(leave); await saveLeaveRow(leave);
+  msg.className='msg ok'; msg.textContent='ส่งใบลาเรียบร้อย รออนุมัติจาก HR';
+  renderLeaveTab();
+  const br = currentBranch(emp);
+  const rangeText = leaveRangeText(leave);
+  const text = `<b>${emp.name}</b> ยื่น${leaveLabel(kind)} ${rangeText}\nเหตุผล: ${reason||'-'}`;
+  if(db.settings.notifyTypes.leaveSubmit && db.settings.centralChatId){
+    if(evidenceFile){
+      const r = await tgSendPhoto(db.settings.centralToken, db.settings.centralChatId, evidenceFile, text);
+      leave.evidenceSent = r.ok; leave.evidenceFileId = r.fileId || null;
+      await saveLeaveRow(leave); renderLeaveTab();
+    } else {
+      await tgSendMessage(db.settings.centralToken, db.settings.centralChatId, text);
+    }
+  }
+  await pushNotification(emp.id, 'ส่งใบลาแล้ว', `${leaveLabel(kind)} ${rangeText} กำลังรอการอนุมัติ`);
+  setTimeout(()=>{ document.getElementById('leaveOverlay').classList.remove('show'); }, 900);
+};
+
+// -- AC tab --
+function renderAcTab(){
+  const emp = currentEmployee(); const br = currentBranch(emp); if(!br) return;
+  document.getElementById('acSectitle').textContent = `จุดปิดแอร์ · ${br.name}`;
+  const todayAcLogs = db.logs.filter(l=>l.type==='AC' && l.branchId===br.id && todayKey(new Date(l.time))===todayKey());
+  const byPoint = {}; todayAcLogs.forEach(l=>{ byPoint[l.acPointId] = l; });
+  const points = br.acPoints||[];
+  document.getElementById('acPointList').innerHTML = points.length ? points.map(p=>{
+    const log = byPoint[p.id];
+    const doer = log ? db.employees.find(e=>e.id===log.employeeId) : null;
+    return `<div class="acrow">
+      <div class="check ${log?'done':''}">${log?'✓':''}</div>
+      <div class="info"><div class="name">${p.name}</div><div class="meta">${log?`ปิดแล้วเมื่อ ${fmtTime(new Date(log.time))} โดย ${doer?.name||'-'}`:'ยังไม่ได้แจ้ง'}</div></div>
+      ${log?'':`<button class="btn ghost sm" data-acpoint="${p.id}">แนบรูป</button>`}
+    </div>`;
+  }).join('') : '<div class="empty">HR ยังไม่ได้ตั้งจุดปิดแอร์ของสาขานี้</div>';
+  document.querySelectorAll('[data-acpoint]').forEach(btn=>{
+    btn.onclick = ()=>{ acPointFileTarget = btn.dataset.acpoint; document.getElementById('acPhotoInput').click(); };
+  });
+}
+let acPointFileTarget = null;
+const acInput = document.createElement('input');
+acInput.type='file'; acInput.accept='image/*'; acInput.capture='environment'; acInput.id='acPhotoInput'; acInput.style.display='none';
+document.body.appendChild(acInput);
+acInput.addEventListener('change', async (e)=>{
+  const file = e.target.files[0]; e.target.value='';
+  if(!file || !acPointFileTarget) return;
+  const emp = currentEmployee(); const br = currentBranch(emp);
+  const point = (br.acPoints||[]).find(p=>p.id===acPointFileTarget);
+  const now = new Date();
+  const caption = `<b>${emp.name}</b> แจ้งปิดแอร์ "${point?.name||'-'}" ที่ ${br?.name||'-'} เวลา ${fmtTime(now)} น.`;
+  const logEntry = {id:uid(), employeeId:emp.id, type:'AC', time:now.toISOString(), branchId:br?.id, acPointId:acPointFileTarget, lateMinutes:0, sent:null};
+  db.logs.unshift(logEntry); await saveLogRow(logEntry);
+  renderAcTab(); renderEmployeeHome();
+  const anyOk = await gatedTelegramPhoto('ac', br?.chatIdFacility, file, caption);
+  logEntry.sent = anyOk; await saveLogRow(logEntry);
+  await pushNotification(emp.id, 'แจ้งปิดแอร์สำเร็จ', `${point?.name||'-'} ปิดแอร์เรียบร้อย`);
+  renderAcTab(); renderEmployeeHome();
+});
+
+// -- Cleaning tab (mirrors AC) --
+function renderCleanTab(){
+  const emp = currentEmployee(); const br = currentBranch(emp); if(!br) return;
+  document.getElementById('cleanSectitle').textContent = `ตรวจความสะอาด · ${br.name}`;
+  const todayLogs = db.logs.filter(l=>l.type==='CLEAN' && l.branchId===br.id && todayKey(new Date(l.time))===todayKey());
+  const byPoint = {}; todayLogs.forEach(l=>{ byPoint[l.cleanPointId] = l; });
+  const points = br.cleaningPoints||[];
+  document.getElementById('cleanPointList').innerHTML = points.length ? points.map(p=>{
+    const log = byPoint[p.id];
+    const doer = log ? db.employees.find(e=>e.id===log.employeeId) : null;
+    return `<div class="acrow">
+      <div class="check ${log?'done':''}">${log?'✓':''}</div>
+      <div class="info"><div class="name">${p.name}</div><div class="meta">${log?`ตรวจแล้วเมื่อ ${fmtTime(new Date(log.time))} โดย ${doer?.name||'-'}`:'ยังไม่ได้แจ้ง'}</div></div>
+      ${log?'':`<button class="btn ghost sm" data-cleanpoint="${p.id}">แนบรูป</button>`}
+    </div>`;
+  }).join('') : '<div class="empty">HR ยังไม่ได้ตั้งจุดตรวจความสะอาดของสาขานี้</div>';
+  document.querySelectorAll('[data-cleanpoint]').forEach(btn=>{
+    btn.onclick = ()=>{ cleanPointFileTarget = btn.dataset.cleanpoint; document.getElementById('cleanPhotoInput').click(); };
+  });
+}
+let cleanPointFileTarget = null;
+const cleanInput = document.createElement('input');
+cleanInput.type='file'; cleanInput.accept='image/*'; cleanInput.capture='environment'; cleanInput.id='cleanPhotoInput'; cleanInput.style.display='none';
+document.body.appendChild(cleanInput);
+cleanInput.addEventListener('change', async (e)=>{
+  const file = e.target.files[0]; e.target.value='';
+  if(!file || !cleanPointFileTarget) return;
+  const emp = currentEmployee(); const br = currentBranch(emp);
+  const point = (br.cleaningPoints||[]).find(p=>p.id===cleanPointFileTarget);
+  const now = new Date();
+  const caption = `<b>${emp.name}</b> ส่งตรวจความสะอาด "${point?.name||'-'}" ที่ ${br?.name||'-'} เวลา ${fmtTime(now)} น.`;
+  const logEntry = {id:uid(), employeeId:emp.id, type:'CLEAN', time:now.toISOString(), branchId:br?.id, cleanPointId:cleanPointFileTarget, lateMinutes:0, sent:null};
+  db.logs.unshift(logEntry); await saveLogRow(logEntry);
+  renderCleanTab(); renderEmployeeHome();
+  const anyOk = await gatedTelegramPhoto('clean', br?.chatIdFacility, file, caption);
+  logEntry.sent = anyOk; await saveLogRow(logEntry);
+  await pushNotification(emp.id, 'ส่งตรวจความสะอาดสำเร็จ', `${point?.name||'-'} ตรวจความสะอาดเรียบร้อย`);
+  renderCleanTab(); renderEmployeeHome();
+});
+
+// -- Grooming (ความเรียบร้อยพนักงาน) --
+const groomInput = document.createElement('input');
+groomInput.type='file'; groomInput.accept='image/*'; groomInput.capture='user'; groomInput.id='groomPhotoInput'; groomInput.style.display='none';
+document.body.appendChild(groomInput);
+function submitGrooming(){ groomInput.click(); }
+groomInput.addEventListener('change', async (e)=>{
+  const file = e.target.files[0]; e.target.value='';
+  if(!file) return;
+  const emp = currentEmployee(); const br = currentBranch(emp);
+  const now = new Date();
+  const caption = `<b>${emp.name}</b> ส่งรูปความเรียบร้อยประจำวันที่ ${br?.name||'-'} เวลา ${fmtTime(now)} น.`;
+  const logEntry = {id:uid(), employeeId:emp.id, type:'GROOM', time:now.toISOString(), branchId:br?.id, lateMinutes:0, sent:null};
+  db.logs.unshift(logEntry); await saveLogRow(logEntry);
+  renderEmployeeHome();
+  const anyOk = await gatedTelegramPhoto('groom', br?.chatIdFacility, file, caption);
+  logEntry.sent = anyOk; await saveLogRow(logEntry);
+  await pushNotification(emp.id, 'ส่งรูปความเรียบร้อยสำเร็จ', 'บันทึกความเรียบร้อยประจำวันเรียบร้อย');
+  renderEmployeeHome();
+});
+
+// -- OT tab --
+function otStatusLabel(s){ return s==='pending'?'รออนุมัติ':s==='approved'?'อนุมัติแล้ว':'ปฏิเสธ'; }
+function renderOtTab(){
+  const emp = currentEmployee(); if(!emp) return;
+  const myOt = db.otRequests.filter(o=>o.employeeId===emp.id).sort((a,b)=>new Date(b.requestedAt)-new Date(a.requestedAt));
+  document.getElementById('myOtList').innerHTML = myOt.length ? myOt.map(o=>`
+    <div class="listrow"><div class="info">
+      <div class="name">${fmtDateShort(new Date(o.date))} · ${o.hourStart}–${o.hourEnd} น.</div>
+      <div class="meta">${o.reason||''}</div>
+    </div><span class="badge ${o.status}">${otStatusLabel(o.status)}</span></div>`).join('') : '<div class="empty">ยังไม่มีคำขอ OT</div>';
+}
+document.getElementById('openOtFormBtn').onclick = ()=>{
+  document.getElementById('otFormMsg').textContent='';
+  setDateVal('otDate',''); document.getElementById('otHourStart').value=''; document.getElementById('otHourEnd').value=''; document.getElementById('otReason').value='';
+  document.getElementById('otOverlay').classList.add('show');
+};
+document.getElementById('closeOtBtn').onclick = ()=> document.getElementById('otOverlay').classList.remove('show');
+document.getElementById('submitOtBtn').onclick = async ()=>{
+  const emp = currentEmployee();
+  const date = getDateVal('otDate');
+  const hourStart = document.getElementById('otHourStart').value;
+  const hourEnd = document.getElementById('otHourEnd').value;
+  const reason = document.getElementById('otReason').value.trim();
+  const msg = document.getElementById('otFormMsg');
+  if(!date || !hourStart || !hourEnd){ msg.className='msg err'; msg.textContent='กรุณากรอกวันที่และเวลาให้ครบ'; return; }
+  const ot = {id:uid(), employeeId:emp.id, date, hourStart, hourEnd, reason, status:'pending', requestedAt:new Date().toISOString()};
+  db.otRequests.push(ot); await saveOtRow(ot);
+  msg.className='msg ok'; msg.textContent='ส่งคำขอ OT เรียบร้อย รออนุมัติจากหัวหน้า/HR';
+  renderOtTab();
+  const br = currentBranch(emp);
+  if(db.settings.notifyTypes.otSubmit && db.settings.centralChatId) await tgSendMessage(db.settings.centralToken, db.settings.centralChatId, `<b>${emp.name}</b> ขอทำ OT วันที่ ${date} เวลา ${hourStart}-${hourEnd}\nเหตุผล: ${reason||'-'}`);
+  await pushNotification(emp.id, 'ส่งคำขอ OT แล้ว', `${date} เวลา ${hourStart}-${hourEnd} กำลังรอการอนุมัติ`);
+  setTimeout(()=>{ document.getElementById('otOverlay').classList.remove('show'); }, 900);
+};
+async function decideOt(id, status){
+  const ot = db.otRequests.find(o=>o.id===id); if(!ot) return;
+  ot.status = status; ot.decidedAt = new Date().toISOString(); await saveOtRow(ot);
+  const emp = db.employees.find(e=>e.id===ot.employeeId);
+  const br = db.branches.find(b=>b.id===emp?.branchId);
+  if(db.settings.notifyTypes.otDecision && db.settings.centralChatId) await tgSendMessage(db.settings.centralToken, db.settings.centralChatId, `คำขอ OT ของ <b>${emp?.name}</b> (${ot.date} ${ot.hourStart}-${ot.hourEnd}) ถูก${status==='approved'?'อนุมัติ':'ปฏิเสธ'}แล้ว`);
+  await pushNotification(emp.id, status==='approved'?'คำขอ OT ได้รับการอนุมัติ':'คำขอ OT ถูกปฏิเสธ', `${ot.date} เวลา ${ot.hourStart}-${ot.hourEnd}`);
+  renderOtLists();
+}
+
+// -- Notifications tab --
+function renderNotiTab(){
+  const emp = currentEmployee(); if(!emp) return;
+  const myNoti = db.notifications.filter(n=>n.employeeId===emp.id).sort((a,b)=>new Date(b.time)-new Date(a.time));
+  document.getElementById('notiList').innerHTML = myNoti.length ? myNoti.map(n=>`
+    <div class="noti ${n.read?'':'unread'}"><div class="ic">●</div>
+      <div class="body"><div class="t">${n.title}</div><div class="d">${n.body}</div></div>
+      <div class="time">${fmtDateShort(new Date(n.time))}</div>
+    </div>`).join('') : '<div class="empty">ยังไม่มีการแจ้งเตือน</div>';
+  const unreadNoti = myNoti.filter(n=>!n.read);
+  myNoti.forEach(n=> n.read = true);
+  unreadNoti.forEach(n=> saveNotificationRow(n));
+  updateNotiBadge();
+}
+function updateNotiBadge(){
+  const emp = currentEmployee(); if(!emp) return;
+  const unread = db.notifications.filter(n=>n.employeeId===emp.id && !n.read).length;
+  const badge = document.getElementById('notiNavBadge');
+  if(unread>0){ badge.textContent = unread>9?'9+':unread; badge.classList.remove('hidden'); } else badge.classList.add('hidden');
+}
+
+// -- Profile tab --
+function renderProfileTab(){
+  const emp = currentEmployee(); const br = currentBranch(emp); if(!emp) return;
+  document.getElementById('profAvatar').textContent = emp.name.trim()[0]||'?';
+  document.getElementById('profName').textContent = emp.name;
+  document.getElementById('profRole').textContent = `${br?.name||'-'} · พนักงาน`;
+}
+document.getElementById('menuFace').onclick = ()=>{ const emp = currentEmployee(); openCamera('enroll', emp); };
+document.getElementById('menuPin').onclick = ()=>{
+  newPinBuffer=''; newPinStage=1; newPinFirst='';
+  document.getElementById('changePinMsg').textContent='';
+  renderNewPinDots(); buildNewPinPad();
+  document.getElementById('changePinOverlay').classList.add('show');
+};
+document.getElementById('closeChangePinBtn').onclick = ()=> document.getElementById('changePinOverlay').classList.remove('show');
+function buildNewPinPad(){
+  const pad = document.getElementById('newPinPad'); pad.innerHTML='';
+  ['1','2','3','4','5','6','7','8','9','⌫','0','✓'].forEach(k=>{
+    const btn = document.createElement('button'); btn.className='pinkey'; btn.textContent=k;
+    btn.onclick = ()=>handleNewPinKey(k); pad.appendChild(btn);
+  });
+}
+function renderNewPinDots(){ document.getElementById('newPinDots').innerHTML = [0,1,2,3].map(i=>`<div class="pindot ${i<newPinBuffer.length?'filled':''}"></div>`).join(''); }
+function handleNewPinKey(k){
+  const msg = document.getElementById('changePinMsg'); msg.textContent='';
+  if(k==='⌫'){ newPinBuffer = newPinBuffer.slice(0,-1); renderNewPinDots(); return; }
+  if(k==='✓'){ submitNewPin(); return; }
+  if(newPinBuffer.length<4){ newPinBuffer += k; renderNewPinDots(); }
+  if(newPinBuffer.length===4) setTimeout(submitNewPin, 150);
+}
+async function submitNewPin(){
+  const msg = document.getElementById('changePinMsg');
+  if(newPinBuffer.length<4){ msg.textContent='กรอกให้ครบ 4 หลัก'; return; }
+  if(newPinStage===1){
+    newPinFirst = newPinBuffer; newPinBuffer='';
+    document.querySelector('#changePinOverlay .hint')?.remove();
+    msg.className='msg'; msg.textContent='กรอกอีกครั้งเพื่อยืนยัน';
+    newPinStage=2; renderNewPinDots();
+  } else {
+    if(newPinBuffer !== newPinFirst){ msg.className='msg err'; msg.textContent='PIN ไม่ตรงกัน ลองใหม่'; newPinStage=1; newPinBuffer=''; newPinFirst=''; renderNewPinDots(); return; }
+    const emp = currentEmployee(); emp.pin = newPinFirst; await saveEmployeeRow(emp);
+    msg.className='msg ok'; msg.textContent='เปลี่ยน PIN สำเร็จ';
+    setTimeout(()=> document.getElementById('changePinOverlay').classList.remove('show'), 800);
+  }
+}
+
+// ================= ADMIN VIEW =================
+function enterAdminView(){
+  showView('admin');
+  document.getElementById('graceMinutesInput').value = db.settings.graceMinutes;
+  document.getElementById('centralToken').value = db.settings.centralToken;
+  document.getElementById('centralChat').value = db.settings.centralChatId;
+  const todayStr = dateKey(new Date());
+  if(!getDateVal('overviewFrom')) setDateVal('overviewFrom', todayStr);
+  if(!getDateVal('overviewTo')) setDateVal('overviewTo', todayStr);
+  switchATab('Overview');
+}
+function switchATab(tab){
+  ['Overview','Employees','Leaves','Settings'].forEach(t=>{
+    const el = document.getElementById('atab'+t); if(el) el.classList.toggle('hidden', t!==tab);
+  });
+  document.querySelectorAll('#adminView .navbtn').forEach(b=> b.classList.toggle('active', b.dataset.atab===tab));
+  const titles = {Overview:'ภาพรวมองค์กร', Employees:'พนักงานทั้งหมด', Leaves:'จัดการใบลา', Settings:'ตั้งค่าระบบ'};
+  document.getElementById('adminPageTitle').textContent = titles[tab];
+  updateAdminHeaderMeta();
+  if(tab==='Overview'){ renderBranchFilter(); renderOverviewStats(); renderEmpSummary(); }
+  if(tab==='Employees') renderAdminEmpList();
+  if(tab==='Leaves'){ renderLeaveLists(); renderOtLists(); }
+  if(tab==='Settings'){ renderDbStatus(); renderBranchEditor(); renderAcPointEditor(); renderCleanPointEditor(); renderHolidayEditor(); renderNotifyTypesEditor(); renderTelegramRoomsEditor(); }
+}
+
+function downloadCSV(filename, rows){
+  const csv = rows.map(row => row.map(cell=>{
+    const s = String(cell ?? '');
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s;
+  }).join(',')).join('\r\n');
+  const blob = new Blob(['\uFEFF' + csv], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+function filteredEmployees(){ return branchFilter==='all' ? db.employees : db.employees.filter(e=>e.branchId===branchFilter); }
+document.getElementById('exportLogsBtn').onclick = ()=>{
+  const now = new Date();
+  const rows = [['วันที่','เวลา','ชื่อพนักงาน','สาขา','ประเภท','สายกี่นาที','ส่งแจ้งเตือนสำเร็จ']];
+  const empIds = new Set(filteredEmployees().map(e=>e.id));
+  db.logs.filter(l=>{ const t=new Date(l.time); return t.getMonth()===now.getMonth() && t.getFullYear()===now.getFullYear() && empIds.has(l.employeeId); })
+    .sort((a,b)=>new Date(a.time)-new Date(b.time)).forEach(l=>{
+      const emp = db.employees.find(e=>e.id===l.employeeId);
+      const br = db.branches.find(b=>b.id===l.branchId);
+      const t = new Date(l.time);
+      const typeLabel = l.type==='IN'?'เช็กอิน':l.type==='OUT'?'เช็กเอาท์':'แจ้งปิดแอร์';
+      rows.push([t.toLocaleDateString('th-TH'), fmtTime(t), emp?.name||'-', br?.name||'-', typeLabel, l.lateMinutes||0, l.sent?'ใช่':'ไม่']);
+    });
+  downloadCSV(`arana-time-log-${now.getFullYear()}-${now.getMonth()+1}.csv`, rows);
+};
+document.getElementById('exportSummaryBtn').onclick = ()=>{
+  const now = new Date();
+  const rows = [['ชื่อพนักงาน','สาขา','ตรงเวลา (วัน)','มาสาย (วัน)','ขาด (วัน)','ลา (วัน)']];
+  filteredEmployees().forEach(e=>{
+    const m = monthlySummary(e.id);
+    const br = db.branches.find(b=>b.id===e.branchId);
+    rows.push([e.name, br?.name||'-', m.onTime, m.late, m.absent, m.leaveDays]);
+  });
+  downloadCSV(`arana-time-summary-${now.getFullYear()}-${now.getMonth()+1}.csv`, rows);
+};
+
+function renderBranchFilter(){
+  const sel = document.getElementById('branchFilterSelect');
+  sel.innerHTML = `<option value="all">ทุกสาขา</option>` + db.branches.map(b=>`<option value="${b.id}">${b.name}</option>`).join('');
+  sel.value = branchFilter;
+  sel.onchange = ()=>{ branchFilter = sel.value; renderOverviewStats(); renderEmpSummary(); };
+}
+function dateRangeArray(fromStr, toStr){
+  const arr = [];
+  let d = new Date(fromStr+'T00:00:00');
+  const end = new Date((toStr||fromStr)+'T00:00:00');
+  if(isNaN(d) || isNaN(end)) return [new Date()];
+  while(d <= end){ arr.push(new Date(d)); d.setDate(d.getDate()+1); }
+  return arr.length ? arr : [new Date()];
+}
+function leaveAbbrev(kind){
+  const map = {
+    sick_nocert:'Sick/N', sick_cert:'Sick/Y',
+    personal_nodeduct:'Leave/Y', personal_deduct:'Leave/N',
+    traditional:'Holiday', vacation:'VAC',
+    hourly_personal:'Hour-L', hourly_sick:'Hour-S'
+  };
+  return map[kind] || kind;
+}
+function hasStartedBy(emp, date){ return !emp.startDate || new Date(emp.startDate+'T00:00:00') <= date; }
+function renderOverviewStats(){
+  const emps = filteredEmployees();
+  const fromStr = getDateVal('overviewFrom') || dateKey(new Date());
+  const toStr = getDateVal('overviewTo') || fromStr;
+  const days = dateRangeArray(fromStr, toStr);
+
+  let inSent=0, lateSent=0, absentSent=0, leaveSent=0, otSent=0;
+  let inExpTotal=0, absentExpTotal=0, leaveExpTotal=0, groomSent=0, groomExpTotal=0;
+  const frontStoreEmps = emps.filter(e=>e.branchId!=='hq');
+
+  days.forEach(d=>{
+    const dKey = d.toDateString();
+    const activeEmps = emps.filter(e=>hasStartedBy(e,d));
+    let leaveTodayCount = 0;
+    activeEmps.forEach(e=>{ if(isApprovedLeaveOnDate(e.id, d)) leaveTodayCount++; });
+    const expectedWorkToday = activeEmps.length - leaveTodayCount;
+    inExpTotal += expectedWorkToday;
+    absentExpTotal += activeEmps.length;
+    leaveExpTotal += activeEmps.length;
+    leaveSent += leaveTodayCount;
+
+    activeEmps.forEach(e=>{
+      if(isApprovedLeaveOnDate(e.id, d)) return;
+      const inLog = db.logs.find(l=>l.employeeId===e.id && l.type==='IN' && todayKey(new Date(l.time))===dKey);
+      if(inLog){ inSent++; if(inLog.lateMinutes>0) lateSent++; }
+      else if(!isHoliday(d)) absentSent++;
+      const otToday = db.otRequests.some(o=>o.employeeId===e.id && o.date===dateKey(d));
+      if(otToday) otSent++;
+    });
+
+    const activeFront = frontStoreEmps.filter(e=>hasStartedBy(e,d));
+    let frontLeaveCount = 0;
+    activeFront.forEach(e=>{ if(isApprovedLeaveOnDate(e.id,d)) frontLeaveCount++; });
+    groomExpTotal += (activeFront.length - frontLeaveCount);
+    activeFront.forEach(e=>{
+      if(isApprovedLeaveOnDate(e.id,d)) return;
+      const groomLog = db.logs.find(l=>l.employeeId===e.id && l.type==='GROOM' && todayKey(new Date(l.time))===dKey);
+      if(groomLog) groomSent++;
+    });
+  });
+
+  const branchesInFilter = branchFilter==='all' ? db.branches : db.branches.filter(b=>b.id===branchFilter);
+  const branchIdsInFilter = new Set(branchesInFilter.map(b=>b.id));
+  const acPointsTotal = branchesInFilter.reduce((s,b)=> s + (b.acPoints||[]).length, 0) * days.length;
+  const cleanPointsTotal = branchesInFilter.reduce((s,b)=> s + (b.cleaningPoints||[]).length, 0) * days.length;
+  let acSent=0, cleanSent=0;
+  days.forEach(d=>{
+    const dKey = d.toDateString();
+    const acLogsToday = db.logs.filter(l=>l.type==='AC' && branchIdsInFilter.has(l.branchId) && todayKey(new Date(l.time))===dKey);
+    acSent += new Set(acLogsToday.map(l=>l.branchId+':'+l.acPointId)).size;
+    const cleanLogsToday = db.logs.filter(l=>l.type==='CLEAN' && branchIdsInFilter.has(l.branchId) && todayKey(new Date(l.time))===dKey);
+    cleanSent += new Set(cleanLogsToday.map(l=>l.branchId+':'+l.cleanPointId)).size;
+  });
+
+  document.getElementById('oIn').textContent = `${inSent}/${inExpTotal}`;
+  document.getElementById('oLate').textContent = `${lateSent}/${inExpTotal}`;
+  document.getElementById('oAbsent').textContent = `${absentSent}/${absentExpTotal}`;
+  document.getElementById('oLeaveToday').textContent = `${leaveSent}/${leaveExpTotal}`;
+  document.getElementById('oOt').textContent = `${otSent}/${inExpTotal}`;
+  document.getElementById('oAc').textContent = `${acSent}/${acPointsTotal}`;
+  document.getElementById('oClean').textContent = `${cleanSent}/${cleanPointsTotal}`;
+  document.getElementById('oGroom').textContent = `${groomSent}/${groomExpTotal}`;
+}
+wireDateChange('overviewFrom', renderOverviewStats);
+wireDateChange('overviewTo', renderOverviewStats);
+document.getElementById('exportLateMatrixBtn').onclick = ()=>{
+  const fromStr = getDateVal('overviewFrom') || dateKey(new Date());
+  const toStr = getDateVal('overviewTo') || fromStr;
+  const days = dateRangeArray(fromStr, toStr);
+  const emps = filteredEmployees();
+  const rows = [['ชื่อพนักงาน', ...days.map(d=>d.toLocaleDateString('th-TH'))]];
+  emps.forEach(e=>{
+    const row = [e.name];
+    days.forEach(d=>{
+      const inLog = db.logs.find(l=>l.employeeId===e.id && l.type==='IN' && todayKey(new Date(l.time))===d.toDateString());
+      row.push(inLog ? (inLog.lateMinutes||0) : '');
+    });
+    rows.push(row);
+  });
+  downloadCSV(`arana-time-late-matrix-${fromStr}_to_${toStr}.csv`, rows);
+};
+document.getElementById('exportLeaveMatrixBtn').onclick = ()=>{
+  const fromStr = getDateVal('overviewFrom') || dateKey(new Date());
+  const toStr = getDateVal('overviewTo') || fromStr;
+  const days = dateRangeArray(fromStr, toStr);
+  const emps = filteredEmployees();
+  const today = new Date();
+  const rows = [['ชื่อพนักงาน', ...days.map(d=>d.toLocaleDateString('th-TH'))]];
+  emps.forEach(e=>{
+    const row = [e.name];
+    days.forEach(d=>{
+      let val = '';
+      if(!hasStartedBy(e,d)) val = '';
+      else if(isHoliday(d)) val = 'OFF';
+      else {
+        const leave = db.leaves.find(l=>l.employeeId===e.id && l.status==='approved' && new Date(l.from)<=d && d<=new Date(l.to));
+        if(leave) val = leaveAbbrev(leave.kind);
+        else if(d <= today){
+          const inLog = db.logs.find(l=>l.employeeId===e.id && l.type==='IN' && todayKey(new Date(l.time))===d.toDateString());
+          if(!inLog) val = 'AWOL';
+        }
+      }
+      row.push(val);
+    });
+    rows.push(row);
+  });
+  downloadCSV(`arana-time-leave-matrix-${fromStr}_to_${toStr}.csv`, rows);
+};
+function renderEmpSummary(){
+  const emps = filteredEmployees();
+  const el = document.getElementById('empSummaryList');
+  el.innerHTML = emps.length ? emps.map(e=>{
+    const m = monthlySummary(e.id);
+    const br = db.branches.find(b=>b.id===e.branchId);
+    return `<div class="miniempcard"><div class="avatar">${e.name.trim()[0]||'?'}</div>
+      <div class="info"><div class="name">${e.name}</div><div class="stats"><span>${br?.name||'-'}</span><span>ตรงเวลา <b style="color:var(--green);">${m.onTime}</b></span><span>สาย <b style="color:var(--amber);">${m.late}</b></span><span>ขาด <b style="color:var(--red);">${m.absent}</b></span></div></div>
+    </div>`;
+  }).join('') : '<div class="empty">ไม่มีพนักงานในสาขานี้</div>';
+}
+function renderAdminEmpList(){
+  const el = document.getElementById('adminEmpList');
+  el.innerHTML = db.employees.length ? db.employees.map(e=>{
+    const br = db.branches.find(b=>b.id===e.branchId);
+    const st = todayStatus(e.id);
+    let badge = st.outTime ? `<span class="badge out">ออกงานแล้ว</span>` : st.inTime ? `<span class="badge in">เข้างานแล้ว</span>` : `<span class="badge idle">ยังไม่มา</span>`;
+    const homeLink = (e.homeLat!=null && e.homeLng!=null) ? ` · <a href="https://maps.google.com/?q=${e.homeLat},${e.homeLng}" target="_blank" style="color:var(--pink-dark);">แผนที่บ้าน</a>` : '';
+    return `<div class="listrow"><div class="avatar">${e.name.trim()[0]||'?'}</div>
+      <div class="info"><div class="name">${e.name}${e.jobTitle?' · '+e.jobTitle:''}</div><div class="meta">${br?.name||'ยังไม่ระบุสาขา'} · กะ ${e.shiftStart||'-'}–${e.shiftEnd||'-'} · ${e.descriptor?'ลงทะเบียนหน้าแล้ว':'ยังไม่ลงทะเบียนหน้า'}${homeLink}</div></div>
+      ${badge}<button class="btn ghost sm" data-edit="${e.id}">แก้ไข</button></div>`;
+  }).join('') : '<div class="empty">ยังไม่มีพนักงาน</div>';
+  el.querySelectorAll('[data-edit]').forEach(btn=> btn.onclick = ()=> openEmpEditor(btn.dataset.edit));
+}
+document.getElementById('addEmpAdminBtn').onclick = ()=> openEmpEditor(null);
+
+function renderLeaveLists(){
+  const pending = db.leaves.filter(l=>l.status==='pending').sort((a,b)=>new Date(a.requestedAt)-new Date(b.requestedAt));
+  const pendEl = document.getElementById('pendingLeaveList');
+  pendEl.innerHTML = pending.length ? pending.map(l=>{
+    const emp = db.employees.find(e=>e.id===l.employeeId);
+    return `<div class="listrow" style="flex-direction:column;align-items:stretch;gap:6px;">
+      <div style="display:flex;align-items:center;gap:12px;"><div class="avatar">${emp?.name.trim()[0]||'?'}</div><div class="info"><div class="name">${emp?.name||'-'} · ${leaveLabel(l.kind)}</div><div class="meta">${leaveRangeText(l)} · ${l.reason||'-'}${l.evidenceSent?' · แนบหลักฐานแล้ว':''}</div></div></div>
+      <div class="actionrow"><button class="btn-mini approve" data-approve="${l.id}">อนุมัติ</button><button class="btn-mini reject" data-reject="${l.id}">ปฏิเสธ</button></div>
+    </div>`;
+  }).join('') : '<div class="empty">ไม่มีคำขอลาที่รออนุมัติ</div>';
+  pendEl.querySelectorAll('[data-approve]').forEach(b=> b.onclick = ()=> decideLeave(b.dataset.approve,'approved'));
+  pendEl.querySelectorAll('[data-reject]').forEach(b=> b.onclick = ()=> decideLeave(b.dataset.reject,'rejected'));
+  const all = db.leaves.slice().sort((a,b)=>new Date(b.requestedAt)-new Date(a.requestedAt));
+  document.getElementById('allLeaveList').innerHTML = all.length ? all.map(l=>{
+    const emp = db.employees.find(e=>e.id===l.employeeId);
+    return `<div class="listrow"><div class="info"><div class="name">${emp?.name||'-'} · ${leaveLabel(l.kind)}</div><div class="meta">${leaveRangeText(l)}</div></div><span class="badge ${l.status}">${leaveStatusLabel(l.status)}</span></div>`;
+  }).join('') : '<div class="empty">ยังไม่มีประวัติ</div>';
+}
+function daysBetweenInclusive(from, to){ return Math.round((new Date(to)-new Date(from))/86400000)+1; }
+function noticeDays(requestedAt, from){ return Math.max(0, Math.round((new Date(from)-new Date(requestedAt))/86400000)); }
+function leaveHours(l){ return HOURLY_KINDS.includes(l.kind) && l.hourStart && l.hourEnd ? (( (l.hourEnd.split(':')[0]*60+ +l.hourEnd.split(':')[1]) - (l.hourStart.split(':')[0]*60+ +l.hourStart.split(':')[1]) )/60).toFixed(1) : ''; }
+document.getElementById('exportLeaveReportBtn').onclick = ()=>{
+  const rows = [['ประทับเวลา','แจ้งก่อน (วัน)','ชื่อ-นามสกุล','ชื่อเล่น','แผนก','ตำแหน่งงาน','ลาวันที่','ลาถึงวันที่','จำนวนวันที่ลา','ประเภทการลา','จำนวนชั่วโมง','ลาเป็นชั่วโมง เริ่มเวลา','ลาเป็นชั่วโมง ถึงเวลา','เหตุผลในการลา','สถานะ']];
+  db.leaves.slice().sort((a,b)=>new Date(a.requestedAt)-new Date(b.requestedAt)).forEach(l=>{
+    const emp = db.employees.find(e=>e.id===l.employeeId);
+    const br = db.branches.find(b=>b.id===emp?.branchId);
+    const isHourly = HOURLY_KINDS.includes(l.kind);
+    rows.push([
+      new Date(l.requestedAt).toLocaleString('th-TH'),
+      noticeDays(l.requestedAt, l.from),
+      emp?.name||'-', emp?.nickname||'-', emp?.department||br?.name||'-', emp?.jobTitle||'-',
+      l.from, l.to, isHourly ? '' : daysBetweenInclusive(l.from,l.to),
+      leaveLabel(l.kind), leaveHours(l),
+      isHourly ? l.hourStart : '', isHourly ? l.hourEnd : '',
+      l.reason||'-', leaveStatusLabel(l.status)
+    ]);
+  });
+  downloadCSV(`arana-time-leave-report-${new Date().getFullYear()}-${new Date().getMonth()+1}.csv`, rows);
+};
+async function decideLeave(id, status){
+  const leave = db.leaves.find(l=>l.id===id); if(!leave) return;
+  leave.status = status; leave.decidedAt = new Date().toISOString(); await saveLeaveRow(leave);
+  const emp = db.employees.find(e=>e.id===leave.employeeId);
+  const br = db.branches.find(b=>b.id===emp?.branchId);
+  const rangeText = leaveRangeText(leave);
+  const isHourly = HOURLY_KINDS.includes(leave.kind);
+  if(db.settings.notifyTypes.leaveDecision && br?.chatIdLeaveApproval){
+    if(status==='approved'){
+      let lines = [
+        `✅อนุมัติการลา :`,
+        `แผนก : ${emp?.department || br?.name || '-'}`,
+        `ชื่อ-นามสกุล : ${emp?.name || '-'}`,
+        `ชื่อเล่น : ${emp?.nickname || '-'}`,
+        `ตำแหน่งงาน : ${emp?.jobTitle || '-'}`,
+        `ประเภทการลา : ${leaveLabel(leave.kind)}`,
+        `ลาวันที่ : ${leave.from}`,
+        `ลาถึงวันที่ : ${leave.to}`
+      ];
+      if(!isHourly) lines.push(`จำนวนวันที่ลา : ${daysBetweenInclusive(leave.from, leave.to)}`);
+      if(isHourly){
+        lines.push(`จำนวนชั่วโมง : ${leaveHours(leave)}`);
+        lines.push(`ลาเป็นชั่วโมง เริ่มเวลา : ${leave.hourStart}`);
+        lines.push(`ลาเป็นชั่วโมง ถึงเวลา : ${leave.hourEnd}`);
+      }
+      lines.push(`เหตุผลในการลา : ${leave.reason || '-'}`);
+      const caption = lines.join('\n');
+      if(leave.evidenceFileId){
+        await tgSendPhotoById(db.settings.centralToken, br.chatIdLeaveApproval, leave.evidenceFileId, caption);
+      } else {
+        await tgSendMessage(db.settings.centralToken, br.chatIdLeaveApproval, caption);
+      }
+    } else {
+      await tgSendMessage(db.settings.centralToken, br.chatIdLeaveApproval, `❌ใบลาของ <b>${emp?.name}</b> (${leaveLabel(leave.kind)} ${rangeText}) ถูกปฏิเสธแล้ว\nเหตุผลที่ยื่น: ${leave.reason || '-'}`);
+    }
+  }
+  await pushNotification(emp.id, status==='approved'?'ใบลาได้รับการอนุมัติ':'ใบลาถูกปฏิเสธ', `${leaveLabel(leave.kind)} ${rangeText}`);
+  renderLeaveLists(); renderOverviewStats(); renderEmpSummary();
+}
+
+function renderOtLists(){
+  const pending = db.otRequests.filter(o=>o.status==='pending').sort((a,b)=>new Date(a.requestedAt)-new Date(b.requestedAt));
+  const pendEl = document.getElementById('pendingOtList');
+  pendEl.innerHTML = pending.length ? pending.map(o=>{
+    const emp = db.employees.find(e=>e.id===o.employeeId);
+    return `<div class="listrow" style="flex-direction:column;align-items:stretch;gap:6px;">
+      <div style="display:flex;align-items:center;gap:12px;"><div class="avatar">${emp?.name.trim()[0]||'?'}</div><div class="info"><div class="name">${emp?.name||'-'} · ${fmtDateShort(new Date(o.date))}</div><div class="meta">${o.hourStart}–${o.hourEnd} น. · ${o.reason||'-'}</div></div></div>
+      <div class="actionrow"><button class="btn-mini approve" data-otapprove="${o.id}">อนุมัติ</button><button class="btn-mini reject" data-otreject="${o.id}">ปฏิเสธ</button></div>
+    </div>`;
+  }).join('') : '<div class="empty">ไม่มีคำขอ OT ที่รออนุมัติ</div>';
+  pendEl.querySelectorAll('[data-otapprove]').forEach(b=> b.onclick = ()=> decideOt(b.dataset.otapprove,'approved'));
+  pendEl.querySelectorAll('[data-otreject]').forEach(b=> b.onclick = ()=> decideOt(b.dataset.otreject,'rejected'));
+  const all = db.otRequests.slice().sort((a,b)=>new Date(b.requestedAt)-new Date(a.requestedAt));
+  document.getElementById('allOtList').innerHTML = all.length ? all.map(o=>{
+    const emp = db.employees.find(e=>e.id===o.employeeId);
+    return `<div class="listrow"><div class="info"><div class="name">${emp?.name||'-'} · ${fmtDateShort(new Date(o.date))}</div><div class="meta">${o.hourStart}–${o.hourEnd} น.</div></div><span class="badge ${o.status}">${otStatusLabel(o.status)}</span></div>`;
+  }).join('') : '<div class="empty">ยังไม่มีประวัติ</div>';
+}
+document.getElementById('exportOtReportBtn').onclick = ()=>{
+  const rows = [['ประทับเวลา','ชื่อ-นามสกุล','แผนก','ตำแหน่งงาน','วันที่ทำ OT','เริ่มเวลา','ถึงเวลา','จำนวนชั่วโมง','เหตุผล','สถานะ']];
+  db.otRequests.slice().sort((a,b)=>new Date(a.requestedAt)-new Date(b.requestedAt)).forEach(o=>{
+    const emp = db.employees.find(e=>e.id===o.employeeId);
+    const br = db.branches.find(b=>b.id===emp?.branchId);
+    const hrs = ((o.hourEnd.split(':')[0]*60+ +o.hourEnd.split(':')[1]) - (o.hourStart.split(':')[0]*60+ +o.hourStart.split(':')[1]))/60;
+    rows.push([new Date(o.requestedAt).toLocaleString('th-TH'), emp?.name||'-', emp?.department||br?.name||'-', emp?.jobTitle||'-', o.date, o.hourStart, o.hourEnd, hrs.toFixed(1), o.reason||'-', otStatusLabel(o.status)]);
+  });
+  downloadCSV(`arana-time-ot-report-${new Date().getFullYear()}-${new Date().getMonth()+1}.csv`, rows);
+};
+
+
+let editingEmpId = null;
+function openEmpEditor(empId){
+  editingEmpId = empId;
+  const sel = document.getElementById('editEmpBranch');
+  sel.innerHTML = db.branches.map(b=>`<option value="${b.id}">${b.name}</option>`).join('');
+  document.getElementById('empEditMsg').textContent='';
+  if(empId){
+    const e = db.employees.find(x=>x.id===empId);
+    document.getElementById('empEditTitle').textContent = 'แก้ไขพนักงาน';
+    document.getElementById('editEmpName').value = e.name;
+    document.getElementById('editEmpNickname').value = e.nickname||'';
+    document.getElementById('editEmpDept').value = e.department||'';
+    document.getElementById('editEmpJobTitle').value = e.jobTitle||'';
+    sel.value = e.branchId||'';
+    setDateVal('editEmpStartDate', e.startDate||'');
+    document.getElementById('editEmpShiftStart').value = e.shiftStart||'09:00';
+    document.getElementById('editEmpShiftEnd').value = e.shiftEnd||'18:00';
+    document.getElementById('editEmpEmail').value = e.email||'';
+    document.getElementById('editEmpPin').value = '';
+    document.getElementById('editEmpPin').placeholder = e.pin ? `ปัจจุบัน: ${e.pin} (เว้นว่าง = ไม่เปลี่ยน)` : 'เว้นว่างได้ถ้าให้พนักงานตั้งเอง';
+    const link = document.getElementById('empHomeLocationLink');
+    if(e.homeLat!=null && e.homeLng!=null){
+      document.getElementById('empHomeLocationStatus').textContent = 'ตั้งพิกัดบ้านแล้ว';
+      link.href = `https://maps.google.com/?q=${e.homeLat},${e.homeLng}`;
+      link.classList.remove('hidden');
+    } else {
+      document.getElementById('empHomeLocationStatus').textContent = 'พนักงานยังไม่ได้ตั้งพิกัดบ้าน';
+      link.classList.add('hidden');
+    }
+    document.getElementById('deleteEmpBtn').classList.remove('hidden');
+  } else {
+    document.getElementById('empEditTitle').textContent = 'เพิ่มพนักงาน';
+    document.getElementById('editEmpName').value = '';
+    document.getElementById('editEmpNickname').value = '';
+    document.getElementById('editEmpDept').value = '';
+    document.getElementById('editEmpJobTitle').value = '';
+    setDateVal('editEmpStartDate', dateKey(new Date()));
+    document.getElementById('editEmpShiftStart').value = '09:00';
+    document.getElementById('editEmpShiftEnd').value = '18:00';
+    document.getElementById('editEmpEmail').value = '';
+    document.getElementById('editEmpPin').value = '';
+    document.getElementById('editEmpPin').placeholder = 'เว้นว่างได้ถ้าให้พนักงานตั้งเอง';
+    document.getElementById('empHomeLocationStatus').textContent = 'จะให้พนักงานตั้งเองหลังเข้าสู่ระบบ';
+    document.getElementById('empHomeLocationLink').classList.add('hidden');
+    document.getElementById('deleteEmpBtn').classList.add('hidden');
+  }
+  document.getElementById('empEditOverlay').classList.add('show');
+}
+document.getElementById('closeEmpEditBtn').onclick = ()=> document.getElementById('empEditOverlay').classList.remove('show');
+document.getElementById('saveEmpEditBtn').onclick = async ()=>{
+  const name = document.getElementById('editEmpName').value.trim();
+  const nickname = document.getElementById('editEmpNickname').value.trim();
+  const department = document.getElementById('editEmpDept').value.trim();
+  const jobTitle = document.getElementById('editEmpJobTitle').value.trim();
+  const branchId = document.getElementById('editEmpBranch').value;
+  const startDate = getDateVal('editEmpStartDate');
+  const shiftStart = document.getElementById('editEmpShiftStart').value;
+  const shiftEnd = document.getElementById('editEmpShiftEnd').value;
+  const email = document.getElementById('editEmpEmail').value.trim();
+  const pinInput = document.getElementById('editEmpPin').value.trim();
+  const msg = document.getElementById('empEditMsg');
+  if(!name){ msg.className='msg err'; msg.textContent='กรุณากรอกชื่อ'; return; }
+  if(pinInput && !/^\d{4}$/.test(pinInput)){ msg.className='msg err'; msg.textContent='PIN ต้องเป็นตัวเลข 4 หลัก'; return; }
+  let empToSave;
+  if(editingEmpId){
+    const e = db.employees.find(x=>x.id===editingEmpId);
+    Object.assign(e, {name, nickname, department, jobTitle, branchId, startDate, shiftStart, shiftEnd, email});
+    if(pinInput) e.pin = pinInput;
+    empToSave = e;
+  } else {
+    empToSave = {id:uid(), name, nickname, department, jobTitle, branchId, startDate, shiftStart, shiftEnd, email, pin: pinInput||null, descriptor:null, homeLat:null, homeLng:null};
+    db.employees.push(empToSave);
+  }
+  await saveEmployeeRow(empToSave);
+  document.getElementById('empEditOverlay').classList.remove('show');
+  renderAdminEmpList(); renderEmpSummary(); renderEmpSelect();
+};
+document.getElementById('deleteEmpBtn').onclick = async ()=>{
+  db.employees = db.employees.filter(e=>e.id!==editingEmpId); await deleteEmployeeRow(editingEmpId);
+  document.getElementById('empEditOverlay').classList.remove('show');
+  renderAdminEmpList(); renderEmpSummary(); renderEmpSelect();
+};
+document.getElementById('resetPinBtn').onclick = async ()=>{
+  const e = db.employees.find(x=>x.id===editingEmpId); if(!e) return;
+  e.pin = null; await saveEmployeeRow(e);
+  document.getElementById('empEditMsg').className='msg ok';
+  document.getElementById('empEditMsg').textContent = 'รีเซ็ต PIN แล้ว พนักงานจะตั้ง PIN ใหม่ตอนล็อกอินครั้งถัดไป';
+};
+document.getElementById('editEmpFaceBtn').onclick = ()=>{
+  const e = db.employees.find(x=>x.id===editingEmpId); if(!e) return;
+  document.getElementById('empEditOverlay').classList.remove('show');
+  openCamera('enroll', e, null, null, true);
+};
+
+function renderBranchEditor(){
+  const el = document.getElementById('branchEditor');
+  el.innerHTML = db.branches.map(b=>`
+    <div style="padding:12px 0;border-bottom:1px solid var(--border);">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <label style="margin-top:0;flex:1;">ชื่อสาขา</label>
+        <button class="btn ghost sm" data-rmbranch="${b.id}">ลบสาขา</button>
+      </div>
+      <input type="text" data-f="name" data-id="${b.id}" value="${b.name}">
+      <div class="row2" style="margin-top:8px;">
+        <div><label>ละติจูด</label><input type="text" data-f="lat" data-id="${b.id}" value="${b.lat??''}"></div>
+        <div><label>ลองจิจูด</label><input type="text" data-f="lng" data-id="${b.id}" value="${b.lng??''}"></div>
+      </div>
+      <button class="btn ghost sm" style="margin-top:8px;" data-usegps="${b.id}">ใช้พิกัดปัจจุบัน</button>
+      <label>รัศมีที่อนุญาต (เมตร)</label>
+      <input type="number" data-f="radius" data-id="${b.id}" value="${b.radius}">
+      <label>Chat ID กลุ่มเช็กอิน-เช็กเอาท์</label>
+      <input type="text" data-f="chatIdCheckinout" data-id="${b.id}" value="${b.chatIdCheckinout||''}" placeholder="-100...">
+      <label>Chat ID กลุ่มปิดแอร์ / ตรวจความสะอาด / ความเรียบร้อย</label>
+      <input type="text" data-f="chatIdFacility" data-id="${b.id}" value="${b.chatIdFacility||''}" placeholder="-100...">
+      <label>Chat ID กลุ่มแจ้งผลอนุมัติใบลา</label>
+      <input type="text" data-f="chatIdLeaveApproval" data-id="${b.id}" value="${b.chatIdLeaveApproval||''}" placeholder="-100...">
+    </div>`).join('') + `
+    <div class="row2" style="margin-top:14px;">
+      <input type="text" id="newBranchName" placeholder="ชื่อสาขาใหม่ เช่น สาขา 4">
+      <button class="btn ghost sm" id="addBranchBtn">+ เพิ่มสาขา</button>
+    </div>
+    <button class="btn sm" id="saveBranchesBtn" style="margin-top:14px;">บันทึกสาขาทั้งหมด</button><div class="msg" id="branchMsg"></div>`;
+  el.querySelectorAll('[data-usegps]').forEach(btn=>{
+    btn.onclick = async ()=>{
+      btn.textContent = 'กำลังค้นหาตำแหน่ง…';
+      const pos = await getPosition();
+      if(pos){
+        el.querySelector(`input[data-f=lat][data-id="${btn.dataset.usegps}"]`).value = pos.lat.toFixed(6);
+        el.querySelector(`input[data-f=lng][data-id="${btn.dataset.usegps}"]`).value = pos.lng.toFixed(6);
+      }
+      btn.textContent = 'ใช้พิกัดปัจจุบัน';
+    };
+  });
+  el.querySelectorAll('[data-rmbranch]').forEach(btn=>{
+    btn.onclick = async ()=>{
+      const bid = btn.dataset.rmbranch;
+      const empCount = db.employees.filter(e=>e.branchId===bid).length;
+      const ok = confirm(empCount>0
+        ? `สาขานี้มีพนักงาน ${empCount} คนผูกอยู่ ถ้าลบ พนักงานกลุ่มนี้จะไม่มีสาขา ต้องการลบจริงหรือไม่?`
+        : 'ต้องการลบสาขานี้หรือไม่?');
+      if(!ok) return;
+      db.branches = db.branches.filter(b=>b.id!==bid);
+      await deleteBranchRow(bid);
+      renderBranchEditor(); renderBranchFilter(); renderAcPointEditor(); renderCleanPointEditor(); updateAdminHeaderMeta();
+    };
+  });
+  document.getElementById('addBranchBtn').onclick = async ()=>{
+    const nameInput = document.getElementById('newBranchName');
+    const name = nameInput.value.trim(); if(!name) return;
+    const newBranch = {id:uid(), name, lat:null, lng:null, radius:100, chatId:'', acPoints:[], cleaningPoints:[]};
+    db.branches.push(newBranch);
+    await saveBranchRow(newBranch);
+    renderBranchEditor(); renderBranchFilter(); renderAcPointEditor(); renderCleanPointEditor(); updateAdminHeaderMeta();
+  };
+  document.getElementById('saveBranchesBtn').onclick = async ()=>{
+    el.querySelectorAll('input[data-f]').forEach(inp=>{
+      const b = db.branches.find(x=>x.id===inp.dataset.id); const f = inp.dataset.f;
+      b[f] = (f==='lat'||f==='lng') ? (inp.value?parseFloat(inp.value):null) : (f==='radius'?parseInt(inp.value||100):inp.value);
+    });
+    const results = await Promise.all(db.branches.map(b=>saveBranchRow(b)));
+    const failed = results.filter(r=>!r.ok);
+    const msgEl = document.getElementById('branchMsg');
+    if(failed.length){
+      msgEl.className='msg err';
+      msgEl.textContent = `บันทึกไม่สำเร็จ (${failed.length} สาขา): ${failed[0].error}`;
+    } else {
+      msgEl.className='msg ok'; msgEl.textContent = 'บันทึกแล้ว';
+    }
+    renderBranchFilter(); renderAcPointEditor(); renderCleanPointEditor();
+  };
+}
+function updateAdminHeaderMeta(){
+  const meta = document.getElementById('adminPageMeta');
+  if(meta) meta.textContent = `${db.branches.length} สาขา`;
+}
+
+function renderAcPointEditor(){
+  const el = document.getElementById('acPointEditor');
+  el.innerHTML = db.branches.map(b=>`
+    <div style="padding:12px 0;border-bottom:1px solid var(--border);">
+      <div style="font-weight:600;font-size:13.5px;margin-bottom:6px;">${b.name}</div>
+      <div class="taglist" data-branch="${b.id}">
+        ${(b.acPoints||[]).map(p=>`<span class="tagchip">${p.name}<button data-rmpoint="${b.id}:${p.id}">✕</button></span>`).join('')}
+      </div>
+      <div class="row2" style="margin-top:8px;">
+        <input type="text" placeholder="ชื่อจุดใหม่ เช่น ห้องทรีตเมนต์ 1" data-newpoint="${b.id}">
+        <button class="btn ghost sm" data-addpoint="${b.id}">เพิ่ม</button>
+      </div>
+    </div>`).join('') + '<div class="msg" id="acPointMsg"></div>';
+  el.querySelectorAll('[data-rmpoint]').forEach(btn=>{
+    btn.onclick = async ()=>{
+      const [bid,pid] = btn.dataset.rmpoint.split(':');
+      const b = db.branches.find(x=>x.id===bid);
+      b.acPoints = (b.acPoints||[]).filter(p=>p.id!==pid);
+      const r = await saveBranchRow(b);
+      renderAcPointEditor();
+      if(!r.ok){ const m=document.getElementById('acPointMsg'); m.className='msg err'; m.textContent='บันทึกไม่สำเร็จ: '+r.error; }
+    };
+  });
+  el.querySelectorAll('[data-addpoint]').forEach(btn=>{
+    btn.onclick = async ()=>{
+      const bid = btn.dataset.addpoint;
+      const input = el.querySelector(`[data-newpoint="${bid}"]`);
+      const name = input.value.trim(); if(!name) return;
+      const b = db.branches.find(x=>x.id===bid);
+      b.acPoints = b.acPoints||[]; b.acPoints.push({id:uid(), name});
+      const r = await saveBranchRow(b);
+      renderAcPointEditor();
+      if(!r.ok){ const m=document.getElementById('acPointMsg'); m.className='msg err'; m.textContent='บันทึกไม่สำเร็จ: '+r.error; }
+    };
+  });
+}
+
+function renderCleanPointEditor(){
+  const el = document.getElementById('cleanPointEditor');
+  el.innerHTML = db.branches.map(b=>`
+    <div style="padding:12px 0;border-bottom:1px solid var(--border);">
+      <div style="font-weight:600;font-size:13.5px;margin-bottom:6px;">${b.name}</div>
+      <div class="taglist" data-branch="${b.id}">
+        ${(b.cleaningPoints||[]).map(p=>`<span class="tagchip">${p.name}<button data-rmcpoint="${b.id}:${p.id}">✕</button></span>`).join('')}
+      </div>
+      <div class="row2" style="margin-top:8px;">
+        <input type="text" placeholder="ชื่อจุดใหม่ เช่น ห้องน้ำ" data-newcpoint="${b.id}">
+        <button class="btn ghost sm" data-addcpoint="${b.id}">เพิ่ม</button>
+      </div>
+    </div>`).join('') + '<div class="msg" id="cleanPointMsg"></div>';
+  el.querySelectorAll('[data-rmcpoint]').forEach(btn=>{
+    btn.onclick = async ()=>{
+      const [bid,pid] = btn.dataset.rmcpoint.split(':');
+      const b = db.branches.find(x=>x.id===bid);
+      b.cleaningPoints = (b.cleaningPoints||[]).filter(p=>p.id!==pid);
+      const r = await saveBranchRow(b);
+      renderCleanPointEditor();
+      if(!r.ok){ const m=document.getElementById('cleanPointMsg'); m.className='msg err'; m.textContent='บันทึกไม่สำเร็จ: '+r.error; }
+    };
+  });
+  el.querySelectorAll('[data-addcpoint]').forEach(btn=>{
+    btn.onclick = async ()=>{
+      const bid = btn.dataset.addcpoint;
+      const input = el.querySelector(`[data-newcpoint="${bid}"]`);
+      const name = input.value.trim(); if(!name) return;
+      const b = db.branches.find(x=>x.id===bid);
+      b.cleaningPoints = b.cleaningPoints||[]; b.cleaningPoints.push({id:uid(), name});
+      const r = await saveBranchRow(b);
+      renderCleanPointEditor();
+      if(!r.ok){ const m=document.getElementById('cleanPointMsg'); m.className='msg err'; m.textContent='บันทึกไม่สำเร็จ: '+r.error; }
+    };
+  });
+}
+
+function renderHolidayEditor(){
+  const el = document.getElementById('holidayEditor');
+  const sorted = db.settings.holidays.slice().sort((a,b)=> a.date.localeCompare(b.date));
+  el.innerHTML = `
+    <div id="holidayList">${sorted.length ? sorted.map(h=>`
+      <div class="settingsrow"><div class="info"><div class="name">${new Date(h.date).toLocaleDateString('th-TH',{day:'numeric',month:'long',year:'numeric'})}</div><div class="meta">${h.name}</div></div><button class="btn ghost sm" data-rmholiday="${h.id}">ลบ</button></div>
+    `).join('') : '<div class="empty">ยังไม่มีวันหยุดบริษัท</div>'}</div>
+    <div class="row2" style="margin-top:12px;">
+      <div id="newHolidayDate_holder"></div>
+      <input type="text" id="newHolidayName" placeholder="ชื่อวันหยุด">
+    </div>
+    <button class="btn sm" style="margin-top:8px;" id="addHolidayBtn">เพิ่มวันหยุด</button>`;
+  el.querySelectorAll('[data-rmholiday]').forEach(btn=>{
+    btn.onclick = async ()=>{ db.settings.holidays = db.settings.holidays.filter(h=>h.id!==btn.dataset.rmholiday); await saveDB(); renderHolidayEditor(); };
+  });
+  document.getElementById('addHolidayBtn').onclick = async ()=>{
+    const date = getDateVal('newHolidayDate');
+    const name = document.getElementById('newHolidayName').value.trim();
+    if(!date || !name) return;
+    db.settings.holidays.push({id:uid(), date, name});
+    await saveDB(); renderHolidayEditor();
+  };
+}
+
+const NOTIFY_TYPE_LABELS = [
+  {key:'checkin', name:'เช็กอิน', meta:'แจ้งเมื่อพนักงานสแกนหน้าเข้างาน'},
+  {key:'checkout', name:'เช็กเอาท์', meta:'แจ้งเมื่อพนักงานสแกนหน้าออกงาน'},
+  {key:'ac', name:'ปิดแอร์', meta:'แจ้งเมื่อแนบรูปปิดแอร์แต่ละจุด'},
+  {key:'clean', name:'ตรวจความสะอาด', meta:'แจ้งเมื่อแนบรูปตรวจความสะอาดแต่ละจุด'},
+  {key:'groom', name:'ความเรียบร้อยพนักงาน', meta:'แจ้งเมื่อพนักงานหน้าร้านส่งรูปประจำวัน'},
+  {key:'leaveSubmit', name:'ยื่นใบลา', meta:'แจ้งเมื่อพนักงานยื่นคำขอลาใหม่ (รออนุมัติ)'},
+  {key:'leaveDecision', name:'ผลอนุมัติใบลา', meta:'แจ้งเมื่ออนุมัติ/ปฏิเสธใบลา'},
+  {key:'otSubmit', name:'ยื่นขอ OT', meta:'แจ้งเมื่อพนักงานยื่นคำขอ OT ใหม่ (รออนุมัติ)'},
+  {key:'otDecision', name:'ผลอนุมัติ OT', meta:'แจ้งเมื่ออนุมัติ/ปฏิเสธคำขอ OT'},
+];
+function renderTelegramRoomsEditor(){
+  const el = document.getElementById('telegramRoomsEditor'); if(!el) return;
+  const rooms = db.settings.telegramRooms || [];
+  el.innerHTML = `
+    <div id="roomsList">${rooms.length ? rooms.map(r=>`
+      <div class="settingsrow"><div class="info"><div class="name">${r.name}</div><div class="meta">${r.chatId}</div></div><button class="btn ghost sm" data-rmroom="${r.id}">ลบ</button></div>
+    `).join('') : '<div class="empty">ยังไม่มีห้องเพิ่มเติม</div>'}</div>
+    <div class="row2" style="margin-top:12px;">
+      <input type="text" id="newRoomName" placeholder="ชื่อห้อง เช่น กลุ่มบัญชี">
+      <input type="text" id="newRoomChatId" placeholder="Chat ID">
+    </div>
+    <button class="btn sm" style="margin-top:8px;" id="addRoomBtn">เพิ่มห้อง</button>`;
+  el.querySelectorAll('[data-rmroom]').forEach(btn=>{
+    btn.onclick = async ()=>{ db.settings.telegramRooms = db.settings.telegramRooms.filter(r=>r.id!==btn.dataset.rmroom); await saveDB(); renderTelegramRoomsEditor(); };
+  });
+  document.getElementById('addRoomBtn').onclick = async ()=>{
+    const name = document.getElementById('newRoomName').value.trim();
+    const chatId = document.getElementById('newRoomChatId').value.trim();
+    if(!name || !chatId) return;
+    db.settings.telegramRooms.push({id:uid(), name, chatId});
+    await saveDB(); renderTelegramRoomsEditor();
+  };
+}
+
+function renderNotifyTypesEditor(){
+  const el = document.getElementById('notifyTypesEditor'); if(!el) return;
+  el.innerHTML = NOTIFY_TYPE_LABELS.map(t=>`
+    <div class="settingsrow">
+      <div class="info"><div class="name">${t.name}</div><div class="meta">${t.meta}</div></div>
+      <label class="switch"><input type="checkbox" data-notifytype="${t.key}" ${db.settings.notifyTypes[t.key]?'checked':''}><span class="track"></span></label>
+    </div>`).join('');
+  el.querySelectorAll('[data-notifytype]').forEach(cb=>{
+    cb.onchange = async ()=>{
+      db.settings.notifyTypes[cb.dataset.notifytype] = cb.checked;
+      await saveDB();
+    };
+  });
+}
+
+document.getElementById('saveRulesBtn').onclick = async ()=>{ db.settings.graceMinutes = parseInt(document.getElementById('graceMinutesInput').value||15); await saveDB(); };
+document.getElementById('saveCentralBtn').onclick = async ()=>{
+  db.settings.centralToken = document.getElementById('centralToken').value.trim();
+  db.settings.centralChatId = document.getElementById('centralChat').value.trim();
+  await saveDB();
+};
+document.getElementById('testCentralTgBtn').onclick = async ()=>{
+  const msg = document.getElementById('centralTgMsg'); msg.className='msg'; msg.textContent='กำลังส่ง…';
+  const token = document.getElementById('centralToken').value.trim();
+  const chatId = document.getElementById('centralChat').value.trim();
+  const r = await tgSendMessage(token, chatId, 'ทดสอบการเชื่อมต่อ ARANA TIME (ส่วนกลาง) สำเร็จ');
+  msg.className = 'msg ' + (r.ok?'ok':'err'); msg.textContent = r.ok ? 'ส่งสำเร็จ' : 'ส่งไม่สำเร็จ: '+r.reason;
+};
+document.getElementById('changeAdminPassBtn').onclick = async ()=>{
+  const val = document.getElementById('newAdminPass').value.trim();
+  const msg = document.getElementById('adminPassMsg');
+  if(val.length<4){ msg.className='msg err'; msg.textContent='รหัสผ่านสั้นเกินไป'; return; }
+  db.settings.adminPassword = val; await saveDB();
+  msg.className='msg ok'; msg.textContent='เปลี่ยนรหัสผ่านแล้ว';
+  document.getElementById('newAdminPass').value='';
+};
+
+async function runScheduledTest(btn, fnName, label){
+  const msg = document.getElementById('scheduledTestMsg');
+  const original = btn.textContent;
+  btn.textContent = 'กำลังส่ง…'; btn.disabled = true;
+  const r = await sbCallFunction(fnName);
+  btn.textContent = original; btn.disabled = false;
+  if(r.ok){ msg.className='msg ok'; msg.textContent = `${label}: สั่งทำงานสำเร็จ — เช็กที่กลุ่ม Telegram ได้เลย`; }
+  else { msg.className='msg err'; msg.textContent = `${label}: ไม่สำเร็จ — ${r.error}`; }
+}
+document.getElementById('testDailyLeaveBtn').onclick = (e)=> runScheduledTest(e.target, 'send_daily_leave_summary', 'สรุปวันลา');
+document.getElementById('testAcReminderBtn').onclick = (e)=> runScheduledTest(e.target, 'send_ac_missing_reminder', 'เตือนปิดแอร์');
+document.getElementById('testFacilityReminderBtn').onclick = (e)=> runScheduledTest(e.target, 'send_facility_missing_reminder', 'เตือนความสะอาด/ความเรียบร้อย');
+
+// ================= CAMERA =================
+async function openCamera(mode, target, pos, distance, fromAdmin){
+  camMode = mode; camTarget = target;
+  document.getElementById('camWrap').classList.add('show');
+  document.getElementById('camStatusText').textContent = 'กำลังเปิดกล้อง…';
+  document.getElementById('camRing').className = 'camring';
+  const foot = document.getElementById('camFoot'); foot.innerHTML='';
+  try{
+    camStream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'user'}});
+    const video = document.getElementById('camVideo');
+    video.srcObject = camStream; await video.play();
+    if(mode==='scan'){
+      document.getElementById('camStatusText').textContent = 'กำลังตรวจสอบใบหน้า…';
+      runScanLoop(target, pos, distance);
+    } else {
+      document.getElementById('camStatusText').innerHTML = `ลงทะเบียนใบหน้าให้ <b>${target.name}</b> — จัดหน้าในกรอบแล้วกดถ่าย`;
+      const capBtn = document.createElement('button'); capBtn.className='btn'; capBtn.textContent='ถ่ายภาพลงทะเบียน';
+      capBtn.onclick = ()=>captureEnrollment(fromAdmin); foot.appendChild(capBtn);
+    }
+  }catch(e){
+    document.getElementById('camStatusText').textContent = 'เปิดกล้องไม่สำเร็จ กรุณาอนุญาตการใช้กล้อง';
+  }
+}
+function closeCamera(){
+  if(scanLoopId) cancelAnimationFrame(scanLoopId); scanLoopId=null; scanBusy=false;
+  if(camStream){ camStream.getTracks().forEach(t=>t.stop()); camStream=null; }
+  document.getElementById('camWrap').classList.remove('show');
+}
+document.getElementById('camClose').onclick = closeCamera;
+
+async function runScanLoop(emp, pos, distance){
+  const video = document.getElementById('camVideo');
+  const detect = async ()=>{
+    if(!camStream) return;
+    if(!scanBusy){
+      scanBusy = true;
+      try{
+        const det = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
+        if(det){
+          const dist = faceapi.euclideanDistance(det.descriptor, emp.descriptor);
+          if(dist < MATCH_THRESHOLD){
+            document.getElementById('camRing').className='camring match';
+            const confidence = Math.max(0, Math.min(100, Math.round((1-dist/0.6)*100)));
+            await finalizeScan(emp, confidence, pos, distance); return;
+          } else document.getElementById('camStatusText').textContent = 'ใบหน้าไม่ตรงกับที่ลงทะเบียนไว้ ลองจัดหน้าให้ชัดเจนขึ้น';
+        } else document.getElementById('camStatusText').textContent = 'กำลังตรวจจับใบหน้า…';
+      }catch(e){}
+      scanBusy = false;
+    }
+    scanLoopId = requestAnimationFrame(detect);
+  };
+  scanLoopId = requestAnimationFrame(detect);
+}
+function grabFrameBlob(){
+  return new Promise(resolve=>{
+    const video = document.getElementById('camVideo');
+    const canvas = document.getElementById('hiddenCanvas');
+    canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    ctx.translate(canvas.width,0); ctx.scale(-1,1);
+    ctx.drawImage(video,0,0,canvas.width,canvas.height);
+    canvas.toBlob(b=>resolve(b), 'image/jpeg', 0.85);
+  });
+}
+function shiftLateMinutes(emp, now){
+  if(!emp.shiftStart) return 0;
+  const [h,m] = emp.shiftStart.split(':').map(Number);
+  const shiftDate = new Date(now); shiftDate.setHours(h, m + (db.settings.graceMinutes||0), 0, 0);
+  const diffMin = Math.round((now - shiftDate)/60000);
+  return diffMin > 0 ? diffMin : 0;
+}
+async function finalizeScan(emp, confidence, pos, distance){
+  if(scanLoopId) cancelAnimationFrame(scanLoopId);
+  const now = new Date();
+  const st = todayStatus(emp.id);
+  const br = currentBranch(emp);
+  let type, lateMinutes=0, text, notiTitle, notiBody;
+  if(!st.inTime){
+    type='IN'; lateMinutes = shiftLateMinutes(emp, now);
+    text = `<b>${emp.name}</b> เช็กอินเข้างานที่ ${br?.name||'-'} เวลา ${fmtTime(now)} น. (${lateMinutes>0?`สาย ${lateMinutes} นาที`:'ตรงเวลา'}) — ยืนยันใบหน้า ${confidence}%`;
+    notiTitle = 'เช็กอินสำเร็จ'; notiBody = `บันทึกเวลาเข้างานที่ ${br?.name||'-'} เรียบร้อย${lateMinutes>0?` (สาย ${lateMinutes} นาที)`:''}`;
+  } else {
+    type='OUT';
+    text = `<b>${emp.name}</b> เช็กเอาท์ออกจากงานที่ ${br?.name||'-'} เวลา ${fmtTime(now)} น. — ยืนยันใบหน้า ${confidence}%`;
+    notiTitle = 'เช็กเอาท์สำเร็จ'; notiBody = `บันทึกเวลาออกงานที่ ${br?.name||'-'} เรียบร้อย`;
+  }
+  if(distance!=null) text += `\nระยะห่างจากสาขา: ${distance} ม.`;
+  document.getElementById('camStatusText').innerHTML = `ยืนยันตัวตนสำเร็จ<br>กำลังบันทึกและส่งแจ้งเตือน…`;
+  const blob = await grabFrameBlob();
+  const logEntry = {id:uid(), employeeId:emp.id, type, time: now.toISOString(), branchId: br?.id, lateMinutes, sent:null};
+  db.logs.unshift(logEntry); await saveLogRow(logEntry);
+  const notifyKey = type==='IN' ? 'checkin' : 'checkout';
+  let anyOk = false;
+  if(db.settings.notifyTypes[notifyKey] && br?.chatIdCheckinout){
+    const result = blob ? await tgSendPhoto(db.settings.centralToken, br.chatIdCheckinout, blob, text) : {ok:false};
+    anyOk = result.ok;
+  }
+  logEntry.sent = anyOk; await saveLogRow(logEntry);
+  await pushNotification(emp.id, notiTitle, notiBody);
+  document.getElementById('camStatusText').innerHTML = !db.settings.notifyTypes[notifyKey] ? 'บันทึกสำเร็จ' : anyOk ? 'บันทึกสำเร็จ — ส่งแจ้งเตือนแล้ว' : 'บันทึกเวลาแล้ว (ส่ง Telegram ไม่สำเร็จ ตรวจสอบการตั้งค่า)';
+  renderEmployeeHome(); updateNotiBadge();
+  setTimeout(closeCamera, 1400);
+}
+async function captureEnrollment(fromAdmin){
+  document.getElementById('camStatusText').textContent = 'กำลังประมวลผลใบหน้า…';
+  const video = document.getElementById('camVideo');
+  try{
+    const det = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
+    if(!det){ document.getElementById('camStatusText').textContent = 'ไม่พบใบหน้า กรุณาลองใหม่ให้อยู่กึ่งกลางกรอบ'; return; }
+    camTarget.descriptor = Array.from(det.descriptor); await saveEmployeeRow(camTarget);
+    document.getElementById('camStatusText').innerHTML = `ลงทะเบียนใบหน้าสำเร็จ`;
+    setTimeout(()=>{ closeCamera(); if(session.role==='employee') renderEmployeeHome(); if(fromAdmin) renderAdminEmpList(); }, 900);
+  }catch(e){ document.getElementById('camStatusText').textContent = 'เกิดข้อผิดพลาด กรุณาลองใหม่'; }
+}
+
+// ================= INIT =================
+(async function init(){
+  await loadDB();
+  renderEmpSelect();
+  showView('login');
+  initFaceApi();
+})();
+</script>
+</body>
+</html>
