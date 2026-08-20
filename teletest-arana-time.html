@@ -660,7 +660,7 @@
     <input type="text" id="editEmpName">
     <div class="row2">
       <div><label>ชื่อเล่น</label><input type="text" id="editEmpNickname"></div>
-      <div><label>แผนก</label><input type="text" id="editEmpDept" placeholder="เช่น หน้าร้าน, บัญชี"></div>
+      <div><label>แผนก</label><input type="text" id="editEmpDept" placeholder="พิมพ์ว่า หน้าร้าน ถ้าต้องส่งความเรียบร้อยประจำวัน"></div>
     </div>
     <label>ตำแหน่งงาน</label>
     <input type="text" id="editEmpJobTitle" placeholder="เช่น พนักงานเคาน์เตอร์, ช่างเทคนิค">
@@ -1177,7 +1177,7 @@ function renderEmployeeHome(){
     </div>${l.lateMinutes>0?'<span class="badge late">สาย</span>':''}</div>`).join('') : '<div class="empty">ยังไม่มีประวัติ</div>';
 
   const br = currentBranch(emp);
-  document.getElementById('qaGroom').classList.toggle('hidden', emp.branchId==='hq');
+  document.getElementById('qaGroom').classList.toggle('hidden', (emp.department||'').trim() !== 'หน้าร้าน');
   if(br){
     const todayAcLogs = db.logs.filter(l=>l.type==='AC' && l.branchId===br.id && todayKey(new Date(l.time))===todayKey());
     const doneAcIds = new Set(todayAcLogs.map(l=>l.acPointId));
@@ -1640,7 +1640,7 @@ function renderOverviewStats(){
 
   let inSent=0, lateSent=0, absentSent=0, leaveSent=0, otSent=0;
   let inExpTotal=0, absentExpTotal=0, leaveExpTotal=0, groomSent=0, groomExpTotal=0;
-  const frontStoreEmps = emps.filter(e=>e.branchId!=='hq');
+  const frontStoreEmps = emps.filter(e=>(e.department||'').trim()==='หน้าร้าน');
 
   days.forEach(d=>{
     const dKey = d.toDateString();
@@ -2024,7 +2024,7 @@ function renderBranchEditor(){
   document.getElementById('addBranchBtn').onclick = async ()=>{
     const nameInput = document.getElementById('newBranchName');
     const name = nameInput.value.trim(); if(!name) return;
-    const newBranch = {id:uid(), name, lat:null, lng:null, radius:100, chatId:'', acPoints:[], cleaningPoints:[]};
+    const newBranch = {id:uid(), name, lat:null, lng:null, radius:100, chatIdCheckinout:'', chatIdFacility:'', chatIdLeaveApproval:'', acPoints:[], cleaningPoints:[]};
     db.branches.push(newBranch);
     await saveBranchRow(newBranch);
     renderBranchEditor(); renderBranchFilter(); renderAcPointEditor(); renderCleanPointEditor(); updateAdminHeaderMeta();
