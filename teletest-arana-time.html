@@ -232,8 +232,7 @@
   <div class="logo"><div class="mark">ARANA TIME</div><div class="subm">ระบบเข้า-ออกงานหลายสาขา</div></div>
   <div class="rolepick">
     <button class="rolebtn active" id="roleEmpBtn">พนักงาน</button>
-    <button class="rolebtn" id="roleApproverBtn">ผู้อนุมัติ</button>
-    <button class="rolebtn" id="roleAdminBtn">เจ้าของ/HR</button>
+    <button class="rolebtn" id="roleApproverBtn">ผู้บริหาร</button>
   </div>
 
   <div id="empLoginStep1" class="card">
@@ -256,6 +255,7 @@
     <select id="approverSelect"></select>
     <button class="btn block" style="margin-top:14px;" id="approverNextBtn">ถัดไป</button>
     <div class="msg err" id="approverLoginMsg"></div>
+    <button class="backlink" style="margin-top:12px;" id="showAdminPasswordLink">เข้าด้วยรหัสผ่านเจ้าของระบบแทน (ตั้งค่าครั้งแรก)</button>
   </div>
 
   <div id="approverLoginStep2" class="card hidden">
@@ -267,11 +267,12 @@
   </div>
 
   <div id="adminLoginBox" class="card hidden">
-    <label>รหัสผ่านเจ้าของ/HR</label>
+    <button class="backlink" id="adminBackBtn">‹ กลับ</button>
+    <label>รหัสผ่านเจ้าของระบบ</label>
     <input type="password" id="adminPassInput" placeholder="รหัสผ่าน">
     <button class="btn block" style="margin-top:14px;" id="adminLoginBtn">เข้าสู่ระบบ</button>
     <div class="msg err" id="adminLoginMsg"></div>
-    <div class="hint" style="margin-top:10px;">รหัสผ่านเริ่มต้น: <b>admin1234</b> — เปลี่ยนได้ในหน้าตั้งค่าหลังเข้าสู่ระบบ</div>
+    <div class="hint" style="margin-top:10px;">รหัสผ่านเริ่มต้น: <b>admin1234</b> — เปลี่ยนได้ในหน้าตั้งค่าหลังเข้าสู่ระบบ ใช้สำหรับตั้งค่าครั้งแรกเท่านั้น หลังจากนั้นแนะนำให้สร้างบัญชี HR แล้วใช้ชื่อ+PIN แทน</div>
   </div>
 </div>
 
@@ -576,7 +577,7 @@
         <div class="card" id="adminEmpList" style="padding:0 16px;"></div>
       </section>
       <section>
-        <div class="sectitle">จัดการบัญชีผู้อนุมัติ</div>
+        <div class="sectitle">จัดการบัญชีผู้บริหาร</div>
         <div class="card" id="approverEditor"></div>
       </section>
       <section>
@@ -1204,7 +1205,6 @@ function tryAutoResumeLogin(){
     pinTargetEmp = emp; pinMode = 'verify'; pinBuffer='';
     document.getElementById('roleEmpBtn').classList.add('active');
     document.getElementById('roleApproverBtn').classList.remove('active');
-    document.getElementById('roleAdminBtn').classList.remove('active');
     document.getElementById('empLoginStep1').classList.add('hidden');
     document.getElementById('approverLoginStep1').classList.add('hidden');
     document.getElementById('adminLoginBox').classList.add('hidden');
@@ -1219,7 +1219,6 @@ function tryAutoResumeLogin(){
     approverPinTarget = a; approverPinMode = 'verify'; approverPinBuffer='';
     document.getElementById('roleApproverBtn').classList.add('active');
     document.getElementById('roleEmpBtn').classList.remove('active');
-    document.getElementById('roleAdminBtn').classList.remove('active');
     document.getElementById('empLoginStep1').classList.add('hidden');
     document.getElementById('approverLoginStep1').classList.add('hidden');
     document.getElementById('adminLoginBox').classList.add('hidden');
@@ -1233,8 +1232,7 @@ function tryAutoResumeLogin(){
 
 function showLoginPanel(which){
   document.getElementById('roleEmpBtn').classList.toggle('active', which==='emp');
-  document.getElementById('roleApproverBtn').classList.toggle('active', which==='approver');
-  document.getElementById('roleAdminBtn').classList.toggle('active', which==='admin');
+  document.getElementById('roleApproverBtn').classList.toggle('active', which==='approver' || which==='admin');
   document.getElementById('empLoginStep1').classList.toggle('hidden', which!=='emp');
   document.getElementById('empLoginStep2').classList.add('hidden');
   document.getElementById('approverLoginStep1').classList.toggle('hidden', which!=='approver');
@@ -1243,7 +1241,8 @@ function showLoginPanel(which){
 }
 document.getElementById('roleEmpBtn').onclick = ()=> showLoginPanel('emp');
 document.getElementById('roleApproverBtn').onclick = ()=>{ renderApproverSelect(); showLoginPanel('approver'); };
-document.getElementById('roleAdminBtn').onclick = ()=> showLoginPanel('admin');
+document.getElementById('showAdminPasswordLink').onclick = ()=> showLoginPanel('admin');
+document.getElementById('adminBackBtn').onclick = ()=>{ renderApproverSelect(); showLoginPanel('approver'); };
 document.getElementById('empNextBtn').onclick = ()=>{
   const id = document.getElementById('empSelect').value;
   if(!id){ document.getElementById('empLoginMsg').textContent = 'ยังไม่มีรายชื่อพนักงาน'; return; }
@@ -1313,7 +1312,7 @@ function renderApproverSelect(){
   const sel = document.getElementById('approverSelect');
   sel.innerHTML = db.approvers.length ? db.approvers.map(a=>`<option value="${a.id}">${a.name} (${approverRoleLabel(a.role)})</option>`).join('') : `<option value="">— ยังไม่มีบัญชีผู้อนุมัติ ให้เจ้าของ/HR เพิ่มก่อน —</option>`;
 }
-function approverRoleLabel(role){ return role==='manager'?'ผู้จัดการ':role==='director'?'กรรมการ':'HR'; }
+function approverRoleLabel(role){ return role==='owner'?'เจ้าของ':role==='manager'?'ผู้จัดการ':'HR'; }
 let approverPinBuffer='', approverPinMode=null, approverPinTarget=null, approverPinSetStage=0, approverPinFirstEntry='';
 document.getElementById('approverNextBtn').onclick = ()=>{
   const id = document.getElementById('approverSelect').value;
@@ -1755,7 +1754,7 @@ document.getElementById('submitOtBtn').onclick = async ()=>{
   setTimeout(()=>{ document.getElementById('otOverlay').classList.remove('show'); }, 900);
 };
 async function decideOt(id, status){
-  if(!canApproveOt()){ alert('ไม่มีสิทธิ์อนุมัติ OT ต้องเป็นกรรมการบริษัท'); return; }
+  if(!canApproveOt()){ alert('ไม่มีสิทธิ์อนุมัติ OT ต้องเป็นเจ้าของ/HR เท่านั้น'); return; }
   const ot = db.otRequests.find(o=>o.id===id); if(!ot) return;
   ot.status = status; ot.decidedAt = new Date().toISOString(); await saveOtRow(ot);
   const emp = db.employees.find(e=>e.id===ot.employeeId);
@@ -1847,22 +1846,29 @@ function enterAdminView(){
   switchATab('Overview');
 }
 function currentApprover(){ return db.approvers.find(a=>a.id===session.approverId) || null; }
-function canApproveLeave(){
+function isAdminTier(){
   if(session.role==='admin') return true;
-  return session.role==='approver' && (session.approverRole==='hr' || session.approverRole==='manager');
+  return session.role==='approver' && (session.approverRole==='owner' || session.approverRole==='hr');
+}
+function canAccessSettings(){ return isAdminTier(); }
+function canManageApprovers(){
+  return session.role==='admin' || (session.role==='approver' && session.approverRole==='hr');
+}
+function canApproveLeave(){
+  if(isAdminTier()) return true;
+  return session.role==='approver' && session.approverRole==='manager';
 }
 function canApproveOt(){
-  if(session.role==='admin') return true;
-  return session.role==='approver' && session.approverRole==='director';
+  return isAdminTier();
 }
 function enterApproverView(){
   showView('admin');
   const todayStr = dateKey(new Date());
   if(!getDateVal('overviewFrom')) setDateVal('overviewFrom', todayStr);
   if(!getDateVal('overviewTo')) setDateVal('overviewTo', todayStr);
-  document.querySelector('#adminView [data-atab="Settings"]').classList.add('hidden');
+  document.querySelector('#adminView [data-atab="Settings"]').classList.toggle('hidden', !canAccessSettings());
   const approver = currentApprover();
-  document.getElementById('adminDropdown').querySelector('.dname').textContent = approver?.name || 'ผู้อนุมัติ';
+  document.getElementById('adminDropdown').querySelector('.dname').textContent = approver?.name || 'ผู้บริหาร';
   document.getElementById('adminDropdown').querySelector('.drole').textContent = approverRoleLabel(approver?.role);
   switchATab('Leaves');
 }
@@ -2253,7 +2259,7 @@ function renderLeaveLists(){
     const br = db.branches.find(b=>b.id===emp?.branchId);
     return `<div class="listrow" style="flex-direction:column;align-items:stretch;gap:6px;">
       <div style="display:flex;align-items:center;gap:12px;"><div class="avatar">${emp?.name.trim()[0]||'?'}</div><div class="info"><div class="name">${emp?.name||'-'} (${br?.name||'-'}) · ${leaveLabel(l.kind)}</div><div class="meta">${leaveRangeText(l)} · ${l.reason||'-'}${l.evidenceSent?' · แนบหลักฐานแล้ว':''}</div></div></div>
-      ${canApproveLeave() ? `<div class="actionrow"><button class="btn-mini approve" data-approve="${l.id}">อนุมัติ</button><button class="btn-mini reject" data-reject="${l.id}">ปฏิเสธ</button></div>` : `<div style="font-size:11.5px;color:var(--muted);">ไม่มีสิทธิ์อนุมัติรายการนี้ (ต้องเป็น HR หรือผู้จัดการ)</div>`}
+      ${canApproveLeave() ? `<div class="actionrow"><button class="btn-mini approve" data-approve="${l.id}">อนุมัติ</button><button class="btn-mini reject" data-reject="${l.id}">ปฏิเสธ</button></div>` : `<div style="font-size:11.5px;color:var(--muted);">ไม่มีสิทธิ์อนุมัติรายการนี้ (ต้องเป็นเจ้าของ/HR/ผู้จัดการ)</div>`}
     </div>`;
   }).join('') : '<div class="empty">ไม่มีคำขอลาที่รออนุมัติ</div>';
   pendEl.querySelectorAll('[data-approve]').forEach(b=> b.onclick = ()=> decideLeave(b.dataset.approve,'approved'));
@@ -2286,7 +2292,7 @@ document.getElementById('exportLeaveReportBtn').onclick = ()=>{
   downloadCSV(`arana-time-leave-report-${new Date().getFullYear()}-${new Date().getMonth()+1}.csv`, rows);
 };
 async function decideLeave(id, status){
-  if(!canApproveLeave()){ alert('ไม่มีสิทธิ์อนุมัติใบลา ต้องเป็น HR หรือผู้จัดการ'); return; }
+  if(!canApproveLeave()){ alert('ไม่มีสิทธิ์อนุมัติใบลา ต้องเป็นเจ้าของ/HR/ผู้จัดการ'); return; }
   const leave = db.leaves.find(l=>l.id===id); if(!leave) return;
   leave.status = status; leave.decidedAt = new Date().toISOString(); await saveLeaveRow(leave);
   const emp = db.employees.find(e=>e.id===leave.employeeId);
@@ -2335,7 +2341,7 @@ function renderOtLists(){
     const br = db.branches.find(b=>b.id===emp?.branchId);
     return `<div class="listrow" style="flex-direction:column;align-items:stretch;gap:6px;">
       <div style="display:flex;align-items:center;gap:12px;"><div class="avatar">${emp?.name.trim()[0]||'?'}</div><div class="info"><div class="name">${emp?.name||'-'} (${br?.name||'-'}) · ${fmtDateShort(new Date(o.date))}</div><div class="meta">${o.hourStart}–${o.hourEnd} น. · ${o.reason||'-'}</div></div></div>
-      ${canApproveOt() ? `<div class="actionrow"><button class="btn-mini approve" data-otapprove="${o.id}">อนุมัติ</button><button class="btn-mini reject" data-otreject="${o.id}">ปฏิเสธ</button></div>` : `<div style="font-size:11.5px;color:var(--muted);">ไม่มีสิทธิ์อนุมัติรายการนี้ (ต้องเป็นกรรมการ)</div>`}
+      ${canApproveOt() ? `<div class="actionrow"><button class="btn-mini approve" data-otapprove="${o.id}">อนุมัติ</button><button class="btn-mini reject" data-otreject="${o.id}">ปฏิเสธ</button></div>` : `<div style="font-size:11.5px;color:var(--muted);">ไม่มีสิทธิ์อนุมัติรายการนี้ (ต้องเป็นเจ้าของ/HR เท่านั้น)</div>`}
     </div>`;
   }).join('') : '<div class="empty">ไม่มีคำขอ OT ที่รออนุมัติ</div>';
   pendEl.querySelectorAll('[data-otapprove]').forEach(b=> b.onclick = ()=> decideOt(b.dataset.otapprove,'approved'));
@@ -2467,27 +2473,34 @@ document.getElementById('editEmpFaceBtn').onclick = ()=>{
 
 function renderApproverEditor(){
   const el = document.getElementById('approverEditor'); if(!el) return;
+  if(!canManageApprovers()){
+    el.innerHTML = `<div class="empty">มีแค่ตำแหน่ง HR เท่านั้นที่จัดการบัญชีผู้บริหารได้</div>`;
+    return;
+  }
   el.innerHTML = `
     <div id="approverList">${db.approvers.length ? db.approvers.map(a=>`
       <div class="settingsrow"><div class="info"><div class="name">${a.name}</div><div class="meta">${approverRoleLabel(a.role)} · ${a.pin?'ตั้ง PIN แล้ว':'ยังไม่ได้ตั้ง PIN'}</div></div>
         <button class="btn ghost sm" data-resetapprover="${a.id}">รีเซ็ต PIN</button>
         <button class="btn ghost sm" data-rmapprover="${a.id}">ลบ</button></div>
-    `).join('') : '<div class="empty">ยังไม่มีบัญชีผู้อนุมัติ</div>'}</div>
+    `).join('') : '<div class="empty">ยังไม่มีบัญชีผู้บริหาร</div>'}</div>
     <div style="margin-top:12px;">
-      <label style="margin-top:0;">ชื่อผู้อนุมัติ</label>
-      <input type="text" id="newApproverName" placeholder="ชื่อ-นามสกุล">
+      <label style="margin-top:0;">ชื่อผู้บริหาร</label>
+      <input type="text" id="newApproverName" list="approverNameSuggestions" placeholder="พิมพ์ชื่อ หรือเลือกจากรายชื่อพนักงาน" autocomplete="off">
+      <datalist id="approverNameSuggestions"></datalist>
       <label>ตำแหน่ง</label>
       <select id="newApproverRole">
-        <option value="hr">HR (อนุมัติใบลา)</option>
+        <option value="owner">เจ้าของ (สิทธิ์เต็ม)</option>
+        <option value="hr">HR (สิทธิ์เต็ม + จัดการบัญชีผู้บริหาร)</option>
         <option value="manager">ผู้จัดการ (อนุมัติใบลา)</option>
-        <option value="director">กรรมการ (อนุมัติ OT)</option>
       </select>
     </div>
-    <button class="btn sm" style="margin-top:10px;" id="addApproverBtn">เพิ่มบัญชีผู้อนุมัติ</button>
+    <button class="btn sm" style="margin-top:10px;" id="addApproverBtn">เพิ่มบัญชีผู้บริหาร</button>
     <div class="msg" id="approverEditMsg"></div>`;
+  const dl = document.getElementById('approverNameSuggestions');
+  if(dl) dl.innerHTML = db.employees.map(e=>`<option value="${e.name}"></option>`).join('');
   el.querySelectorAll('[data-rmapprover]').forEach(btn=>{
     btn.onclick = async ()=>{
-      if(!confirm('ลบบัญชีผู้อนุมัตินี้?')) return;
+      if(!confirm('ลบบัญชีผู้บริหารนี้?')) return;
       db.approvers = db.approvers.filter(a=>a.id!==btn.dataset.rmapprover);
       await deleteApproverRow(btn.dataset.rmapprover);
       renderApproverEditor();
