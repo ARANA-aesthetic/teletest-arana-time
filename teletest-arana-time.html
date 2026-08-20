@@ -302,7 +302,17 @@
         </div>
       </section>
       <section>
-        <div class="sectitle">สรุปเดือนนี้</div>
+        <div class="sectitle">สรุปภาพรวม</div>
+        <select id="empFilterPreset_home" style="margin-bottom:10px;">
+          <option value="month">เดือนนี้</option>
+          <option value="today">วันนี้</option>
+          <option value="year">ปีนี้</option>
+          <option value="custom">กำหนดเอง</option>
+        </select>
+        <div class="row2 hidden" id="empFilterCustomRow_home" style="margin-bottom:10px;">
+          <div><div id="empFilterFrom_home_holder"></div></div>
+          <div><div id="empFilterTo_home_holder"></div></div>
+        </div>
         <div class="statgrid">
           <div class="stat"><div class="t">ตรงเวลา</div><div class="num" style="color:var(--green);" id="mOnTime">0</div><div class="lbl">วัน</div></div>
           <div class="stat"><div class="t">มาสาย</div><div class="num" style="color:var(--amber);" id="mLate">0</div><div class="lbl">วัน</div></div>
@@ -345,6 +355,16 @@
       <section><button class="btn block" id="openLeaveFormBtn">+ ยื่นใบลาใหม่</button></section>
       <section>
         <div class="sectitle">ใบลาของฉัน<button class="btn ghost sm" style="margin-left:auto;" id="exportMyLeaveBtn">Report</button></div>
+        <select id="empFilterPreset_leave" style="margin-bottom:10px;">
+          <option value="month">เดือนนี้</option>
+          <option value="today">วันนี้</option>
+          <option value="year">ปีนี้</option>
+          <option value="custom">กำหนดเอง</option>
+        </select>
+        <div class="row2 hidden" id="empFilterCustomRow_leave" style="margin-bottom:10px;">
+          <div><div id="empFilterFrom_leave_holder"></div></div>
+          <div><div id="empFilterTo_leave_holder"></div></div>
+        </div>
         <div class="card" id="myLeaveList" style="padding:0 16px;"></div>
       </section>
     </div>
@@ -451,14 +471,14 @@
           <div><div id="overviewTo_holder"></div></div>
         </div>
         <div class="statgrid" style="margin-top:14px;">
-          <div class="stat"><div class="t">เข้างานแล้ว</div><div class="num" style="color:var(--pink-dark);font-size:17px;" id="oIn">0/0</div><div class="lbl">คน</div></div>
-          <div class="stat"><div class="t">มาสาย</div><div class="num" style="color:var(--amber);font-size:17px;" id="oLate">0/0</div><div class="lbl">คน</div></div>
-          <div class="stat"><div class="t">ขาดงาน</div><div class="num" style="color:var(--red);font-size:17px;" id="oAbsent">0/0</div><div class="lbl">คน</div></div>
-          <div class="stat"><div class="t">ลา</div><div class="num" style="color:var(--blue);font-size:17px;" id="oLeaveToday">0/0</div><div class="lbl">คน</div></div>
-          <div class="stat"><div class="t">ขอ OT</div><div class="num" style="color:var(--pink-dark);font-size:17px;" id="oOt">0/0</div><div class="lbl">คน</div></div>
-          <div class="stat"><div class="t">แจ้งปิดแอร์</div><div class="num" style="color:var(--pink-dark);font-size:17px;" id="oAc">0/0</div><div class="lbl">จุด</div></div>
-          <div class="stat"><div class="t">ตรวจความสะอาด</div><div class="num" style="color:var(--pink-dark);font-size:17px;" id="oClean">0/0</div><div class="lbl">จุด</div></div>
-          <div class="stat"><div class="t">ความเรียบร้อย</div><div class="num" style="color:var(--pink-dark);font-size:17px;" id="oGroom">0/0</div><div class="lbl">คน</div></div>
+          <div class="stat"><div class="t">เข้างานแล้ว</div><div class="num" style="color:var(--pink-dark);font-size:17px;" id="oIn">0/0</div><div class="lbl" id="oInLbl">คน</div></div>
+          <div class="stat"><div class="t">มาสาย</div><div class="num" style="color:var(--amber);font-size:17px;" id="oLate">0/0</div><div class="lbl" id="oLateLbl">คน</div></div>
+          <div class="stat"><div class="t">ขาดงาน</div><div class="num" style="color:var(--red);font-size:17px;" id="oAbsent">0/0</div><div class="lbl" id="oAbsentLbl">คน</div></div>
+          <div class="stat"><div class="t">ลา</div><div class="num" style="color:var(--blue);font-size:17px;" id="oLeaveToday">0/0</div><div class="lbl" id="oLeaveTodayLbl">คน</div></div>
+          <div class="stat"><div class="t">ขอ OT</div><div class="num" style="color:var(--pink-dark);font-size:17px;" id="oOt">0/0</div><div class="lbl" id="oOtLbl">คน</div></div>
+          <div class="stat"><div class="t">แจ้งปิดแอร์</div><div class="num" style="color:var(--pink-dark);font-size:17px;" id="oAc">0/0</div><div class="lbl" id="oAcLbl">จุด</div></div>
+          <div class="stat"><div class="t">ตรวจความสะอาด</div><div class="num" style="color:var(--pink-dark);font-size:17px;" id="oClean">0/0</div><div class="lbl" id="oCleanLbl">จุด</div></div>
+          <div class="stat"><div class="t">ความเรียบร้อย</div><div class="num" style="color:var(--pink-dark);font-size:17px;" id="oGroom">0/0</div><div class="lbl" id="oGroomLbl">คน</div></div>
         </div>
       </section>
       <section>
@@ -563,6 +583,7 @@
           <div class="msg" id="adminPassMsg"></div>
         </div>
       </section>
+      <div style="text-align:center;font-size:10.5px;color:var(--muted);font-weight:300;margin-top:6px;">แก้ไขเมื่อวันที่ 20/08/2026</div>
     </div>
 
   </div>
@@ -992,8 +1013,67 @@ const fmtTime = d => d.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digi
 const fmtDateShort = d => d.toLocaleDateString('th-TH',{day:'numeric',month:'short'});
 
 function isApprovedLeaveOnDate(empId, date){
-  return db.leaves.some(l => l.employeeId===empId && l.status==='approved' && new Date(l.from) <= date && date <= new Date(l.to));
+  return db.leaves.some(l => l.employeeId===empId && l.status==='approved' && new Date(l.from+'T00:00:00') <= date && date <= new Date(l.to+'T00:00:00'));
 }
+// ===== Employee-side period filter (day/month/year/custom) for Home summary + Leave list =====
+let empFilterMode = 'month';
+let empFilterFrom = null, empFilterTo = null;
+function getEmpFilterRange(){
+  const now = new Date();
+  if(empFilterMode==='today'){ const k=dateKey(now); return {from:k, to:k}; }
+  if(empFilterMode==='year'){ return {from:`${now.getFullYear()}-01-01`, to:`${now.getFullYear()}-12-31`}; }
+  if(empFilterMode==='custom'){ return {from: empFilterFrom||dateKey(now), to: empFilterTo||dateKey(now)}; }
+  const y=now.getFullYear(), m=now.getMonth();
+  return {from: dateKey(new Date(y,m,1)), to: dateKey(new Date(y,m+1,0))};
+}
+function summaryForRange(empId, fromStr, toStr){
+  let onTime=0, late=0, absent=0, leaveDays=0;
+  const emp = db.employees.find(e=>e.id===empId);
+  const today = new Date();
+  let start = new Date(fromStr+'T00:00:00');
+  const end = new Date(Math.min(new Date(toStr+'T00:00:00').getTime(), today.getTime()));
+  if(emp?.startDate){
+    const empStart = new Date(emp.startDate+'T00:00:00');
+    if(empStart > start) start = empStart;
+  }
+  for(let d=new Date(start); d<=end; d.setDate(d.getDate()+1)){
+    if(isHoliday(d)) continue;
+    const dayKey = todayKey(d);
+    const inLog = db.logs.find(l=>l.employeeId===empId && l.type==='IN' && todayKey(new Date(l.time))===dayKey);
+    if(isApprovedLeaveOnDate(empId, d)){ leaveDays++; continue; }
+    if(inLog){ if(inLog.lateMinutes>0) late++; else onTime++; }
+    else { absent++; }
+  }
+  return {onTime, late, absent, leaveDays};
+}
+function syncEmpFilterUI(){
+  ['home','leave'].forEach(scope=>{
+    const sel = document.getElementById(`empFilterPreset_${scope}`);
+    const customRow = document.getElementById(`empFilterCustomRow_${scope}`);
+    if(sel) sel.value = empFilterMode;
+    if(customRow) customRow.classList.toggle('hidden', empFilterMode!=='custom');
+    if(empFilterMode==='custom'){
+      setDateVal(`empFilterFrom_${scope}`, empFilterFrom||'');
+      setDateVal(`empFilterTo_${scope}`, empFilterTo||'');
+    }
+  });
+}
+function applyEmpFilter(){
+  syncEmpFilterUI();
+  if(!document.getElementById('etabHome').classList.contains('hidden')) renderEmployeeHome();
+  if(!document.getElementById('etabLeave').classList.contains('hidden')) renderLeaveTab();
+}
+['home','leave'].forEach(scope=>{
+  const holderFrom = document.getElementById(`empFilterFrom_${scope}_holder`);
+  const holderTo = document.getElementById(`empFilterTo_${scope}_holder`);
+  if(holderFrom) holderFrom.innerHTML = dateSelectHTML(`empFilterFrom_${scope}`);
+  if(holderTo) holderTo.innerHTML = dateSelectHTML(`empFilterTo_${scope}`);
+  const sel = document.getElementById(`empFilterPreset_${scope}`);
+  if(sel) sel.onchange = ()=>{ empFilterMode = sel.value; applyEmpFilter(); };
+  wireDateChange(`empFilterFrom_${scope}`, ()=>{ empFilterFrom = getDateVal(`empFilterFrom_${scope}`); applyEmpFilter(); });
+  wireDateChange(`empFilterTo_${scope}`, ()=>{ empFilterTo = getDateVal(`empFilterTo_${scope}`); applyEmpFilter(); });
+});
+
 function monthlySummary(empId, month=new Date().getMonth(), year=new Date().getFullYear()){
   let onTime=0, late=0, absent=0, leaveDays=0;
   const emp = db.employees.find(e=>e.id===empId);
@@ -1140,9 +1220,9 @@ function switchETab(tab){
   document.getElementById('empPageTitle').textContent = titles[tab];
   document.getElementById('empPageMeta').textContent = metas[tab];
   document.getElementById('empDropdownName').textContent = emp.name;
-  if(tab==='Home') renderEmployeeHome();
+  if(tab==='Home'){ syncEmpFilterUI(); renderEmployeeHome(); }
   if(tab==='Cal') renderCalendar();
-  if(tab==='Leave') renderLeaveTab();
+  if(tab==='Leave'){ syncEmpFilterUI(); renderLeaveTab(); }
   if(tab==='Ac') renderAcTab();
   if(tab==='Clean') renderCleanTab();
   if(tab==='Ot') renderOtTab();
@@ -1163,7 +1243,8 @@ document.getElementById('menuAcShort').onclick = ()=> switchETab('Ac');
 function renderEmployeeHome(){
   const emp = currentEmployee(); if(!emp) return;
   updateScanButtonLabel();
-  const m = monthlySummary(emp.id);
+  const range = getEmpFilterRange();
+  const m = summaryForRange(emp.id, range.from, range.to);
   document.getElementById('mOnTime').textContent = m.onTime;
   document.getElementById('mLate').textContent = m.late;
   document.getElementById('mAbsent').textContent = m.absent;
@@ -1257,12 +1338,18 @@ function leaveRangeText(l){
 }
 function renderLeaveTab(){
   const emp = currentEmployee(); if(!emp) return;
-  const myLeaves = db.leaves.filter(l=>l.employeeId===emp.id).sort((a,b)=>new Date(b.requestedAt)-new Date(a.requestedAt));
+  const range = getEmpFilterRange();
+  const rFrom = new Date(range.from+'T00:00:00'), rTo = new Date(range.to+'T00:00:00');
+  const myLeaves = db.leaves.filter(l=>{
+    if(l.employeeId!==emp.id) return false;
+    const lFrom = new Date(l.from+'T00:00:00'), lTo = new Date(l.to+'T00:00:00');
+    return lFrom <= rTo && lTo >= rFrom;
+  }).sort((a,b)=>new Date(b.requestedAt)-new Date(a.requestedAt));
   document.getElementById('myLeaveList').innerHTML = myLeaves.length ? myLeaves.map(l=>`
     <div class="listrow"><div class="info">
       <div class="name">${leaveLabel(l.kind)} · ${leaveRangeText(l)}</div>
       <div class="meta">${l.reason||''}${l.evidenceSent?' · แนบหลักฐานแล้ว':''}</div>
-    </div><span class="badge ${l.status}">${leaveStatusLabel(l.status)}</span></div>`).join('') : '<div class="empty">ยังไม่มีใบลา</div>';
+    </div><span class="badge ${l.status}">${leaveStatusLabel(l.status)}</span></div>`).join('') : '<div class="empty">ไม่มีใบลาในช่วงที่เลือก</div>';
 }
 document.getElementById('exportMyLeaveBtn').onclick = ()=>{
   const emp = currentEmployee(); if(!emp) return;
@@ -1686,14 +1773,32 @@ function renderOverviewStats(){
     cleanSent += new Set(cleanLogsToday.map(l=>l.branchId+':'+l.cleanPointId)).size;
   });
 
-  document.getElementById('oIn').textContent = `${inSent}/${inExpTotal}`;
-  document.getElementById('oLate').textContent = `${lateSent}/${inExpTotal}`;
-  document.getElementById('oAbsent').textContent = `${absentSent}/${absentExpTotal}`;
-  document.getElementById('oLeaveToday').textContent = `${leaveSent}/${leaveExpTotal}`;
-  document.getElementById('oOt').textContent = `${otSent}/${inExpTotal}`;
-  document.getElementById('oAc').textContent = `${acSent}/${acPointsTotal}`;
-  document.getElementById('oClean').textContent = `${cleanSent}/${cleanPointsTotal}`;
-  document.getElementById('oGroom').textContent = `${groomSent}/${groomExpTotal}`;
+  const isRange = fromStr !== toStr;
+  const rangeLabels = { oIn:'', oLate:'', oAbsent:'', oLeaveToday:'', oOt:'', oAc:'', oClean:'', oGroom:'' };
+  const normalLabels = { oIn:'คน', oLate:'คน', oAbsent:'คน', oLeaveToday:'คน', oOt:'คน', oAc:'จุด', oClean:'จุด', oGroom:'คน' };
+  Object.keys(normalLabels).forEach(id=>{
+    const lbl = document.getElementById(id+'Lbl');
+    if(lbl) lbl.textContent = isRange ? rangeLabels[id] : normalLabels[id];
+  });
+  if(isRange){
+    document.getElementById('oIn').textContent = '-';
+    document.getElementById('oLate').textContent = `${lateSent} ครั้ง`;
+    document.getElementById('oAbsent').textContent = `${absentSent} ครั้ง`;
+    document.getElementById('oLeaveToday').textContent = `${leaveSent} ครั้ง`;
+    document.getElementById('oOt').textContent = `${otSent} ครั้ง`;
+    document.getElementById('oAc').textContent = '-';
+    document.getElementById('oClean').textContent = '-';
+    document.getElementById('oGroom').textContent = '-';
+  } else {
+    document.getElementById('oIn').textContent = `${inSent}/${inExpTotal}`;
+    document.getElementById('oLate').textContent = `${lateSent}/${inExpTotal}`;
+    document.getElementById('oAbsent').textContent = `${absentSent}/${absentExpTotal}`;
+    document.getElementById('oLeaveToday').textContent = `${leaveSent}/${leaveExpTotal}`;
+    document.getElementById('oOt').textContent = `${otSent}/${inExpTotal}`;
+    document.getElementById('oAc').textContent = `${acSent}/${acPointsTotal}`;
+    document.getElementById('oClean').textContent = `${cleanSent}/${cleanPointsTotal}`;
+    document.getElementById('oGroom').textContent = `${groomSent}/${groomExpTotal}`;
+  }
 }
 wireDateChange('overviewFrom', renderOverviewStats);
 wireDateChange('overviewTo', renderOverviewStats);
@@ -1727,7 +1832,7 @@ document.getElementById('exportLeaveMatrixBtn').onclick = ()=>{
       if(!hasStartedBy(e,d)) val = '';
       else if(isHoliday(d)) val = 'OFF';
       else {
-        const leave = db.leaves.find(l=>l.employeeId===e.id && l.status==='approved' && new Date(l.from)<=d && d<=new Date(l.to));
+        const leave = db.leaves.find(l=>l.employeeId===e.id && l.status==='approved' && new Date(l.from+'T00:00:00')<=d && d<=new Date(l.to+'T00:00:00'));
         if(leave) val = leaveAbbrev(leave.kind);
         else if(d <= today){
           const inLog = db.logs.find(l=>l.employeeId===e.id && l.type==='IN' && todayKey(new Date(l.time))===d.toDateString());
@@ -1771,8 +1876,9 @@ function renderLeaveLists(){
   const pendEl = document.getElementById('pendingLeaveList');
   pendEl.innerHTML = pending.length ? pending.map(l=>{
     const emp = db.employees.find(e=>e.id===l.employeeId);
+    const br = db.branches.find(b=>b.id===emp?.branchId);
     return `<div class="listrow" style="flex-direction:column;align-items:stretch;gap:6px;">
-      <div style="display:flex;align-items:center;gap:12px;"><div class="avatar">${emp?.name.trim()[0]||'?'}</div><div class="info"><div class="name">${emp?.name||'-'} · ${leaveLabel(l.kind)}</div><div class="meta">${leaveRangeText(l)} · ${l.reason||'-'}${l.evidenceSent?' · แนบหลักฐานแล้ว':''}</div></div></div>
+      <div style="display:flex;align-items:center;gap:12px;"><div class="avatar">${emp?.name.trim()[0]||'?'}</div><div class="info"><div class="name">${emp?.name||'-'} (${br?.name||'-'}) · ${leaveLabel(l.kind)}</div><div class="meta">${leaveRangeText(l)} · ${l.reason||'-'}${l.evidenceSent?' · แนบหลักฐานแล้ว':''}</div></div></div>
       <div class="actionrow"><button class="btn-mini approve" data-approve="${l.id}">อนุมัติ</button><button class="btn-mini reject" data-reject="${l.id}">ปฏิเสธ</button></div>
     </div>`;
   }).join('') : '<div class="empty">ไม่มีคำขอลาที่รออนุมัติ</div>';
@@ -1850,8 +1956,9 @@ function renderOtLists(){
   const pendEl = document.getElementById('pendingOtList');
   pendEl.innerHTML = pending.length ? pending.map(o=>{
     const emp = db.employees.find(e=>e.id===o.employeeId);
+    const br = db.branches.find(b=>b.id===emp?.branchId);
     return `<div class="listrow" style="flex-direction:column;align-items:stretch;gap:6px;">
-      <div style="display:flex;align-items:center;gap:12px;"><div class="avatar">${emp?.name.trim()[0]||'?'}</div><div class="info"><div class="name">${emp?.name||'-'} · ${fmtDateShort(new Date(o.date))}</div><div class="meta">${o.hourStart}–${o.hourEnd} น. · ${o.reason||'-'}</div></div></div>
+      <div style="display:flex;align-items:center;gap:12px;"><div class="avatar">${emp?.name.trim()[0]||'?'}</div><div class="info"><div class="name">${emp?.name||'-'} (${br?.name||'-'}) · ${fmtDateShort(new Date(o.date))}</div><div class="meta">${o.hourStart}–${o.hourEnd} น. · ${o.reason||'-'}</div></div></div>
       <div class="actionrow"><button class="btn-mini approve" data-otapprove="${o.id}">อนุมัติ</button><button class="btn-mini reject" data-otreject="${o.id}">ปฏิเสธ</button></div>
     </div>`;
   }).join('') : '<div class="empty">ไม่มีคำขอ OT ที่รออนุมัติ</div>';
@@ -2165,11 +2272,12 @@ function renderTelegramRoomsEditor(){
   const rooms = db.settings.telegramRooms || [];
   el.innerHTML = `
     <div id="roomsList">${rooms.length ? rooms.map(r=>`
-      <div class="settingsrow"><div class="info"><div class="name">${r.name}</div><div class="meta">${r.chatId}</div></div><button class="btn ghost sm" data-rmroom="${r.id}">ลบ</button></div>
+      <div class="settingsrow"><div class="info"><div class="name">${r.name}</div><div class="meta">Chat ID: ${r.chatId}${r.token?' · มี Token แยก':' · ใช้ Token ส่วนกลาง'}</div></div><button class="btn ghost sm" data-rmroom="${r.id}">ลบ</button></div>
     `).join('') : '<div class="empty">ยังไม่มีห้องเพิ่มเติม</div>'}</div>
-    <div class="row2" style="margin-top:12px;">
-      <input type="text" id="newRoomName" placeholder="ชื่อห้อง เช่น กลุ่มบัญชี">
-      <input type="text" id="newRoomChatId" placeholder="Chat ID">
+    <div style="margin-top:12px;">
+      <input type="text" id="newRoomName" placeholder="ชื่อห้อง เช่น กลุ่มบัญชี" style="margin-bottom:8px;">
+      <input type="text" id="newRoomChatId" placeholder="Chat ID" style="margin-bottom:8px;">
+      <input type="password" id="newRoomToken" placeholder="Bot Token แยก (เว้นว่าง = ใช้ Token ส่วนกลาง)">
     </div>
     <button class="btn sm" style="margin-top:8px;" id="addRoomBtn">เพิ่มห้อง</button>`;
   el.querySelectorAll('[data-rmroom]').forEach(btn=>{
@@ -2178,8 +2286,9 @@ function renderTelegramRoomsEditor(){
   document.getElementById('addRoomBtn').onclick = async ()=>{
     const name = document.getElementById('newRoomName').value.trim();
     const chatId = document.getElementById('newRoomChatId').value.trim();
+    const token = document.getElementById('newRoomToken').value.trim();
     if(!name || !chatId) return;
-    db.settings.telegramRooms.push({id:uid(), name, chatId});
+    db.settings.telegramRooms.push({id:uid(), name, chatId, token: token||null});
     await saveDB(); renderTelegramRoomsEditor();
   };
 }
