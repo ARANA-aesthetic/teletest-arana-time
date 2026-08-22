@@ -409,6 +409,16 @@
       <section><button class="btn block" id="openOtFormBtn">+ ขอ OT ใหม่</button></section>
       <section>
         <div class="sectitle">คำขอ OT ของฉัน</div>
+        <select id="empFilterPreset_ot" style="margin-bottom:10px;">
+          <option value="month">เดือนนี้</option>
+          <option value="today">วันนี้</option>
+          <option value="year">ปีนี้</option>
+          <option value="custom">กำหนดเอง</option>
+        </select>
+        <div class="row2 hidden" id="empFilterCustomRow_ot" style="margin-bottom:10px;">
+          <div><div id="empFilterFrom_ot_holder"></div></div>
+          <div><div id="empFilterTo_ot_holder"></div></div>
+        </div>
         <div class="card" id="myOtList" style="padding:0 16px;"></div>
       </section>
     </div>
@@ -521,7 +531,10 @@
           <div><div id="approvalFrom_holder"></div></div>
           <div><div id="approvalTo_holder"></div></div>
         </div>
-        <button class="btn ghost sm" style="margin-top:10px;" id="clearApprovalFilterBtn">ล้างตัวกรอง</button>
+        <div class="row2" style="margin-top:10px;">
+          <button class="btn sm" id="searchApprovalHistoryBtn">ค้นหาประวัติ</button>
+          <button class="btn ghost sm" id="clearApprovalFilterBtn">ล้างตัวกรอง</button>
+        </div>
       </section>
       <section>
         <div class="sectitle">ใบลารออนุมัติ</div>
@@ -574,6 +587,7 @@
       <section>
         <div class="sectitle">จัดการพนักงาน</div>
         <button class="btn block" style="margin-bottom:16px;" id="addEmpAdminBtn">+ เพิ่มพนักงาน</button>
+        <div class="branchselect" style="margin-bottom:12px;"><select id="manageEmpBranchFilter"></select></div>
         <div class="card" id="adminEmpList" style="padding:0 16px;"></div>
       </section>
       <section>
@@ -609,8 +623,10 @@
         <div class="card">
           <label>Bot Token</label>
           <input type="password" id="centralToken">
-          <label>Chat ID ส่วนกลาง (คำขอลา / ขอ OT / ผลอนุมัติ OT)</label>
+          <label>Chat ID กลุ่มขอลา (ยื่นใบลารออนุมัติ)</label>
           <input type="text" id="centralChat">
+          <label>Chat ID กลุ่มขอ OT (คำขอ OT + ผลอนุมัติ OT)</label>
+          <input type="text" id="otChat">
           <div class="modalfoot"><button class="btn ghost sm" id="testCentralTgBtn">ทดสอบส่งข้อความ</button></div>
           <div class="msg" id="centralTgMsg"></div>
           <button class="btn sm" style="margin-top:10px;" id="saveCentralBtn">บันทึก</button>
@@ -806,10 +822,10 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 function defaultDB(){
   return {
     branches: [
-      {id:'b1', name:'สาขา 1', lat:null, lng:null, radius:100, chatIdCheckinout:'', chatIdFacility:'', chatIdLeaveApproval:'', acPoints:[{id:uid(),name:'เคาน์เตอร์ต้อนรับ'},{id:uid(),name:'ออฟฟิศ'}], cleaningPoints:[{id:uid(),name:'พื้นร้าน'},{id:uid(),name:'ห้องน้ำ'}]},
-      {id:'b2', name:'สาขา 2', lat:null, lng:null, radius:100, chatIdCheckinout:'', chatIdFacility:'', chatIdLeaveApproval:'', acPoints:[{id:uid(),name:'เคาน์เตอร์ต้อนรับ'},{id:uid(),name:'ออฟฟิศ'}], cleaningPoints:[{id:uid(),name:'พื้นร้าน'},{id:uid(),name:'ห้องน้ำ'}]},
-      {id:'b3', name:'สาขา 3', lat:null, lng:null, radius:100, chatIdCheckinout:'', chatIdFacility:'', chatIdLeaveApproval:'', acPoints:[{id:uid(),name:'เคาน์เตอร์ต้อนรับ'},{id:uid(),name:'ออฟฟิศ'}], cleaningPoints:[{id:uid(),name:'พื้นร้าน'},{id:uid(),name:'ห้องน้ำ'}]},
-      {id:'hq', name:'Back Office', lat:null, lng:null, radius:100, chatIdCheckinout:'', chatIdFacility:'', chatIdLeaveApproval:'', acPoints:[{id:uid(),name:'ออฟฟิศ'}], cleaningPoints:[{id:uid(),name:'ออฟฟิศ'}]}
+      {id:'b1', name:'สาขา 1', lat:null, lng:null, radius:100, chatIdCheckinout:'', chatIdFacility:'', chatIdLeaveApproval:'', weeklyOffDays:[], acPoints:[{id:uid(),name:'เคาน์เตอร์ต้อนรับ'},{id:uid(),name:'ออฟฟิศ'}], cleaningPoints:[{id:uid(),name:'พื้นร้าน'},{id:uid(),name:'ห้องน้ำ'}]},
+      {id:'b2', name:'สาขา 2', lat:null, lng:null, radius:100, chatIdCheckinout:'', chatIdFacility:'', chatIdLeaveApproval:'', weeklyOffDays:[], acPoints:[{id:uid(),name:'เคาน์เตอร์ต้อนรับ'},{id:uid(),name:'ออฟฟิศ'}], cleaningPoints:[{id:uid(),name:'พื้นร้าน'},{id:uid(),name:'ห้องน้ำ'}]},
+      {id:'b3', name:'สาขา 3', lat:null, lng:null, radius:100, chatIdCheckinout:'', chatIdFacility:'', chatIdLeaveApproval:'', weeklyOffDays:[], acPoints:[{id:uid(),name:'เคาน์เตอร์ต้อนรับ'},{id:uid(),name:'ออฟฟิศ'}], cleaningPoints:[{id:uid(),name:'พื้นร้าน'},{id:uid(),name:'ห้องน้ำ'}]},
+      {id:'hq', name:'Back Office', lat:null, lng:null, radius:100, chatIdCheckinout:'', chatIdFacility:'', chatIdLeaveApproval:'', weeklyOffDays:[], acPoints:[{id:uid(),name:'ออฟฟิศ'}], cleaningPoints:[{id:uid(),name:'ออฟฟิศ'}]}
     ],
     employees: [],
     approvers: [],
@@ -817,7 +833,7 @@ function defaultDB(){
     leaves: [],
     otRequests: [],
     notifications: [],
-    settings: { centralToken:'', centralChatId:'', graceMinutes:15, adminPassword:'admin1234', holidays:[], telegramRooms:[],
+    settings: { centralToken:'', centralChatId:'', otChatId:'', graceMinutes:15, adminPassword:'admin1234', holidays:[], telegramRooms:[],
       notifyTypes: { checkin:true, checkout:true, ac:true, clean:true, groom:true, leaveSubmit:true, leaveDecision:true, otSubmit:true, otDecision:true } }
   };
 }
@@ -915,8 +931,8 @@ async function sbReplaceAll(table, rows, conflictCol='id'){
 }
 
 // ---- row <-> app-object mappers (snake_case DB columns <-> camelCase JS objects) ----
-const rowToBranch = r => ({ id:r.id, name:r.name, lat:r.lat, lng:r.lng, radius:r.radius, chatIdCheckinout:r.chat_id_checkinout||r.chat_id||'', chatIdFacility:r.chat_id_facility||r.chat_id||'', chatIdLeaveApproval:r.chat_id_leave_approval||'', acPoints:r.ac_points||[], cleaningPoints:r.cleaning_points||[] });
-const branchToRow = b => ({ id:b.id, name:b.name, lat:b.lat, lng:b.lng, radius:b.radius, chat_id_checkinout:b.chatIdCheckinout||'', chat_id_facility:b.chatIdFacility||'', chat_id_leave_approval:b.chatIdLeaveApproval||'', ac_points:b.acPoints||[], cleaning_points:b.cleaningPoints||[] });
+const rowToBranch = r => ({ id:r.id, name:r.name, lat:r.lat, lng:r.lng, radius:r.radius, chatIdCheckinout:r.chat_id_checkinout||r.chat_id||'', chatIdFacility:r.chat_id_facility||r.chat_id||'', chatIdLeaveApproval:r.chat_id_leave_approval||'', weeklyOffDays:r.weekly_off_days||[], acPoints:r.ac_points||[], cleaningPoints:r.cleaning_points||[] });
+const branchToRow = b => ({ id:b.id, name:b.name, lat:b.lat, lng:b.lng, radius:b.radius, chat_id_checkinout:b.chatIdCheckinout||'', chat_id_facility:b.chatIdFacility||'', chat_id_leave_approval:b.chatIdLeaveApproval||'', weekly_off_days:b.weeklyOffDays||[], ac_points:b.acPoints||[], cleaning_points:b.cleaningPoints||[] });
 
 const rowToEmployee = r => ({ id:r.id, name:r.name, nickname:r.nickname||'', department:r.department||'', jobTitle:r.job_title||'', branchId:r.branch_id||'', startDate:r.start_date||'', shiftStart:r.shift_start||'', shiftEnd:r.shift_end||'', email:r.email||'', pin:r.pin||null, descriptor:r.descriptor||null, homeLat:r.home_lat??null, homeLng:r.home_lng??null, active:r.active!==false });
 const employeeToRow = e => ({ id:e.id, name:e.name, nickname:e.nickname||null, department:e.department||null, job_title:e.jobTitle||null, branch_id:e.branchId||null, start_date:e.startDate||null, shift_start:e.shiftStart||null, shift_end:e.shiftEnd||null, email:e.email||null, pin:e.pin||null, descriptor:e.descriptor||null, home_lat:e.homeLat??null, home_lng:e.homeLng??null, active:e.active!==false });
@@ -936,8 +952,8 @@ const otToRow = o => ({ id:o.id, employee_id:o.employeeId, date:o.date, hour_sta
 const rowToNoti = r => ({ id:r.id, employeeId:r.employee_id, title:r.title, body:r.body, time:r.time, read:!!r.read });
 const notiToRow = n => ({ id:n.id, employee_id:n.employeeId, title:n.title, body:n.body, time:n.time, read:!!n.read });
 
-const rowToSettings = r => ({ centralToken:r.central_token||'', centralChatId:r.central_chat_id||'', graceMinutes:r.grace_minutes??15, adminPassword:r.admin_password||'admin1234', holidays:r.holidays||[], notifyTypes:r.notify_types||{}, telegramRooms:r.telegram_rooms||[] });
-const settingsToRow = s => ({ id:1, central_token:s.centralToken||'', central_chat_id:s.centralChatId||'', grace_minutes:s.graceMinutes??15, admin_password:s.adminPassword||'admin1234', holidays:s.holidays||[], notify_types:s.notifyTypes||{}, telegram_rooms:s.telegramRooms||[] });
+const rowToSettings = r => ({ centralToken:r.central_token||'', centralChatId:r.central_chat_id||'', otChatId:r.ot_chat_id||'', graceMinutes:r.grace_minutes??15, adminPassword:r.admin_password||'admin1234', holidays:r.holidays||[], notifyTypes:r.notify_types||{}, telegramRooms:r.telegram_rooms||[] });
+const settingsToRow = s => ({ id:1, central_token:s.centralToken||'', central_chat_id:s.centralChatId||'', ot_chat_id:s.otChatId||'', grace_minutes:s.graceMinutes??15, admin_password:s.adminPassword||'admin1234', holidays:s.holidays||[], notify_types:s.notifyTypes||{}, telegram_rooms:s.telegramRooms||[] });
 
 async function loadDB(){
   const [branchRows, empRows, approverRows, logRows, leaveRows, otRows, notiRows, settingsRows] = await Promise.all([
@@ -987,12 +1003,18 @@ async function sbCallFunction(fnName){
 }
 async function sbDeleteRow(table, id, idCol='id'){
   try{
-    await fetch(`${SUPABASE_URL}/rest/v1/${table}?${idCol}=eq.${id}`, { method:'DELETE', headers: sbHeaders() });
-  }catch(e){ console.error('sbDeleteRow', table, e); }
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${idCol}=eq.${id}`, { method:'DELETE', headers: sbHeaders() });
+    if(!res.ok){
+      const errBody = await res.text().catch(()=> '');
+      console.error('sbDeleteRow failed', table, res.status, errBody);
+      return { ok:false, error: errBody || `HTTP ${res.status}` };
+    }
+    return { ok:true };
+  }catch(e){ console.error('sbDeleteRow', table, e); return { ok:false, error: e.message }; }
 }
-async function deleteEmployeeRow(id){ await sbDeleteRow('employees', id); }
-async function deleteApproverRow(id){ await sbDeleteRow('approvers', id); }
-async function deleteBranchRow(id){ await sbDeleteRow('branches', id); }
+async function deleteEmployeeRow(id){ return await sbDeleteRow('employees', id); }
+async function deleteApproverRow(id){ return await sbDeleteRow('approvers', id); }
+async function deleteBranchRow(id){ return await sbDeleteRow('branches', id); }
 
 function renderDbStatus(){
   const el = document.getElementById('dbStatusCard'); if(!el) return;
@@ -1040,6 +1062,21 @@ async function tgSendPhotoById(token, chatId, fileId, caption){
     const data = await res.json();
     return {ok:!!data.ok, reason:data.ok?'':(data.description||'ส่งไม่สำเร็จ')};
   }catch(e){ return {ok:false, reason:'เชื่อมต่อ Telegram ไม่สำเร็จ'}; }
+}
+async function viewTelegramPhoto(fileId){
+  const token = db.settings.centralToken;
+  if(!token || !fileId){ alert('ไม่พบข้อมูลรูปภาพ'); return; }
+  try{
+    const res = await fetch(`https://api.telegram.org/bot${token}/getFile?file_id=${fileId}`);
+    const data = await res.json();
+    if(data.ok){
+      window.open(`https://api.telegram.org/file/bot${token}/${data.result.file_path}`, '_blank');
+    } else {
+      alert('ไม่พบรูปภาพ (อาจถูกลบจาก Telegram แล้ว หรือรูปหมดอายุ)');
+    }
+  }catch(e){
+    alert('เปิดรูปภาพไม่สำเร็จ ลองใหม่อีกครั้ง');
+  }
 }
 async function gatedTelegramPhoto(notifyKey, chatId, file, caption){
   if(!db.settings.notifyTypes[notifyKey]) return false;
@@ -1125,7 +1162,7 @@ function summaryForRange(empId, fromStr, toStr){
   return {onTime, late, absent, leaveDays};
 }
 function syncEmpFilterUI(){
-  ['home','leave'].forEach(scope=>{
+  ['home','leave','ot'].forEach(scope=>{
     const sel = document.getElementById(`empFilterPreset_${scope}`);
     const customRow = document.getElementById(`empFilterCustomRow_${scope}`);
     if(sel) sel.value = empFilterMode;
@@ -1140,8 +1177,9 @@ function applyEmpFilter(){
   syncEmpFilterUI();
   if(!document.getElementById('etabHome').classList.contains('hidden')) renderEmployeeHome();
   if(!document.getElementById('etabLeave').classList.contains('hidden')) renderLeaveTab();
+  if(!document.getElementById('etabOt').classList.contains('hidden')) renderOtTab();
 }
-['home','leave'].forEach(scope=>{
+['home','leave','ot'].forEach(scope=>{
   const holderFrom = document.getElementById(`empFilterFrom_${scope}_holder`);
   const holderTo = document.getElementById(`empFilterTo_${scope}_holder`);
   if(holderFrom) holderFrom.innerHTML = dateSelectHTML(`empFilterFrom_${scope}`);
@@ -1187,6 +1225,10 @@ function renderEmpSelect(){
 }
 // ===== Remember this device (localStorage) — skip name-selection on repeat visits =====
 const REMEMBER_KEY = 'aranaLastLogin';
+const SESSION_KEY = 'aranaActiveSession';
+function persistSession(){ try{ localStorage.setItem(SESSION_KEY, JSON.stringify(session)); }catch(e){} }
+function clearPersistedSession(){ try{ localStorage.removeItem(SESSION_KEY); }catch(e){} }
+function getPersistedSession(){ try{ const raw = localStorage.getItem(SESSION_KEY); return raw?JSON.parse(raw):null; }catch(e){ return null; } }
 function rememberLogin(type, id){
   try{ localStorage.setItem(REMEMBER_KEY, JSON.stringify({type, id})); }catch(e){}
 }
@@ -1285,26 +1327,14 @@ async function submitPin(){
   const msg = document.getElementById('pinMsg');
   if(pinBuffer.length<4){ msg.textContent='กรอกให้ครบ 4 หลัก'; return; }
   if(pinMode==='setup'){
-    if(pinSetStage===1){
-      pinFirstEntry = pinBuffer; pinBuffer='';
-      document.getElementById('pinPromptTitle').textContent = 'กรอก PIN อีกครั้งเพื่อยืนยัน';
-      pinSetStage = 2; renderPinDots(); return;
-    } else {
-      if(pinBuffer !== pinFirstEntry){
-        msg.textContent = 'PIN ไม่ตรงกัน กรุณาลองใหม่';
-        pinSetStage=1; pinBuffer=''; pinFirstEntry='';
-        document.getElementById('pinPromptTitle').textContent = `ตั้ง PIN ใหม่สำหรับ ${pinTargetEmp.name} (4 หลัก)`;
-        renderPinDots(); return;
-      }
-      pinTargetEmp.pin = pinFirstEntry; await saveEmployeeRow(pinTargetEmp);
-      session = {role:'employee', employeeId:pinTargetEmp.id}; pinBuffer='';
-      rememberLogin('employee', pinTargetEmp.id);
-      if(!pinTargetEmp.descriptor){ enterEmployeeView(); openCamera('enroll', pinTargetEmp); } else enterEmployeeView();
-    }
+    pinTargetEmp.pin = pinBuffer; await saveEmployeeRow(pinTargetEmp);
+    session = {role:'employee', employeeId:pinTargetEmp.id}; pinBuffer='';
+    rememberLogin('employee', pinTargetEmp.id); persistSession();
+    if(!pinTargetEmp.descriptor){ enterEmployeeView(); openCamera('enroll', pinTargetEmp); } else enterEmployeeView();
   } else {
     if(pinBuffer !== pinTargetEmp.pin){ msg.textContent='PIN ไม่ถูกต้อง'; pinBuffer=''; renderPinDots(); return; }
     session = {role:'employee', employeeId:pinTargetEmp.id}; pinBuffer='';
-    rememberLogin('employee', pinTargetEmp.id);
+    rememberLogin('employee', pinTargetEmp.id); persistSession();
     if(!pinTargetEmp.descriptor){ enterEmployeeView(); openCamera('enroll', pinTargetEmp); } else enterEmployeeView();
   }
 }
@@ -1356,36 +1386,25 @@ async function submitApproverPin(){
   const msg = document.getElementById('approverPinMsg');
   if(approverPinBuffer.length<4){ msg.textContent='กรอกให้ครบ 4 หลัก'; return; }
   if(approverPinMode==='setup'){
-    if(approverPinSetStage===1){
-      approverPinFirstEntry = approverPinBuffer; approverPinBuffer='';
-      document.getElementById('approverPinPromptTitle').textContent = 'กรอก PIN อีกครั้งเพื่อยืนยัน';
-      approverPinSetStage = 2; renderApproverPinDots(); return;
-    } else {
-      if(approverPinBuffer !== approverPinFirstEntry){
-        msg.textContent = 'PIN ไม่ตรงกัน กรุณาลองใหม่';
-        approverPinSetStage=1; approverPinBuffer=''; approverPinFirstEntry='';
-        document.getElementById('approverPinPromptTitle').textContent = `ตั้ง PIN ใหม่สำหรับ ${approverPinTarget.name} (4 หลัก)`;
-        renderApproverPinDots(); return;
-      }
-      approverPinTarget.pin = approverPinFirstEntry; await saveApproverRow(approverPinTarget);
-      session = {role:'approver', approverId:approverPinTarget.id, approverRole:approverPinTarget.role}; approverPinBuffer='';
-      rememberLogin('approver', approverPinTarget.id);
-      enterApproverView();
-    }
+    approverPinTarget.pin = approverPinBuffer; await saveApproverRow(approverPinTarget);
+    session = {role:'approver', approverId:approverPinTarget.id, approverRole:approverPinTarget.role}; approverPinBuffer='';
+    rememberLogin('approver', approverPinTarget.id); persistSession();
+    enterApproverView();
   } else {
     if(approverPinBuffer !== approverPinTarget.pin){ msg.textContent='PIN ไม่ถูกต้อง'; approverPinBuffer=''; renderApproverPinDots(); return; }
     session = {role:'approver', approverId:approverPinTarget.id, approverRole:approverPinTarget.role}; approverPinBuffer='';
-    rememberLogin('approver', approverPinTarget.id);
+    rememberLogin('approver', approverPinTarget.id); persistSession();
     enterApproverView();
   }
 }
 document.getElementById('adminLoginBtn').onclick = ()=>{
   const pass = document.getElementById('adminPassInput').value;
-  if(pass === db.settings.adminPassword){ session = {role:'admin', employeeId:null}; enterAdminView(); }
+  if(pass === db.settings.adminPassword){ session = {role:'admin', employeeId:null}; persistSession(); enterAdminView(); }
   else document.getElementById('adminLoginMsg').textContent = 'รหัสผ่านไม่ถูกต้อง';
 };
 function doLogout(){
   session = {role:null, employeeId:null};
+  clearPersistedSession();
   document.getElementById('adminPassInput').value=''; document.getElementById('adminLoginMsg').textContent='';
   showView('login'); renderEmpSelect();
   if(!tryAutoResumeLogin()) showLoginPanel('emp');
@@ -1421,7 +1440,7 @@ function switchETab(tab){
   if(tab==='Leave'){ syncEmpFilterUI(); renderLeaveTab(); }
   if(tab==='Ac') renderAcTab();
   if(tab==='Clean') renderCleanTab();
-  if(tab==='Ot') renderOtTab();
+  if(tab==='Ot'){ syncEmpFilterUI(); renderOtTab(); }
   if(tab==='Noti') renderNotiTab();
   if(tab==='Profile') renderProfileTab();
 }
@@ -1723,12 +1742,18 @@ groomInput.addEventListener('change', async (e)=>{
 function otStatusLabel(s){ return s==='pending'?'รออนุมัติ':s==='approved'?'อนุมัติแล้ว':'ปฏิเสธ'; }
 function renderOtTab(){
   const emp = currentEmployee(); if(!emp) return;
-  const myOt = db.otRequests.filter(o=>o.employeeId===emp.id).sort((a,b)=>new Date(b.requestedAt)-new Date(a.requestedAt));
+  const range = getEmpFilterRange();
+  const rFrom = new Date(range.from+'T00:00:00'), rTo = new Date(range.to+'T00:00:00');
+  const myOt = db.otRequests.filter(o=>{
+    if(o.employeeId!==emp.id) return false;
+    const od = new Date(o.date+'T00:00:00');
+    return od >= rFrom && od <= rTo;
+  }).sort((a,b)=>new Date(b.requestedAt)-new Date(a.requestedAt));
   document.getElementById('myOtList').innerHTML = myOt.length ? myOt.map(o=>`
     <div class="listrow"><div class="info">
       <div class="name">${fmtDateShort(new Date(o.date))} · ${o.hourStart}–${o.hourEnd} น.</div>
       <div class="meta">${o.reason||''}</div>
-    </div><span class="badge ${o.status}">${otStatusLabel(o.status)}</span></div>`).join('') : '<div class="empty">ยังไม่มีคำขอ OT</div>';
+    </div><span class="badge ${o.status}">${otStatusLabel(o.status)}</span></div>`).join('') : '<div class="empty">ไม่มีคำขอ OT ในช่วงที่เลือก</div>';
 }
 document.getElementById('openOtFormBtn').onclick = ()=>{
   document.getElementById('otFormMsg').textContent='';
@@ -1749,7 +1774,7 @@ document.getElementById('submitOtBtn').onclick = async ()=>{
   msg.className='msg ok'; msg.textContent='ส่งคำขอ OT เรียบร้อย รออนุมัติจากหัวหน้า/HR';
   renderOtTab();
   const br = currentBranch(emp);
-  if(db.settings.notifyTypes.otSubmit && db.settings.centralChatId) await tgSendMessage(db.settings.centralToken, db.settings.centralChatId, `<b>${emp.name}</b> ขอทำ OT วันที่ ${date} เวลา ${hourStart}-${hourEnd}\nเหตุผล: ${reason||'-'}`);
+  if(db.settings.notifyTypes.otSubmit && db.settings.otChatId) await tgSendMessage(db.settings.centralToken, db.settings.otChatId, `<b>${emp.name}</b> ขอทำ OT วันที่ ${date} เวลา ${hourStart}-${hourEnd}\nเหตุผล: ${reason||'-'}`);
   await pushNotification(emp.id, 'ส่งคำขอ OT แล้ว', `${date} เวลา ${hourStart}-${hourEnd} กำลังรอการอนุมัติ`);
   setTimeout(()=>{ document.getElementById('otOverlay').classList.remove('show'); }, 900);
 };
@@ -1759,7 +1784,7 @@ async function decideOt(id, status){
   ot.status = status; ot.decidedAt = new Date().toISOString(); await saveOtRow(ot);
   const emp = db.employees.find(e=>e.id===ot.employeeId);
   const br = db.branches.find(b=>b.id===emp?.branchId);
-  if(db.settings.notifyTypes.otDecision && db.settings.centralChatId) await tgSendMessage(db.settings.centralToken, db.settings.centralChatId, `คำขอ OT ของ <b>${emp?.name}</b> (${ot.date} ${ot.hourStart}-${ot.hourEnd}) ถูก${status==='approved'?'อนุมัติ':'ปฏิเสธ'}แล้ว`);
+  if(db.settings.notifyTypes.otDecision && db.settings.otChatId) await tgSendMessage(db.settings.centralToken, db.settings.otChatId, `คำขอ OT ของ <b>${emp?.name}</b> (${ot.date} ${ot.hourStart}-${ot.hourEnd}) ถูก${status==='approved'?'อนุมัติ':'ปฏิเสธ'}แล้ว`);
   await pushNotification(emp.id, status==='approved'?'คำขอ OT ได้รับการอนุมัติ':'คำขอ OT ถูกปฏิเสธ', `${ot.date} เวลา ${ot.hourStart}-${ot.hourEnd}`);
   renderOtLists();
 }
@@ -1818,17 +1843,9 @@ function handleNewPinKey(k){
 async function submitNewPin(){
   const msg = document.getElementById('changePinMsg');
   if(newPinBuffer.length<4){ msg.textContent='กรอกให้ครบ 4 หลัก'; return; }
-  if(newPinStage===1){
-    newPinFirst = newPinBuffer; newPinBuffer='';
-    document.querySelector('#changePinOverlay .hint')?.remove();
-    msg.className='msg'; msg.textContent='กรอกอีกครั้งเพื่อยืนยัน';
-    newPinStage=2; renderNewPinDots();
-  } else {
-    if(newPinBuffer !== newPinFirst){ msg.className='msg err'; msg.textContent='PIN ไม่ตรงกัน ลองใหม่'; newPinStage=1; newPinBuffer=''; newPinFirst=''; renderNewPinDots(); return; }
-    const emp = currentEmployee(); emp.pin = newPinFirst; await saveEmployeeRow(emp);
-    msg.className='msg ok'; msg.textContent='เปลี่ยน PIN สำเร็จ';
-    setTimeout(()=> document.getElementById('changePinOverlay').classList.remove('show'), 800);
-  }
+  const emp = currentEmployee(); emp.pin = newPinBuffer; await saveEmployeeRow(emp);
+  msg.className='msg ok'; msg.textContent='เปลี่ยน PIN สำเร็จ';
+  setTimeout(()=> document.getElementById('changePinOverlay').classList.remove('show'), 800);
 }
 
 // ================= ADMIN VIEW =================
@@ -1837,6 +1854,7 @@ function enterAdminView(){
   document.getElementById('graceMinutesInput').value = db.settings.graceMinutes;
   document.getElementById('centralToken').value = db.settings.centralToken;
   document.getElementById('centralChat').value = db.settings.centralChatId;
+  document.getElementById('otChat').value = db.settings.otChatId;
   const todayStr = dateKey(new Date());
   if(!getDateVal('overviewFrom')) setDateVal('overviewFrom', todayStr);
   if(!getDateVal('overviewTo')) setDateVal('overviewTo', todayStr);
@@ -2107,8 +2125,16 @@ function renderEmpSummary(){
   }).join('') : '<div class="empty">ไม่มีพนักงานในสาขานี้</div>';
 }
 function renderAdminEmpList(){
+  const sel = document.getElementById('manageEmpBranchFilter');
+  if(sel && !sel.dataset.wired){
+    sel.dataset.wired = '1'; sel.dataset.current = 'all';
+    sel.onchange = ()=>{ sel.dataset.current = sel.value; renderAdminEmpList(); };
+  }
+  if(sel){ sel.innerHTML = `<option value="all">ทุกสาขา</option>` + db.branches.map(b=>`<option value="${b.id}">${b.name}</option>`).join(''); sel.value = sel.dataset.current||'all'; }
+  const branchVal = sel ? (sel.dataset.current||'all') : 'all';
   const el = document.getElementById('adminEmpList');
-  el.innerHTML = db.employees.length ? db.employees.map(e=>{
+  const list = branchVal==='all' ? db.employees : db.employees.filter(e=>e.branchId===branchVal);
+  el.innerHTML = list.length ? list.map(e=>{
     const br = db.branches.find(b=>b.id===e.branchId);
     const st = todayStatus(e.id);
     let badge = st.outTime ? `<span class="badge out">ออกงานแล้ว</span>` : st.inTime ? `<span class="badge in">เข้างานแล้ว</span>` : `<span class="badge idle">ยังไม่มา</span>`;
@@ -2117,7 +2143,7 @@ function renderAdminEmpList(){
     return `<div class="listrow" style="${e.active===false?'opacity:.55;':''}"><div class="avatar">${e.name.trim()[0]||'?'}</div>
       <div class="info"><div class="name">${e.name}${e.jobTitle?' · '+e.jobTitle:''}</div><div class="meta">${br?.name||'ยังไม่ระบุสาขา'} · กะ ${e.shiftStart||'-'}–${e.shiftEnd||'-'} · ${e.descriptor?'ลงทะเบียนหน้าแล้ว':'ยังไม่ลงทะเบียนหน้า'}${homeLink}</div></div>
       ${badge}<button class="btn ghost sm" data-edit="${e.id}">แก้ไข</button></div>`;
-  }).join('') : '<div class="empty">ยังไม่มีพนักงาน</div>';
+  }).join('') : '<div class="empty">ไม่มีพนักงานในสาขาที่เลือก</div>';
   el.querySelectorAll('[data-edit]').forEach(btn=> btn.onclick = ()=> openEmpEditor(btn.dataset.edit));
 }
 function renderEmployeesView(){
@@ -2240,16 +2266,23 @@ function renderApprovalBranchFilter(){
   const toHolder = document.getElementById('approvalTo_holder');
   if(fromHolder && !fromHolder.dataset.wired){ fromHolder.innerHTML = dateSelectHTML('approvalFrom'); fromHolder.dataset.wired='1'; wireDateChange('approvalFrom', ()=>{ renderLeaveLists(); renderOtLists(); }); }
   if(toHolder && !toHolder.dataset.wired){ toHolder.innerHTML = dateSelectHTML('approvalTo'); toHolder.dataset.wired='1'; wireDateChange('approvalTo', ()=>{ renderLeaveLists(); renderOtLists(); }); }
+  const searchBtn = document.getElementById('searchApprovalHistoryBtn');
+  if(searchBtn && !searchBtn.dataset.wired){
+    searchBtn.dataset.wired = '1';
+    searchBtn.onclick = ()=>{ approvalHistorySearched = true; renderLeaveLists(); renderOtLists(); };
+  }
   const clearBtn = document.getElementById('clearApprovalFilterBtn');
   if(clearBtn && !clearBtn.dataset.wired){
     clearBtn.dataset.wired = '1';
     clearBtn.onclick = ()=>{
       sel.value='all'; sel.dataset.current='all';
       setDateVal('approvalFrom',''); setDateVal('approvalTo','');
+      approvalHistorySearched = false;
       renderLeaveLists(); renderOtLists();
     };
   }
 }
+let approvalHistorySearched = false;
 function renderLeaveLists(){
   const empIds = getApprovalFilteredEmpIds();
   const pending = db.leaves.filter(l=>l.status==='pending' && empIds.has(l.employeeId) && inApprovalDateRange(dateKey(new Date(l.requestedAt)))).sort((a,b)=>new Date(a.requestedAt)-new Date(b.requestedAt));
@@ -2257,13 +2290,26 @@ function renderLeaveLists(){
   pendEl.innerHTML = pending.length ? pending.map(l=>{
     const emp = db.employees.find(e=>e.id===l.employeeId);
     const br = db.branches.find(b=>b.id===emp?.branchId);
-    return `<div class="listrow" style="flex-direction:column;align-items:stretch;gap:6px;">
-      <div style="display:flex;align-items:center;gap:12px;"><div class="avatar">${emp?.name.trim()[0]||'?'}</div><div class="info"><div class="name">${emp?.name||'-'} (${br?.name||'-'}) · ${leaveLabel(l.kind)}</div><div class="meta">${leaveRangeText(l)} · ${l.reason||'-'}${l.evidenceSent?' · แนบหลักฐานแล้ว':''}</div></div></div>
+    return `<div class="listrow" style="flex-direction:column;align-items:stretch;gap:6px;position:relative;">
+      ${l.evidenceFileId ? `<button class="btn ghost sm" data-viewphoto="${l.evidenceFileId}" style="position:absolute;top:0;right:0;">ดูรูป</button>` : ''}
+      <div style="display:flex;align-items:flex-start;gap:12px;padding-right:${l.evidenceFileId?'64px':'0'};">
+        <div class="avatar">${emp?.name.trim()[0]||'?'}</div>
+        <div class="info">
+          <div class="name">${emp?.name||'-'}${emp?.nickname?` (${emp.nickname})`:''}${br?.name?` · ${br.name}`:''}</div>
+          <div class="meta">${leaveRangeText(l)} · ${leaveLabel(l.kind)}</div>
+          <div class="meta">${l.reason||'-'}</div>
+        </div>
+      </div>
       ${canApproveLeave() ? `<div class="actionrow"><button class="btn-mini approve" data-approve="${l.id}">อนุมัติ</button><button class="btn-mini reject" data-reject="${l.id}">ปฏิเสธ</button></div>` : `<div style="font-size:11.5px;color:var(--muted);">ไม่มีสิทธิ์อนุมัติรายการนี้ (ต้องเป็นเจ้าของ/HR/ผู้จัดการ)</div>`}
     </div>`;
   }).join('') : '<div class="empty">ไม่มีคำขอลาที่รออนุมัติ</div>';
   pendEl.querySelectorAll('[data-approve]').forEach(b=> b.onclick = ()=> decideLeave(b.dataset.approve,'approved'));
   pendEl.querySelectorAll('[data-reject]').forEach(b=> b.onclick = ()=> decideLeave(b.dataset.reject,'rejected'));
+  pendEl.querySelectorAll('[data-viewphoto]').forEach(b=> b.onclick = ()=> viewTelegramPhoto(b.dataset.viewphoto));
+  if(!approvalHistorySearched){
+    document.getElementById('allLeaveList').innerHTML = '<div class="empty">เลือกเงื่อนไข (สาขา/วันที่) แล้วกด "ค้นหาประวัติ" เพื่อแสดงข้อมูล</div>';
+    return;
+  }
   const all = db.leaves.filter(l=>empIds.has(l.employeeId) && inApprovalDateRange(dateKey(new Date(l.requestedAt)))).sort((a,b)=>new Date(b.requestedAt)-new Date(a.requestedAt));
   document.getElementById('allLeaveList').innerHTML = all.length ? all.map(l=>{
     const emp = db.employees.find(e=>e.id===l.employeeId);
@@ -2346,6 +2392,10 @@ function renderOtLists(){
   }).join('') : '<div class="empty">ไม่มีคำขอ OT ที่รออนุมัติ</div>';
   pendEl.querySelectorAll('[data-otapprove]').forEach(b=> b.onclick = ()=> decideOt(b.dataset.otapprove,'approved'));
   pendEl.querySelectorAll('[data-otreject]').forEach(b=> b.onclick = ()=> decideOt(b.dataset.otreject,'rejected'));
+  if(!approvalHistorySearched){
+    document.getElementById('allOtList').innerHTML = '<div class="empty">เลือกเงื่อนไข (สาขา/วันที่) แล้วกด "ค้นหาประวัติ" เพื่อแสดงข้อมูล</div>';
+    return;
+  }
   const all = db.otRequests.filter(o=>empIds.has(o.employeeId) && inApprovalDateRange(o.date)).sort((a,b)=>new Date(b.requestedAt)-new Date(a.requestedAt));
   document.getElementById('allOtList').innerHTML = all.length ? all.map(o=>{
     const emp = db.employees.find(e=>e.id===o.employeeId);
@@ -2448,7 +2498,13 @@ document.getElementById('saveEmpEditBtn').onclick = async ()=>{
 document.getElementById('deleteEmpBtn').onclick = async ()=>{
   const e = db.employees.find(x=>x.id===editingEmpId); if(!e) return;
   if(!confirm(`ลบ ${e.name} ถาวร? ประวัติเข้างาน/ใบลาที่เคยบันทึกไว้จะยังอยู่ในระบบแต่จะเรียกดูชื่อพนักงานไม่ได้อีก แนะนำให้ใช้ "ปิดการใช้งาน" แทนถ้าไม่แน่ใจ`)) return;
-  db.employees = db.employees.filter(x=>x.id!==editingEmpId); await deleteEmployeeRow(editingEmpId);
+  const r = await deleteEmployeeRow(editingEmpId);
+  if(!r.ok){
+    document.getElementById('empEditMsg').className='msg err';
+    document.getElementById('empEditMsg').textContent = 'ลบไม่สำเร็จ: '+r.error;
+    return;
+  }
+  db.employees = db.employees.filter(x=>x.id!==editingEmpId);
   document.getElementById('empEditOverlay').classList.remove('show');
   renderAdminEmpList(); renderEmpSummary(); renderEmpSelect();
 };
@@ -2549,12 +2605,27 @@ function renderBranchEditor(){
       <input type="text" data-f="chatIdFacility" data-id="${b.id}" value="${b.chatIdFacility||''}" placeholder="-100...">
       <label>Chat ID กลุ่มแจ้งผลอนุมัติใบลา</label>
       <input type="text" data-f="chatIdLeaveApproval" data-id="${b.id}" value="${b.chatIdLeaveApproval||''}" placeholder="-100...">
+      <label>วันหยุดประจำสัปดาห์ (ไม่ส่งแจ้งเตือนอัตโนมัติวันนี้)</label>
+      <div class="taglist">
+        ${['อา','จ','อ','พ','พฤ','ศ','ส'].map((d,i)=>`<label style="display:flex;align-items:center;gap:4px;background:${(b.weeklyOffDays||[]).includes(i)?'var(--pink-pale)':'#FAF6F8'};border:1px solid var(--border);border-radius:99px;padding:5px 10px;font-size:12px;margin:0;cursor:pointer;"><input type="checkbox" data-weeklyoff="${b.id}" data-day="${i}" ${(b.weeklyOffDays||[]).includes(i)?'checked':''} style="width:14px;height:14px;">${d}</label>`).join('')}
+      </div>
     </div>`).join('') + `
     <div class="row2" style="margin-top:14px;">
       <input type="text" id="newBranchName" placeholder="ชื่อสาขาใหม่ เช่น สาขา 4">
       <button class="btn ghost sm" id="addBranchBtn">+ เพิ่มสาขา</button>
     </div>
     <button class="btn sm" id="saveBranchesBtn" style="margin-top:14px;">บันทึกสาขาทั้งหมด</button><div class="msg" id="branchMsg"></div>`;
+  el.querySelectorAll('[data-weeklyoff]').forEach(cb=>{
+    cb.onchange = async ()=>{
+      const b = db.branches.find(x=>x.id===cb.dataset.weeklyoff); if(!b) return;
+      const day = parseInt(cb.dataset.day);
+      b.weeklyOffDays = b.weeklyOffDays || [];
+      if(cb.checked){ if(!b.weeklyOffDays.includes(day)) b.weeklyOffDays.push(day); }
+      else { b.weeklyOffDays = b.weeklyOffDays.filter(d=>d!==day); }
+      await saveBranchRow(b);
+      renderBranchEditor();
+    };
+  });
   el.querySelectorAll('[data-usegps]').forEach(btn=>{
     btn.onclick = async ()=>{
       btn.textContent = 'กำลังค้นหาตำแหน่ง…';
@@ -2582,7 +2653,7 @@ function renderBranchEditor(){
   document.getElementById('addBranchBtn').onclick = async ()=>{
     const nameInput = document.getElementById('newBranchName');
     const name = nameInput.value.trim(); if(!name) return;
-    const newBranch = {id:uid(), name, lat:null, lng:null, radius:100, chatIdCheckinout:'', chatIdFacility:'', chatIdLeaveApproval:'', acPoints:[], cleaningPoints:[]};
+    const newBranch = {id:uid(), name, lat:null, lng:null, radius:100, chatIdCheckinout:'', chatIdFacility:'', chatIdLeaveApproval:'', weeklyOffDays:[], acPoints:[], cleaningPoints:[]};
     db.branches.push(newBranch);
     await saveBranchRow(newBranch);
     renderBranchEditor(); renderBranchFilter(); renderAcPointEditor(); renderCleanPointEditor(); updateAdminHeaderMeta();
@@ -2764,6 +2835,7 @@ document.getElementById('saveRulesBtn').onclick = async ()=>{ db.settings.graceM
 document.getElementById('saveCentralBtn').onclick = async ()=>{
   db.settings.centralToken = document.getElementById('centralToken').value.trim();
   db.settings.centralChatId = document.getElementById('centralChat').value.trim();
+  db.settings.otChatId = document.getElementById('otChat').value.trim();
   await saveDB();
 };
 document.getElementById('testCentralTgBtn').onclick = async ()=>{
@@ -2913,6 +2985,19 @@ async function captureEnrollment(fromAdmin){
 // ================= INIT =================
 (async function init(){
   await loadDB();
+  const persisted = getPersistedSession();
+  if(persisted){
+    if(persisted.role==='employee'){
+      const emp = db.employees.find(e=>e.id===persisted.employeeId && e.active!==false);
+      if(emp){ session = persisted; enterEmployeeView(); initFaceApi(); return; }
+    } else if(persisted.role==='approver'){
+      const a = db.approvers.find(x=>x.id===persisted.approverId);
+      if(a){ session = persisted; enterApproverView(); initFaceApi(); return; }
+    } else if(persisted.role==='admin'){
+      session = persisted; enterAdminView(); initFaceApi(); return;
+    }
+    clearPersistedSession();
+  }
   renderEmpSelect();
   showView('login');
   if(!tryAutoResumeLogin()) showLoginPanel('emp');
