@@ -522,7 +522,13 @@
         </div>
         <div class="branchselect"><select id="branchFilterSelect"></select></div>
         <label style="margin-top:0;">ช่วงวันที่ดูภาพรวม</label>
-        <div class="row2">
+        <select id="overviewPreset" style="margin-bottom:10px;">
+          <option value="today">วันนี้</option>
+          <option value="week">สัปดาห์นี้</option>
+          <option value="month">เดือนนี้</option>
+          <option value="custom">เลือกช่วงเวลา</option>
+        </select>
+        <div class="row2 hidden" id="overviewCustomRow">
           <div><div id="overviewFrom_holder"></div></div>
           <div><div id="overviewTo_holder"></div></div>
         </div>
@@ -2232,15 +2238,37 @@ async function submitNewPin(){
 }
 
 // ================= ADMIN VIEW =================
+function applyOverviewPreset(){
+  const sel = document.getElementById('overviewPreset'); if(!sel) return;
+  const preset = sel.value;
+  const now = new Date();
+  const todayStr = dateKey(now);
+  document.getElementById('overviewCustomRow').classList.toggle('hidden', preset!=='custom');
+  if(preset==='today'){
+    setDateVal('overviewFrom', todayStr); setDateVal('overviewTo', todayStr);
+  } else if(preset==='week'){
+    const start = new Date(now); start.setDate(now.getDate()-now.getDay());
+    setDateVal('overviewFrom', dateKey(start)); setDateVal('overviewTo', todayStr);
+  } else if(preset==='month'){
+    const start = new Date(now.getFullYear(), now.getMonth(), 1);
+    setDateVal('overviewFrom', dateKey(start)); setDateVal('overviewTo', todayStr);
+  } else {
+    if(!getDateVal('overviewFrom')) setDateVal('overviewFrom', todayStr);
+    if(!getDateVal('overviewTo')) setDateVal('overviewTo', todayStr);
+  }
+  renderOverviewStats();
+}
+(function(){
+  const sel = document.getElementById('overviewPreset');
+  if(sel) sel.onchange = applyOverviewPreset;
+})();
 function enterAdminView(){
   showView('admin');
   document.getElementById('graceMinutesInput').value = db.settings.graceMinutes;
   document.getElementById('centralToken').value = db.settings.centralToken;
   document.getElementById('centralChat').value = db.settings.centralChatId;
   document.getElementById('otChat').value = db.settings.otChatId;
-  const todayStr = dateKey(new Date());
-  if(!getDateVal('overviewFrom')) setDateVal('overviewFrom', todayStr);
-  if(!getDateVal('overviewTo')) setDateVal('overviewTo', todayStr);
+  applyOverviewPreset();
   document.querySelector('#adminView [data-atab="Settings"]').classList.remove('hidden');
   document.getElementById('adminDropdown').querySelector('.dname').textContent = 'เจ้าของ / HR';
   document.getElementById('adminDropdown').querySelector('.drole').textContent = 'ผู้ดูแลระบบ';
@@ -2264,9 +2292,7 @@ function canApproveOt(){
 }
 function enterApproverView(){
   showView('admin');
-  const todayStr = dateKey(new Date());
-  if(!getDateVal('overviewFrom')) setDateVal('overviewFrom', todayStr);
-  if(!getDateVal('overviewTo')) setDateVal('overviewTo', todayStr);
+  applyOverviewPreset();
   document.querySelector('#adminView [data-atab="Settings"]').classList.toggle('hidden', !canAccessSettings());
   const approver = currentApprover();
   document.getElementById('adminDropdown').querySelector('.dname').textContent = approver?.name || 'ผู้บริหาร';
