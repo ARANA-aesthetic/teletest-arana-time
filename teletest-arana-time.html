@@ -1771,6 +1771,11 @@ const LEAVE_KIND_LABELS = {
 };
 const HOURLY_KINDS = ['hourly_sick','hourly_personal'];
 function leaveLabel(k){ return LEAVE_KIND_LABELS[k] || k; }
+function notifyName(emp){
+  if(!emp || !emp.name) return '-';
+  const first = emp.name.trim().split(/\s+/)[0] || emp.name;
+  return emp.nickname ? `${first} (${emp.nickname})` : first;
+}
 function leaveStatusLabel(s){ return s==='pending'?'รออนุมัติ':s==='approved'?'อนุมัติแล้ว':'ปฏิเสธ'; }
 function leaveRangeText(l){
   if(HOURLY_KINDS.includes(l.kind)) return `${fmtDateShort(new Date(l.from))} · ${l.hourStart||'-'}–${l.hourEnd||'-'} น.`;
@@ -1875,7 +1880,7 @@ document.getElementById('submitLeaveBtn').onclick = async ()=>{
     if(!leave || leave.status!=='pending'){ msg.className='msg err'; msg.textContent='ไม่สามารถแก้ไขได้ (อาจถูกอนุมัติ/ปฏิเสธไปแล้ว)'; return; }
     Object.assign(leave, {kind, from, to, hourStart, hourEnd, reason});
     if(evidenceFile){
-      const caption = `<b>${emp.name}</b> แก้ไขหลักฐาน${leaveLabel(kind)} ${leaveRangeText(leave)} (♻️ รูปแก้ไข)\nเหตุผล: ${reason||'-'}`;
+      const caption = `<b>${notifyName(emp)}</b> แก้ไขหลักฐาน${leaveLabel(kind)} ${leaveRangeText(leave)} (♻️ รูปแก้ไข)\nเหตุผล: ${reason||'-'}`;
       const r = await tgSendPhoto(db.settings.centralToken, db.settings.centralChatId, evidenceFile, caption);
       if(r.ok){ leave.evidenceFileId = r.fileId || leave.evidenceFileId; leave.evidenceSent = true; }
       await logAudit('correct_photo', 'leave_evidence', leave.id, `แก้ไขรูปหลักฐาน${leaveLabel(kind)} ${leaveRangeText(leave)}`);
@@ -1893,7 +1898,7 @@ document.getElementById('submitLeaveBtn').onclick = async ()=>{
   renderLeaveTab();
   const br = currentBranch(emp);
   const rangeText = leaveRangeText(leave);
-  const text = `<b>${emp.name}</b> ยื่น${leaveLabel(kind)} ${rangeText}\nเหตุผล: ${reason||'-'}`;
+  const text = `<b>${notifyName(emp)}</b> ยื่น${leaveLabel(kind)} ${rangeText}\nเหตุผล: ${reason||'-'}`;
   if(db.settings.notifyTypes.leaveSubmit && db.settings.centralChatId){
     if(evidenceFile){
       const r = await tgSendPhoto(db.settings.centralToken, db.settings.centralChatId, evidenceFile, text);
@@ -1939,7 +1944,7 @@ acInput.addEventListener('change', async (e)=>{
   const point = (br.acPoints||[]).find(p=>p.id===acPointFileTarget);
   const now = new Date();
   const isCorrection = acPointIsCorrection;
-  const caption = `${isCorrection?'♻️ (รูปแก้ไข) ':'✅'}${emp.name}\nแจ้งปิดแอร์\n"${point?.name||'-'}"\nเวลา ${fmtTime(now)} น.`;
+  const caption = `${isCorrection?'♻️ (รูปแก้ไข) ':'✅'}${notifyName(emp)}\nแจ้งปิดแอร์\n"${point?.name||'-'}"\nเวลา ${fmtTime(now)} น.`;
   let logEntry;
   if(isCorrection){
     const todayK = todayKey();
@@ -1992,7 +1997,7 @@ cleanInput.addEventListener('change', async (e)=>{
   const point = (br.cleaningPoints||[]).find(p=>p.id===cleanPointFileTarget);
   const now = new Date();
   const isCorrection = cleanPointIsCorrection;
-  const caption = `${isCorrection?'♻️ (รูปแก้ไข) ':'✅'}${emp.name}\nส่งตรวจความสะอาด\n"${point?.name||'-'}"\nเวลา ${fmtTime(now)} น.`;
+  const caption = `${isCorrection?'♻️ (รูปแก้ไข) ':'✅'}${notifyName(emp)}\nส่งตรวจความสะอาด\n"${point?.name||'-'}"\nเวลา ${fmtTime(now)} น.`;
   let logEntry;
   if(isCorrection){
     const todayK = todayKey();
@@ -2023,7 +2028,7 @@ groomInput.addEventListener('change', async (e)=>{
   if(!file) return;
   const emp = currentEmployee(); const br = currentBranch(emp);
   const now = new Date();
-  const caption = `✅${emp.name}\nส่งรูปความเรียบร้อย ${br?.name||'-'}\nเวลา ${fmtTime(now)} น.`;
+  const caption = `✅${notifyName(emp)}\nส่งรูปความเรียบร้อย ${br?.name||'-'}\nเวลา ${fmtTime(now)} น.`;
   const logEntry = {id:uid(), employeeId:emp.id, type:'GROOM', time:now.toISOString(), branchId:br?.id, lateMinutes:0, sent:null};
   db.logs.unshift(logEntry); await saveLogRow(logEntry);
   renderEmployeeHome();
@@ -2084,7 +2089,7 @@ document.getElementById('submitOtBtn').onclick = async ()=>{
   msg.className='msg ok'; msg.textContent='ส่งคำขอ OT เรียบร้อย รออนุมัติจากหัวหน้า/HR';
   renderOtTab();
   const br = currentBranch(emp);
-  const empLines = selectedIds.map((empId,i)=>{ const e = db.employees.find(x=>x.id===empId); return `${i+1}. ${e?.name||'-'}${e?.nickname?` (${e.nickname})`:''}`; }).join('\n');
+  const empLines = selectedIds.map((empId,i)=>{ const e = db.employees.find(x=>x.id===empId); return `${i+1}. ${notifyName(e)}`; }).join('\n');
   const text = `▶️คำขอรออนุมัติ\nสาขา : ${br?.name||'-'}\nขอทำ OT วันที่ : ${date}\nเวลา : ${hourStart}-${hourEnd}\nรวม : ${otHoursText(hourStart,hourEnd)} ชม.\nเหตุผล : ${reason||'-'}\nพนักงานขอ OT\n${empLines}`;
   if(db.settings.notifyTypes.otSubmit && db.settings.otChatId) await tgSendMessage(db.settings.centralToken, db.settings.otChatId, text);
   await Promise.all(selectedIds.map(empId => pushNotification(empId, 'ส่งคำขอ OT แล้ว', `${date} เวลา ${hourStart}-${hourEnd} กำลังรอการอนุมัติ`)));
@@ -2110,7 +2115,7 @@ async function decideTransfer(id, status){
   t.status = status; t.decidedAt = new Date().toISOString(); await saveBranchTransferRow(t);
   const emp = db.employees.find(e=>e.id===t.employeeId);
   const targetLabel = transferTargetLabel(t.branchId);
-  if(db.settings.notifyTypes.leaveDecision && db.settings.centralChatId) await tgSendMessage(db.settings.centralToken, db.settings.centralChatId, `คำขอไปทำงาน ${targetLabel} ของ <b>${emp?.name}</b> (${t.fromDate}${t.fromDate!==t.toDate?' – '+t.toDate:''}) ถูก${status==='approved'?'อนุมัติ':'ปฏิเสธ'}แล้ว`);
+  if(db.settings.notifyTypes.leaveDecision && db.settings.centralChatId) await tgSendMessage(db.settings.centralToken, db.settings.centralChatId, `คำขอไปทำงาน ${targetLabel} ของ <b>${notifyName(emp)}</b> (${t.fromDate}${t.fromDate!==t.toDate?' – '+t.toDate:''}) ถูก${status==='approved'?'อนุมัติ':'ปฏิเสธ'}แล้ว`);
   await pushNotification(emp.id, status==='approved'?'คำขอไปสาขาอื่นได้รับการอนุมัติ':'คำขอไปสาขาอื่นถูกปฏิเสธ', `${targetLabel} ${t.fromDate}${t.fromDate!==t.toDate?' – '+t.toDate:''}`);
   renderTransferList();
 }
@@ -2120,7 +2125,7 @@ async function decideOt(id, status){
   ot.status = status; ot.decidedAt = new Date().toISOString(); await saveOtRow(ot);
   const emp = db.employees.find(e=>e.id===ot.employeeId);
   const br = db.branches.find(b=>b.id===emp?.branchId);
-  if(db.settings.notifyTypes.otDecision && db.settings.otChatId) await tgSendMessage(db.settings.centralToken, db.settings.otChatId, `คำขอ OT ของ <b>${emp?.name}</b> (${ot.date} ${ot.hourStart}-${ot.hourEnd}) ถูก${status==='approved'?'อนุมัติ':'ปฏิเสธ'}แล้ว`);
+  if(db.settings.notifyTypes.otDecision && db.settings.otChatId) await tgSendMessage(db.settings.centralToken, db.settings.otChatId, `คำขอ OT ของ <b>${notifyName(emp)}</b> (${ot.date} ${ot.hourStart}-${ot.hourEnd}) ถูก${status==='approved'?'อนุมัติ':'ปฏิเสธ'}แล้ว`);
   await pushNotification(emp.id, status==='approved'?'คำขอ OT ได้รับการอนุมัติ':'คำขอ OT ถูกปฏิเสธ', `${ot.date} เวลา ${ot.hourStart}-${ot.hourEnd}`);
   renderOtLists();
 }
@@ -2134,7 +2139,7 @@ async function decideOtGroup(groupId, status){
   await logAudit(status, 'ot_group', groupId, `${status==='approved'?'อนุมัติ':'ปฏิเสธ'} OT กลุ่ม ${items.length} คน วันที่ ${items[0].date}`);
   const first = items[0];
   const br = db.branches.find(b=>b.id===db.employees.find(e=>e.id===first.employeeId)?.branchId);
-  const empLines = items.map((o,i)=>{ const e = db.employees.find(x=>x.id===o.employeeId); return `${i+1}. ${e?.name||'-'}${e?.nickname?` (${e.nickname})`:''}`; }).join('\n');
+  const empLines = items.map((o,i)=>{ const e = db.employees.find(x=>x.id===o.employeeId); return `${i+1}. ${notifyName(e)}`; }).join('\n');
   if(db.settings.notifyTypes.otDecision && db.settings.otChatId){
     const text = status==='approved'
       ? `✅อนุมัติโอที โดย : ${approverName}\nสาขา : ${br?.name||'-'}\nขอทำ OT วันที่ : ${first.date}\nเวลา : ${first.hourStart}-${first.hourEnd}\nรวม : ${otHoursText(first.hourStart,first.hourEnd)} ชม.\nเหตุผล : ${first.reason||'-'}\nพนักงานขอ OT\n${empLines}`
@@ -2215,7 +2220,7 @@ document.getElementById('submitTransferBtn').onclick = async ()=>{
   msg.className='msg ok'; msg.textContent='ส่งคำขอแล้ว รออนุมัติ';
   renderMyTransferList();
   const targetLabel = transferTargetLabel(branchId);
-  if(db.settings.notifyTypes.leaveSubmit && db.settings.centralChatId) await tgSendMessage(db.settings.centralToken, db.settings.centralChatId, `<b>${emp.name}</b> ขอไปทำงาน ${targetLabel} วันที่ ${from}${from!==to?' ถึง '+to:''}\nเหตุผล: ${reason||'-'}`);
+  if(db.settings.notifyTypes.leaveSubmit && db.settings.centralChatId) await tgSendMessage(db.settings.centralToken, db.settings.centralChatId, `<b>${notifyName(emp)}</b> ขอไปทำงาน ${targetLabel} วันที่ ${from}${from!==to?' ถึง '+to:''}\nเหตุผล: ${reason||'-'}`);
   await pushNotification(emp.id, 'ส่งคำขอไปสาขาอื่นแล้ว', `${targetLabel} ${from}${from!==to?' – '+to:''} กำลังรอการอนุมัติ`);
 };
 document.getElementById('menuPin').onclick = ()=>{
@@ -2785,8 +2790,7 @@ async function decideLeave(id, status){
       let lines = [
         `✅อนุมัติการลา :`,
         `แผนก : ${emp?.department || br?.name || '-'}`,
-        `ชื่อ-นามสกุล : ${emp?.name || '-'}`,
-        `ชื่อเล่น : ${emp?.nickname || '-'}`,
+        `ชื่อ : ${notifyName(emp)}`,
         `ตำแหน่งงาน : ${emp?.jobTitle || '-'}`,
         `ประเภทการลา : ${leaveLabel(leave.kind)}`,
         `ลาวันที่ : ${leave.from}`,
@@ -2806,7 +2810,7 @@ async function decideLeave(id, status){
         await tgSendMessage(db.settings.centralToken, br.chatIdLeaveApproval, caption);
       }
     } else {
-      await tgSendMessage(db.settings.centralToken, br.chatIdLeaveApproval, `❌ใบลาของ <b>${emp?.name}</b> (${leaveLabel(leave.kind)} ${rangeText}) ถูกปฏิเสธแล้ว\nเหตุผลที่ยื่น: ${leave.reason || '-'}`);
+      await tgSendMessage(db.settings.centralToken, br.chatIdLeaveApproval, `❌ใบลาของ <b>${notifyName(emp)}</b> (${leaveLabel(leave.kind)} ${rangeText}) ถูกปฏิเสธแล้ว\nเหตุผลที่ยื่น: ${leave.reason || '-'}`);
     }
   }
   await pushNotification(emp.id, status==='approved'?'ใบลาได้รับการอนุมัติ':'ใบลาถูกปฏิเสธ', `${leaveLabel(leave.kind)} ${rangeText}`);
@@ -3486,7 +3490,7 @@ async function finalizeScan(emp, confidence, pos, distance){
   const conflictLeave = db.leaves.find(l=>l.employeeId===emp.id && l.status==='approved' && !HOURLY_KINDS.includes(l.kind) && new Date(l.from+'T00:00:00')<=now && new Date(l.to+'T23:59:59')>=now);
   if(!st.inTime){
     type='IN'; lateMinutes = shiftLateMinutes(emp, now);
-    text = `✅${emp.name}${emp.nickname?` (${emp.nickname})`:''}\nเข้างาน เวลา ${fmtTime(now)} น.${lateMinutes>0?`\nสาย ${lateMinutes} นาที`:''}\nยืนยันใบหน้า ${confidence}%`;
+    text = `✅${notifyName(emp)}\nเข้างาน เวลา ${fmtTime(now)} น.${lateMinutes>0?`\nสาย ${lateMinutes} นาที`:''}\nยืนยันใบหน้า ${confidence}%`;
     notiTitle = 'เช็กอินสำเร็จ'; notiBody = `บันทึกเวลาเข้างานที่ ${br?.name||'-'} เรียบร้อย${lateMinutes>0?` (สาย ${lateMinutes} นาที)`:''}`;
     if(conflictLeave){
       text += `\n⚠️ ข้อมูลไม่สอดคล้องกัน: มีใบลา ${leaveLabel(conflictLeave.kind)} ที่อนุมัติแล้ววันนี้ แต่มาเช็กอินเข้างาน`;
@@ -3495,7 +3499,7 @@ async function finalizeScan(emp, confidence, pos, distance){
     }
   } else {
     type='OUT';
-    text = `✅${emp.name}${emp.nickname?` (${emp.nickname})`:''}\nออกงาน เวลา ${fmtTime(now)} น.\nยืนยันใบหน้า ${confidence}%`;
+    text = `✅${notifyName(emp)}\nออกงาน เวลา ${fmtTime(now)} น.\nยืนยันใบหน้า ${confidence}%`;
     notiTitle = 'เช็กเอาท์สำเร็จ'; notiBody = `บันทึกเวลาออกงานที่ ${br?.name||'-'} เรียบร้อย`;
   }
   if(distance!=null) text += `\nระยะห่างจากสาขา: ${distance} ม.`;
