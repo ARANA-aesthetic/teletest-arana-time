@@ -763,7 +763,8 @@
     <label>เหตุผล</label>
     <textarea id="leaveReason" placeholder="ระบุเหตุผลการลา"></textarea>
 
-    <label>แนบหลักฐาน (เช่น ใบรับรองแพทย์) — ถ้ามี</label>
+    <label id="leaveEvidenceLabel">แนบหลักฐาน (เช่น ใบรับรองแพทย์) — ถ้ามี</label>
+    <button type="button" class="btn ghost sm hidden" id="leaveEvidenceViewBtn" style="margin-bottom:6px;">ดูรูปเดิม</button>
     <input type="file" id="leaveEvidenceInput" accept="image/*" capture="environment">
 
     <div class="modalfoot">
@@ -1841,6 +1842,10 @@ function openLeaveForm(leaveId){
     document.getElementById('leaveReason').value='';
   }
   document.getElementById('leaveEvidenceInput').value='';
+  document.getElementById('leaveEvidenceLabel').textContent = (existing && existing.evidenceFileId) ? 'แนบรูปใหม่แทนรูปเดิม — ถ้าไม่แนบ จะใช้รูปเดิม' : 'แนบหลักฐาน (เช่น ใบรับรองแพทย์) — ถ้ามี';
+  const viewBtn = document.getElementById('leaveEvidenceViewBtn');
+  viewBtn.classList.toggle('hidden', !(existing && existing.evidenceFileId));
+  viewBtn.onclick = ()=> existing && existing.evidenceFileId && viewTelegramPhoto(existing.evidenceFileId);
   document.getElementById('submitLeaveBtn').textContent = existing ? 'บันทึกการแก้ไข' : 'ส่งใบลา';
   document.getElementById('leaveOverlay').classList.add('show');
 }
@@ -1869,6 +1874,12 @@ document.getElementById('submitLeaveBtn').onclick = async ()=>{
     const leave = db.leaves.find(l=>l.id===editingLeaveId);
     if(!leave || leave.status!=='pending'){ msg.className='msg err'; msg.textContent='ไม่สามารถแก้ไขได้ (อาจถูกอนุมัติ/ปฏิเสธไปแล้ว)'; return; }
     Object.assign(leave, {kind, from, to, hourStart, hourEnd, reason});
+    if(evidenceFile){
+      const caption = `<b>${emp.name}</b> แก้ไขหลักฐาน${leaveLabel(kind)} ${leaveRangeText(leave)} (♻️ รูปแก้ไข)\nเหตุผล: ${reason||'-'}`;
+      const r = await tgSendPhoto(db.settings.centralToken, db.settings.centralChatId, evidenceFile, caption);
+      if(r.ok){ leave.evidenceFileId = r.fileId || leave.evidenceFileId; leave.evidenceSent = true; }
+      await logAudit('correct_photo', 'leave_evidence', leave.id, `แก้ไขรูปหลักฐาน${leaveLabel(kind)} ${leaveRangeText(leave)}`);
+    }
     await saveLeaveRow(leave);
     msg.className='msg ok'; msg.textContent='บันทึกการแก้ไขเรียบร้อย';
     renderLeaveTab();
