@@ -577,12 +577,20 @@
         </div>
       </section>
       <section>
+        <div class="sectitle">คำขอแก้ไขใบลา (อนุมัติแล้ว ขอแก้)</div>
+        <div class="card" id="pendingLeaveEditList" style="padding:0 16px;margin-bottom:20px;"></div>
+      </section>
+      <section>
         <div class="sectitle">ใบลารออนุมัติ</div>
         <div class="card" id="pendingLeaveList" style="padding:0 16px;margin-bottom:20px;"></div>
       </section>
       <section>
         <div class="sectitle">ประวัติใบลาทั้งหมด<button class="btn ghost sm" style="margin-left:auto;" id="exportLeaveReportBtn">Report</button></div>
         <div class="card" id="allLeaveList" style="padding:0 16px;"></div>
+      </section>
+      <section>
+        <div class="sectitle">คำขอแก้ไข OT (อนุมัติแล้ว ขอแก้)</div>
+        <div class="card" id="pendingOtEditList" style="padding:0 16px;margin-bottom:20px;"></div>
       </section>
       <section>
         <div class="sectitle">คำขอ OT รออนุมัติ</div>
@@ -796,7 +804,7 @@
 <!-- OT request modal -->
 <div class="overlay" id="otOverlay">
   <div class="modal">
-    <h3>ขอทำ OT</h3>
+    <h3 id="otFormTitle">ขอทำ OT</h3>
     <label>วันที่ทำ OT</label>
     <div id="otDate_holder"></div>
     <div class="row2">
@@ -805,8 +813,10 @@
     </div>
     <label>เหตุผล / งานที่ต้องทำ</label>
     <textarea id="otReason" placeholder="ระบุเหตุผลการขอ OT"></textarea>
-    <label>พนักงานที่ขอ OT (เลือกได้หลายคน)</label>
-    <div class="card" id="otEmpChecklist" style="max-height:200px;overflow:auto;padding:10px 14px;"></div>
+    <div id="otEmpChecklistWrap">
+      <label>พนักงานที่ขอ OT (เลือกได้หลายคน)</label>
+      <div class="card" id="otEmpChecklist" style="max-height:200px;overflow:auto;padding:10px 14px;"></div>
+    </div>
     <div class="modalfoot">
       <button class="btn block" id="submitOtBtn">ส่งคำขอ OT</button>
       <button class="btn gray" id="closeOtBtn">ยกเลิก</button>
@@ -1131,11 +1141,11 @@ const approverToRow = a => ({ id:a.id, name:a.name, pin:a.pin||null, role:a.role
 const rowToLog = r => ({ id:r.id, employeeId:r.employee_id, type:r.type, time:r.time, branchId:r.branch_id, lateMinutes:r.late_minutes||0, sent:r.sent, acPointId:r.ac_point_id||null, cleanPointId:r.clean_point_id||null, leaveConflict:!!r.leave_conflict, corrected:!!r.corrected });
 const logToRow = l => ({ id:l.id, employee_id:l.employeeId, type:l.type, time:l.time, branch_id:l.branchId||null, late_minutes:l.lateMinutes||0, sent:l.sent, ac_point_id:l.acPointId||null, clean_point_id:l.cleanPointId||null, leave_conflict:!!l.leaveConflict, corrected:!!l.corrected });
 
-const rowToLeave = r => ({ id:r.id, employeeId:r.employee_id, kind:r.kind, from:r.from_date, to:r.to_date, hourStart:r.from_time||null, hourEnd:r.to_time||null, reason:r.reason||'', status:r.status, requestedAt:r.requested_at, decidedAt:r.decided_at||null, evidenceSent:r.evidence_sent??null, evidenceFileId:r.evidence_file_id||null });
-const leaveToRow = l => ({ id:l.id, employee_id:l.employeeId, kind:l.kind, from_date:l.from, to_date:l.to, from_time:l.hourStart||null, to_time:l.hourEnd||null, reason:l.reason||null, status:l.status, requested_at:l.requestedAt, decided_at:l.decidedAt||null, evidence_sent:l.evidenceSent??null, evidence_file_id:l.evidenceFileId||null, days: (l.from && l.to) ? (Math.round((new Date(l.to)-new Date(l.from))/86400000)+1) : null });
+const rowToLeave = r => ({ id:r.id, employeeId:r.employee_id, kind:r.kind, from:r.from_date, to:r.to_date, hourStart:r.from_time||null, hourEnd:r.to_time||null, reason:r.reason||'', status:r.status, requestedAt:r.requested_at, decidedAt:r.decided_at||null, evidenceSent:r.evidence_sent??null, evidenceFileId:r.evidence_file_id||null, editRequest:r.edit_request||null });
+const leaveToRow = l => ({ id:l.id, employee_id:l.employeeId, kind:l.kind, from_date:l.from, to_date:l.to, from_time:l.hourStart||null, to_time:l.hourEnd||null, reason:l.reason||null, status:l.status, requested_at:l.requestedAt, decided_at:l.decidedAt||null, evidence_sent:l.evidenceSent??null, evidence_file_id:l.evidenceFileId||null, edit_request:l.editRequest||null, days: (l.from && l.to) ? (Math.round((new Date(l.to)-new Date(l.from))/86400000)+1) : null });
 
-const rowToOt = r => ({ id:r.id, employeeId:r.employee_id, date:r.date, hourStart:r.hour_start, hourEnd:r.hour_end, reason:r.reason||'', status:r.status, requestedAt:r.requested_at, decidedAt:r.decided_at||null, groupId:r.group_id||null });
-const otToRow = o => ({ id:o.id, employee_id:o.employeeId, date:o.date, hour_start:o.hourStart, hour_end:o.hourEnd, reason:o.reason||null, status:o.status, requested_at:o.requestedAt, decided_at:o.decidedAt||null, group_id:o.groupId||null });
+const rowToOt = r => ({ id:r.id, employeeId:r.employee_id, date:r.date, hourStart:r.hour_start, hourEnd:r.hour_end, reason:r.reason||'', status:r.status, requestedAt:r.requested_at, decidedAt:r.decided_at||null, groupId:r.group_id||null, editRequest:r.edit_request||null });
+const otToRow = o => ({ id:o.id, employee_id:o.employeeId, date:o.date, hour_start:o.hourStart, hour_end:o.hourEnd, reason:o.reason||null, status:o.status, requested_at:o.requestedAt, decided_at:o.decidedAt||null, group_id:o.groupId||null, edit_request:o.editRequest||null });
 
 const rowToBranchTransfer = r => ({ id:r.id, employeeId:r.employee_id, branchId:r.branch_id, fromDate:r.from_date, toDate:r.to_date, reason:r.reason||'', status:r.status, requestedAt:r.requested_at, decidedAt:r.decided_at||null });
 const branchTransferToRow = t => ({ id:t.id, employee_id:t.employeeId, branch_id:t.branchId, from_date:t.fromDate, to_date:t.toDate, reason:t.reason||null, status:t.status, requested_at:t.requestedAt, decided_at:t.decidedAt||null });
@@ -1820,12 +1830,19 @@ function renderLeaveTab(){
     const lFrom = new Date(l.from+'T00:00:00'), lTo = new Date(l.to+'T00:00:00');
     return lFrom <= rTo && lTo >= rFrom;
   }).sort((a,b)=>new Date(b.requestedAt)-new Date(a.requestedAt));
-  document.getElementById('myLeaveList').innerHTML = myLeaves.length ? myLeaves.map(l=>`
-    <div class="listrow"><div class="info">
+  document.getElementById('myLeaveList').innerHTML = myLeaves.length ? myLeaves.map(l=>{
+    let actionHtml = '';
+    if(l.status==='pending') actionHtml = `<button class="btn ghost sm" data-editleave="${l.id}" style="margin-left:8px;">แก้ไข</button>`;
+    else if(l.status==='approved') actionHtml = l.editRequest
+      ? `<span class="badge pending" style="margin-left:8px;">รออนุมัติการแก้ไข</span>`
+      : `<button class="btn ghost sm" data-requestleaveedit="${l.id}" style="margin-left:8px;">ขอแก้ไข</button>`;
+    return `<div class="listrow"><div class="info">
       <div class="name">${leaveLabel(l.kind)} · ${leaveRangeText(l)}</div>
       <div class="meta">${l.reason||''}${l.evidenceSent?' · แนบหลักฐานแล้ว':''}</div>
-    </div><span class="badge ${l.status}">${leaveStatusLabel(l.status)}</span>${l.status==='pending'?`<button class="btn ghost sm" data-editleave="${l.id}" style="margin-left:8px;">แก้ไข</button>`:''}</div>`).join('') : '<div class="empty">ไม่มีใบลาในช่วงที่เลือก</div>';
+    </div><span class="badge ${l.status}">${leaveStatusLabel(l.status)}</span>${actionHtml}</div>`;
+  }).join('') : '<div class="empty">ไม่มีใบลาในช่วงที่เลือก</div>';
   document.querySelectorAll('[data-editleave]').forEach(btn=> btn.onclick = ()=> openLeaveForm(btn.dataset.editleave));
+  document.querySelectorAll('[data-requestleaveedit]').forEach(btn=> btn.onclick = ()=> openLeaveEditRequestForm(btn.dataset.requestleaveedit));
 }
 document.getElementById('exportMyLeaveBtn').onclick = ()=>{
   const emp = currentEmployee(); if(!emp) return;
@@ -1850,7 +1867,40 @@ document.getElementById('leaveType').addEventListener('change', ()=>{
   document.getElementById('leaveHourlyFields').classList.toggle('hidden', !isHourly);
 });
 let editingLeaveId = null;
+let requestingEditLeaveId = null;
+function openLeaveEditRequestForm(leaveId){
+  const leave = db.leaves.find(l=>l.id===leaveId);
+  if(!leave || leave.status!=='approved') return;
+  editingLeaveId = null;
+  requestingEditLeaveId = leaveId;
+  document.getElementById('leaveFormTitle').textContent = 'ขอแก้ไขใบลา (ต้องรออนุมัติอีกครั้ง)';
+  document.getElementById('leaveFormMsg').textContent='';
+  const kind = leave.kind;
+  document.getElementById('leaveType').value = kind;
+  const isHourly = HOURLY_KINDS.includes(kind);
+  document.getElementById('leaveDateRangeFields').classList.toggle('hidden', isHourly);
+  document.getElementById('leaveHourlyFields').classList.toggle('hidden', !isHourly);
+  if(isHourly){
+    setDateVal('leaveSingleDate', leave.from);
+    document.getElementById('leaveHourStart').value = leave.hourStart||'';
+    document.getElementById('leaveHourEnd').value = leave.hourEnd||'';
+    setDateVal('leaveFrom',''); setDateVal('leaveTo','');
+  } else {
+    setDateVal('leaveFrom', leave.from); setDateVal('leaveTo', leave.to);
+    setDateVal('leaveSingleDate',''); document.getElementById('leaveHourStart').value=''; document.getElementById('leaveHourEnd').value='';
+  }
+  document.getElementById('leaveReason').value = leave.reason||'';
+  document.getElementById('leaveEvidenceInput').value='';
+  document.getElementById('leaveEvidenceLabel').textContent = 'ใบลานี้อนุมัติแล้ว — ขอแก้ไขได้เฉพาะประเภท/วันที่/เหตุผล (ไม่รวมรูปหลักฐาน)';
+  document.getElementById('leaveEvidenceInput').classList.add('hidden');
+  document.getElementById('leaveEvidenceViewBtn').classList.toggle('hidden', !leave.evidenceFileId);
+  document.getElementById('leaveEvidenceViewBtn').onclick = ()=> leave.evidenceFileId && viewTelegramPhoto(leave.evidenceFileId);
+  document.getElementById('submitLeaveBtn').textContent = 'ส่งคำขอแก้ไข';
+  document.getElementById('leaveOverlay').classList.add('show');
+}
 function openLeaveForm(leaveId){
+  requestingEditLeaveId = null;
+  document.getElementById('leaveEvidenceInput').classList.remove('hidden');
   editingLeaveId = leaveId || null;
   const existing = editingLeaveId ? db.leaves.find(l=>l.id===editingLeaveId) : null;
   document.getElementById('leaveFormTitle').textContent = existing ? 'แก้ไขใบลา' : 'ยื่นใบลา';
@@ -1904,6 +1954,23 @@ document.getElementById('submitLeaveBtn').onclick = async ()=>{
     from = getDateVal('leaveFrom');
     to = getDateVal('leaveTo');
     if(!from || !to){ msg.className='msg err'; msg.textContent='กรุณาระบุวันที่'; return; }
+  }
+  if(requestingEditLeaveId){
+    const leave = db.leaves.find(l=>l.id===requestingEditLeaveId);
+    if(!leave || leave.status!=='approved'){ msg.className='msg err'; msg.textContent='ไม่สามารถขอแก้ไขได้ (สถานะเปลี่ยนไปแล้ว)'; return; }
+    const oldRangeText = leaveRangeText(leave);
+    const oldKind = leave.kind;
+    leave.editRequest = {kind, from, to, hourStart, hourEnd, reason, requestedAt:new Date().toISOString()};
+    await saveLeaveRow(leave);
+    msg.className='msg ok'; msg.textContent='ส่งคำขอแก้ไขเรียบร้อย รออนุมัติจาก HR';
+    renderLeaveTab();
+    const br = currentBranch(emp);
+    const newRangeText = leaveRangeText({from, to, hourStart, hourEnd, kind});
+    const text = `🔧<b>${notifyName(emp)}</b> ขอแก้ไขใบลาที่อนุมัติแล้ว\nเดิม: ${leaveLabel(oldKind)} ${oldRangeText}\nใหม่: ${leaveLabel(kind)} ${newRangeText}\nเหตุผล: ${reason||'-'}`;
+    if(db.settings.notifyTypes.leaveSubmit && br?.chatIdLeaveApproval) await tgSendMessage(db.settings.centralToken, br.chatIdLeaveApproval, text);
+    await logAudit('request_edit', 'leave', leave.id, `ขอแก้ไขใบลา: ${leaveLabel(oldKind)} ${oldRangeText} → ${leaveLabel(kind)} ${newRangeText}`);
+    setTimeout(()=>{ document.getElementById('leaveOverlay').classList.remove('show'); requestingEditLeaveId=null; }, 900);
+    return;
   }
   if(editingLeaveId){
     const leave = db.leaves.find(l=>l.id===editingLeaveId);
@@ -2079,13 +2146,24 @@ function renderOtTab(){
     const od = new Date(o.date+'T00:00:00');
     return od >= rFrom && od <= rTo;
   }).sort((a,b)=>new Date(b.requestedAt)-new Date(a.requestedAt));
-  document.getElementById('myOtList').innerHTML = myOt.length ? myOt.map(o=>`
-    <div class="listrow"><div class="info">
+  document.getElementById('myOtList').innerHTML = myOt.length ? myOt.map(o=>{
+    let actionHtml = '';
+    if(o.status==='approved') actionHtml = o.editRequest
+      ? `<span class="badge pending" style="margin-left:8px;">รออนุมัติการแก้ไข</span>`
+      : `<button class="btn ghost sm" data-requestotedit="${o.id}" style="margin-left:8px;">ขอแก้ไข</button>`;
+    return `<div class="listrow"><div class="info">
       <div class="name">${fmtDateShort(new Date(o.date))} · ${o.hourStart}–${o.hourEnd} น.</div>
       <div class="meta">${o.reason||''}</div>
-    </div><span class="badge ${o.status}">${otStatusLabel(o.status)}</span></div>`).join('') : '<div class="empty">ไม่มีคำขอ OT ในช่วงที่เลือก</div>';
+    </div><span class="badge ${o.status}">${otStatusLabel(o.status)}</span>${actionHtml}</div>`;
+  }).join('') : '<div class="empty">ไม่มีคำขอ OT ในช่วงที่เลือก</div>';
+  document.querySelectorAll('[data-requestotedit]').forEach(btn=> btn.onclick = ()=> openOtEditRequestForm(btn.dataset.requestotedit));
 }
+let requestingEditOtId = null;
 document.getElementById('openOtFormBtn').onclick = ()=>{
+  requestingEditOtId = null;
+  document.getElementById('otFormTitle').textContent = 'ขอทำ OT';
+  document.getElementById('submitOtBtn').textContent = 'ส่งคำขอ OT';
+  document.getElementById('otEmpChecklistWrap').classList.remove('hidden');
   document.getElementById('otFormMsg').textContent='';
   setDateVal('otDate',''); document.getElementById('otHourStart').value=''; document.getElementById('otHourEnd').value=''; document.getElementById('otReason').value='';
   const emp = currentEmployee();
@@ -2097,6 +2175,20 @@ document.getElementById('openOtFormBtn').onclick = ()=>{
     </label>`).join('');
   document.getElementById('otOverlay').classList.add('show');
 };
+function openOtEditRequestForm(otId){
+  const ot = db.otRequests.find(o=>o.id===otId);
+  if(!ot || ot.status!=='approved') return;
+  requestingEditOtId = otId;
+  document.getElementById('otFormTitle').textContent = 'ขอแก้ไข OT (ต้องรออนุมัติอีกครั้ง)';
+  document.getElementById('submitOtBtn').textContent = 'ส่งคำขอแก้ไข';
+  document.getElementById('otEmpChecklistWrap').classList.add('hidden');
+  document.getElementById('otFormMsg').textContent='';
+  setDateVal('otDate', ot.date);
+  document.getElementById('otHourStart').value = ot.hourStart;
+  document.getElementById('otHourEnd').value = ot.hourEnd;
+  document.getElementById('otReason').value = ot.reason||'';
+  document.getElementById('otOverlay').classList.add('show');
+}
 document.getElementById('closeOtBtn').onclick = ()=> document.getElementById('otOverlay').classList.remove('show');
 function otHoursText(hourStart, hourEnd){
   const mins = (hourEnd.split(':')[0]*60 + +hourEnd.split(':')[1]) - (hourStart.split(':')[0]*60 + +hourStart.split(':')[1]);
@@ -2109,8 +2201,24 @@ document.getElementById('submitOtBtn').onclick = async ()=>{
   const hourEnd = document.getElementById('otHourEnd').value;
   const reason = document.getElementById('otReason').value.trim();
   const msg = document.getElementById('otFormMsg');
-  const selectedIds = Array.from(document.querySelectorAll('#otEmpChecklist [data-otemp]:checked')).map(cb=>cb.dataset.otemp);
   if(!date || !hourStart || !hourEnd){ msg.className='msg err'; msg.textContent='กรุณากรอกวันที่และเวลาให้ครบ'; return; }
+  if(requestingEditOtId){
+    const ot = db.otRequests.find(o=>o.id===requestingEditOtId);
+    if(!ot || ot.status!=='approved'){ msg.className='msg err'; msg.textContent='ไม่สามารถขอแก้ไขได้ (สถานะเปลี่ยนไปแล้ว)'; return; }
+    const oldText = `${fmtDateShort(new Date(ot.date))} ${ot.hourStart}-${ot.hourEnd}`;
+    ot.editRequest = {date, hourStart, hourEnd, reason, requestedAt:new Date().toISOString()};
+    await saveOtRow(ot);
+    msg.className='msg ok'; msg.textContent='ส่งคำขอแก้ไขเรียบร้อย รออนุมัติจากหัวหน้า/HR';
+    renderOtTab();
+    const br = currentBranch(emp);
+    const newText = `${fmtDateShort(new Date(date))} ${hourStart}-${hourEnd}`;
+    const text = `🔧<b>${notifyName(emp)}</b> ขอแก้ไขคำขอ OT ที่อนุมัติแล้ว\nเดิม: ${oldText}\nใหม่: ${newText}\nเหตุผล: ${reason||'-'}`;
+    if(db.settings.notifyTypes.otSubmit && db.settings.otChatId) await tgSendMessage(db.settings.centralToken, db.settings.otChatId, text);
+    await logAudit('request_edit', 'ot', ot.id, `ขอแก้ไข OT: ${oldText} → ${newText}`);
+    setTimeout(()=>{ document.getElementById('otOverlay').classList.remove('show'); requestingEditOtId=null; }, 900);
+    return;
+  }
+  const selectedIds = Array.from(document.querySelectorAll('#otEmpChecklist [data-otemp]:checked')).map(cb=>cb.dataset.otemp);
   if(!selectedIds.length){ msg.className='msg err'; msg.textContent='กรุณาเลือกพนักงานอย่างน้อย 1 คน'; return; }
   const groupId = uid();
   const rows = selectedIds.map(empId => ({id:uid(), employeeId:empId, date, hourStart, hourEnd, reason, status:'pending', requestedAt:new Date().toISOString(), groupId}));
@@ -2778,6 +2886,7 @@ function renderLeaveLists(){
   pendEl.querySelectorAll('[data-approve]').forEach(b=> b.onclick = ()=> decideLeave(b.dataset.approve,'approved'));
   pendEl.querySelectorAll('[data-reject]').forEach(b=> b.onclick = ()=> decideLeave(b.dataset.reject,'rejected'));
   pendEl.querySelectorAll('[data-viewphoto]').forEach(b=> b.onclick = ()=> viewTelegramPhoto(b.dataset.viewphoto));
+  renderLeaveEditRequests(empIds);
   if(!approvalHistorySearched){
     document.getElementById('allLeaveList').innerHTML = '<div class="empty">เลือกเงื่อนไข (สาขา/วันที่) แล้วกด "ค้นหาประวัติ" เพื่อแสดงข้อมูล</div>';
     return;
@@ -2787,6 +2896,55 @@ function renderLeaveLists(){
     const emp = db.employees.find(e=>e.id===l.employeeId);
     return `<div class="listrow"><div class="info"><div class="name">${emp?.name||'-'} · ${leaveLabel(l.kind)}</div><div class="meta">${leaveRangeText(l)}</div></div><span class="badge ${l.status}">${leaveStatusLabel(l.status)}</span></div>`;
   }).join('') : '<div class="empty">ไม่มีประวัติในช่วงที่เลือก</div>';
+}
+function renderLeaveEditRequests(empIds){
+  const pendingEdits = db.leaves.filter(l=>l.editRequest && empIds.has(l.employeeId));
+  const el = document.getElementById('pendingLeaveEditList');
+  el.innerHTML = pendingEdits.length ? pendingEdits.map(l=>{
+    const emp = db.employees.find(e=>e.id===l.employeeId);
+    const br = db.branches.find(b=>b.id===emp?.branchId);
+    const er = l.editRequest;
+    const oldText = `${leaveLabel(l.kind)} ${leaveRangeText(l)}`;
+    const newText = `${leaveLabel(er.kind)} ${leaveRangeText({from:er.from, to:er.to, hourStart:er.hourStart, hourEnd:er.hourEnd, kind:er.kind})}`;
+    return `<div class="listrow" style="flex-direction:column;align-items:stretch;gap:6px;">
+      <div style="display:flex;align-items:flex-start;gap:12px;">
+        <div class="avatar">${emp?.name.trim()[0]||'?'}</div>
+        <div class="info">
+          <div class="name">${emp?.name||'-'}${emp?.nickname?` (${emp.nickname})`:''}${br?.name?` · ${br.name}`:''}</div>
+          <div class="meta">เดิม: ${oldText}</div>
+          <div class="meta" style="color:var(--pink-dark);font-weight:600;">ใหม่: ${newText}</div>
+          <div class="meta">เหตุผล: ${er.reason||'-'}</div>
+        </div>
+      </div>
+      ${canApproveLeave() ? `<div class="actionrow"><button class="btn-mini approve" data-approveedit="${l.id}">อนุมัติการแก้ไข</button><button class="btn-mini reject" data-rejectedit="${l.id}">ปฏิเสธ</button></div>` : `<div style="font-size:11.5px;color:var(--muted);">ไม่มีสิทธิ์อนุมัติรายการนี้ (ต้องเป็นเจ้าของ/HR/ผู้จัดการ)</div>`}
+    </div>`;
+  }).join('') : '<div class="empty">ไม่มีคำขอแก้ไขใบลาที่รออนุมัติ</div>';
+  el.querySelectorAll('[data-approveedit]').forEach(b=> b.onclick = ()=> decideLeaveEdit(b.dataset.approveedit,'approved'));
+  el.querySelectorAll('[data-rejectedit]').forEach(b=> b.onclick = ()=> decideLeaveEdit(b.dataset.rejectedit,'rejected'));
+}
+async function decideLeaveEdit(id, decision){
+  if(!canApproveLeave()){ alert('ไม่มีสิทธิ์อนุมัติ ต้องเป็นเจ้าของ/HR/ผู้จัดการ'); return; }
+  const leave = db.leaves.find(l=>l.id===id); if(!leave || !leave.editRequest) return;
+  const er = leave.editRequest;
+  const oldText = `${leaveLabel(leave.kind)} ${leaveRangeText(leave)}`;
+  const emp = db.employees.find(e=>e.id===leave.employeeId);
+  const br = db.branches.find(b=>b.id===emp?.branchId);
+  if(decision==='approved'){
+    Object.assign(leave, {kind:er.kind, from:er.from, to:er.to, hourStart:er.hourStart, hourEnd:er.hourEnd, reason:er.reason});
+  }
+  const newText = `${leaveLabel(leave.kind)} ${leaveRangeText(leave)}`;
+  leave.editRequest = null;
+  await saveLeaveRow(leave);
+  await logAudit(decision==='approved'?'approve_edit':'reject_edit', 'leave', leave.id,
+    decision==='approved' ? `อนุมัติการแก้ไขใบลา: ${oldText} → ${newText}` : `ปฏิเสธการแก้ไขใบลา (คงค่าเดิม: ${oldText})`);
+  if(db.settings.notifyTypes.leaveDecision && br?.chatIdLeaveApproval){
+    const text = decision==='approved'
+      ? `✅อนุมัติการแก้ไขใบลาของ <b>${notifyName(emp)}</b>\nเป็น: ${newText}`
+      : `❌ปฏิเสธคำขอแก้ไขใบลาของ <b>${notifyName(emp)}</b>\nใบลายังคงเป็น: ${oldText}`;
+    await tgSendMessage(db.settings.centralToken, br.chatIdLeaveApproval, text);
+  }
+  await pushNotification(leave.employeeId, decision==='approved'?'คำขอแก้ไขใบลาได้รับการอนุมัติ':'คำขอแก้ไขใบลาถูกปฏิเสธ', decision==='approved'?newText:oldText);
+  renderLeaveLists(); renderOverviewStats(); renderEmpSummary();
 }
 function daysBetweenInclusive(from, to){ return Math.round((new Date(to)-new Date(from))/86400000)+1; }
 function noticeDays(requestedAt, from){ return Math.max(0, Math.round((new Date(from)-new Date(requestedAt))/86400000)); }
@@ -2868,6 +3026,7 @@ function renderOtLists(){
   }).join('') : '<div class="empty">ไม่มีคำขอ OT ที่รออนุมัติ</div>';
   pendEl.querySelectorAll('[data-otapprovegroup]').forEach(b=> b.onclick = ()=> decideOtGroup(b.dataset.otapprovegroup,'approved'));
   pendEl.querySelectorAll('[data-otrejectgroup]').forEach(b=> b.onclick = ()=> decideOtGroup(b.dataset.otrejectgroup,'rejected'));
+  renderOtEditRequests(empIds);
   if(!approvalHistorySearched){
     document.getElementById('allOtList').innerHTML = '<div class="empty">เลือกเงื่อนไข (สาขา/วันที่) แล้วกด "ค้นหาประวัติ" เพื่อแสดงข้อมูล</div>';
     return;
@@ -2877,6 +3036,54 @@ function renderOtLists(){
     const emp = db.employees.find(e=>e.id===o.employeeId);
     return `<div class="listrow"><div class="info"><div class="name">${emp?.name||'-'} · ${fmtDateShort(new Date(o.date))}</div><div class="meta">${o.hourStart}–${o.hourEnd} น.</div></div><span class="badge ${o.status}">${otStatusLabel(o.status)}</span></div>`;
   }).join('') : '<div class="empty">ไม่มีประวัติในช่วงที่เลือก</div>';
+}
+function renderOtEditRequests(empIds){
+  const pendingEdits = db.otRequests.filter(o=>o.editRequest && empIds.has(o.employeeId));
+  const el = document.getElementById('pendingOtEditList');
+  el.innerHTML = pendingEdits.length ? pendingEdits.map(o=>{
+    const emp = db.employees.find(e=>e.id===o.employeeId);
+    const br = db.branches.find(b=>b.id===emp?.branchId);
+    const er = o.editRequest;
+    const oldText = `${fmtDateShort(new Date(o.date))} ${o.hourStart}-${o.hourEnd}`;
+    const newText = `${fmtDateShort(new Date(er.date))} ${er.hourStart}-${er.hourEnd}`;
+    return `<div class="listrow" style="flex-direction:column;align-items:stretch;gap:6px;">
+      <div style="display:flex;align-items:flex-start;gap:12px;">
+        <div class="avatar">${emp?.name.trim()[0]||'?'}</div>
+        <div class="info">
+          <div class="name">${emp?.name||'-'}${emp?.nickname?` (${emp.nickname})`:''}${br?.name?` · ${br.name}`:''}</div>
+          <div class="meta">เดิม: ${oldText}</div>
+          <div class="meta" style="color:var(--pink-dark);font-weight:600;">ใหม่: ${newText}</div>
+          <div class="meta">เหตุผล: ${er.reason||'-'}</div>
+        </div>
+      </div>
+      ${canApproveOt() ? `<div class="actionrow"><button class="btn-mini approve" data-approveotedit="${o.id}">อนุมัติการแก้ไข</button><button class="btn-mini reject" data-rejectotedit="${o.id}">ปฏิเสธ</button></div>` : `<div style="font-size:11.5px;color:var(--muted);">ไม่มีสิทธิ์อนุมัติรายการนี้ (ต้องเป็นเจ้าของ/HR เท่านั้น)</div>`}
+    </div>`;
+  }).join('') : '<div class="empty">ไม่มีคำขอแก้ไข OT ที่รออนุมัติ</div>';
+  el.querySelectorAll('[data-approveotedit]').forEach(b=> b.onclick = ()=> decideOtEdit(b.dataset.approveotedit,'approved'));
+  el.querySelectorAll('[data-rejectotedit]').forEach(b=> b.onclick = ()=> decideOtEdit(b.dataset.rejectotedit,'rejected'));
+}
+async function decideOtEdit(id, decision){
+  if(!canApproveOt()){ alert('ไม่มีสิทธิ์อนุมัติ OT ต้องเป็นเจ้าของ/HR เท่านั้น'); return; }
+  const ot = db.otRequests.find(o=>o.id===id); if(!ot || !ot.editRequest) return;
+  const er = ot.editRequest;
+  const oldText = `${fmtDateShort(new Date(ot.date))} ${ot.hourStart}-${ot.hourEnd}`;
+  const emp = db.employees.find(e=>e.id===ot.employeeId);
+  if(decision==='approved'){
+    Object.assign(ot, {date:er.date, hourStart:er.hourStart, hourEnd:er.hourEnd, reason:er.reason});
+  }
+  const newText = `${fmtDateShort(new Date(ot.date))} ${ot.hourStart}-${ot.hourEnd}`;
+  ot.editRequest = null;
+  await saveOtRow(ot);
+  await logAudit(decision==='approved'?'approve_edit':'reject_edit', 'ot', ot.id,
+    decision==='approved' ? `อนุมัติการแก้ไข OT: ${oldText} → ${newText}` : `ปฏิเสธการแก้ไข OT (คงค่าเดิม: ${oldText})`);
+  if(db.settings.notifyTypes.otDecision && db.settings.otChatId){
+    const text = decision==='approved'
+      ? `✅อนุมัติการแก้ไข OT ของ <b>${notifyName(emp)}</b>\nเป็น: ${newText}`
+      : `❌ปฏิเสธคำขอแก้ไข OT ของ <b>${notifyName(emp)}</b>\nOT ยังคงเป็น: ${oldText}`;
+    await tgSendMessage(db.settings.centralToken, db.settings.otChatId, text);
+  }
+  await pushNotification(ot.employeeId, decision==='approved'?'คำขอแก้ไข OT ได้รับการอนุมัติ':'คำขอแก้ไข OT ถูกปฏิเสธ', decision==='approved'?newText:oldText);
+  renderOtLists();
 }
 document.getElementById('exportOtReportBtn').onclick = ()=>{
   const rows = [['ประทับเวลา','ชื่อ-นามสกุล','แผนก','ตำแหน่งงาน','วันที่ทำ OT','เริ่มเวลา','ถึงเวลา','จำนวนชั่วโมง','เหตุผล','สถานะ']];
