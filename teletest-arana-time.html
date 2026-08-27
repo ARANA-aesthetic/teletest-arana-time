@@ -310,20 +310,41 @@
     body.deskmode .content{padding:0 32px;max-width:1624px;margin:26px auto 48px;}
 
     /* แท็บที่มีตัวกรอง: คอลัมน์ซ้าย = ตัวกรอง (ตรึงไว้ให้เห็นตลอด) ขวา = เนื้อหา */
-    body.deskmode #atabOverview,
     body.deskmode #atabLeaves,
     body.deskmode #atabInspect{
       display:grid;grid-template-columns:296px minmax(0,1fr);
       gap:0 28px;align-items:start;
     }
-    body.deskmode #atabOverview > section:first-child,
     body.deskmode #atabLeaves > section:first-child,
     body.deskmode #atabInspect > section:first-child{
       grid-column:1;grid-row:1 / span 99;position:sticky;top:22px;
     }
-    body.deskmode #atabOverview > section:not(:first-child),
     body.deskmode #atabLeaves > section:not(:first-child),
     body.deskmode #atabInspect > section:not(:first-child){ grid-column:2; }
+
+    /* หน้าภาพรวม: เอากล่องตัวเลขขึ้นบนสุดเต็มความกว้าง แล้วค่อยเป็นแถบตัวกรอง+ปุ่มรายงาน
+       ปิดท้ายด้วยสรุปรายพนักงานที่กางเต็มพื้นที่ (สลับลำดับด้วย order ไม่ได้ย้าย HTML
+       เพื่อไม่ให้กระทบลำดับการแสดงผลบนมือถือที่ใช้งานได้ดีอยู่แล้ว) */
+    body.deskmode #atabOverview{display:flex;flex-direction:column;}
+    body.deskmode #atabOverview > section:nth-child(2){order:1;}
+    body.deskmode #atabOverview > section:nth-child(1){order:2;}
+    body.deskmode #atabOverview > section:nth-child(3){order:3;}
+    body.deskmode #atabOverview > section:nth-child(1){
+      display:flex;flex-wrap:wrap;align-items:center;gap:12px 20px;
+      background:var(--card);border:1px solid var(--border);border-radius:18px;
+      padding:15px 20px;box-shadow:0 6px 18px -12px #00000022;
+    }
+    body.deskmode #atabOverview .branchselect{margin-bottom:0;width:196px;}
+    body.deskmode #atabOverview > section:nth-child(1) > label{margin:0;white-space:nowrap;}
+    body.deskmode #atabOverview #overviewPreset{margin-bottom:0 !important;width:176px;}
+    body.deskmode #atabOverview #overviewCustomRow{width:330px;}
+    /* กล่องปุ่มดาวน์โหลดรายงาน ดันไปชิดขวาของแถบเดียวกัน ไม่ต้องเป็นการ์ดซ้อนการ์ด */
+    body.deskmode #atabOverview > section:nth-child(1) > .card{
+      margin:0 0 0 auto !important;border:none;box-shadow:none;padding:0;background:transparent;
+      display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+    }
+    body.deskmode #atabOverview > section:nth-child(1) > .card > div{margin:0 !important;}
+    body.deskmode #atabOverview > section:nth-child(1) > .card .row2{gap:8px;}
 
     /* หน้ารายงานไม่แบ่งคอลัมน์ เพราะตารางรายวันมี 31 ช่องวันที่ ต้องใช้ความกว้างเต็มจอ
        ย้ายตัวกรองทั้งหมดขึ้นเป็นแถบเดียวด้านบนแทน แล้วตรึงไว้ตอนเลื่อนดูตาราง */
