@@ -2947,7 +2947,9 @@ function otHours(o){
   if(mins < 0) mins += 24*60;
   return Math.round(mins/60*100)/100;
 }
-function leaveHours(l){
+// คืนค่าเป็น "ตัวเลข" สำหรับเอาไปบวกรวมในรายงาน — ตั้งชื่อไม่ให้ชนกับ leaveHours() ที่มีอยู่เดิม
+// ซึ่งคืนค่าเป็น "ข้อความ" (toFixed) ไว้แสดงในข้อความ Telegram/CSV
+function leaveHoursNum(l){
   if(!l.hourStart || !l.hourEnd) return 0;
   const [sh,sm] = l.hourStart.split(':').map(Number);
   const [eh,em] = l.hourEnd.split(':').map(Number);
@@ -2979,27 +2981,33 @@ function buildMonthReport(){
           else cell.na = true;
           return cell;
         }
-        if(leave){ cell.code = leaveAbbrev(leave.kind); cell.leaveKind = leave.kind; cell.leaveHours = leaveHours(leave); }
+        if(leave){ cell.code = leaveAbbrev(leave.kind); cell.leaveKind = leave.kind; cell.leaveHours = leaveHoursNum(leave); }
         else if(isHoliday(d) || offWeekly){ cell.code = RPT_CODE_OFF; cell.off = true; }
         else if(inLog) cell.code = RPT_CODE_WORK;
         else if(d <= lastClosedDay) cell.code = RPT_CODE_ABSENT;
         return cell;
       });
-      const s = { present:0, training:0, lateCount:0, lateMinutes:0, absent:0, otHours:0, leaveHours:0, byKind:{} };
+      // ลาเป็นชั่วโมงต้องแยก ป่วย/กิจ เพราะมีผลต่างกันกับเงินเดือน (ป่วยไม่หัก กิจหัก)
+      const s = { present:0, training:0, lateCount:0, lateMinutes:0, absent:0, otHours:0, hourSick:0, hourPersonal:0, byKind:{} };
       cells.forEach(c=>{
         if(c.na) return;
         s.otHours += c.ot;
         if(c.late>0){ s.lateCount++; s.lateMinutes += c.late; }
         if(c.training){ s.training++; return; }
         if(c.leaveKind){
-          if(HOURLY_KINDS.includes(c.leaveKind)){ s.leaveHours += c.leaveHours||0; s.present++; }
+          if(HOURLY_KINDS.includes(c.leaveKind)){
+            if(c.leaveKind==='hourly_sick') s.hourSick += c.leaveHours||0;
+            else s.hourPersonal += c.leaveHours||0;
+            s.present++;
+          }
           else s.byKind[c.leaveKind] = (s.byKind[c.leaveKind]||0) + 1;
         }
         else if(c.code===RPT_CODE_ABSENT) s.absent++;
         else if(c.code===RPT_CODE_WORK) s.present++;
       });
       s.otHours = Math.round(s.otHours*100)/100;
-      s.leaveHours = Math.round(s.leaveHours*100)/100;
+      s.hourSick = Math.round(s.hourSick*100)/100;
+      s.hourPersonal = Math.round(s.hourPersonal*100)/100;
       s.leaveDays = Object.values(s.byKind).reduce((a,b)=>a+b,0);
       return { emp:e, cells, summary:s };
     })};
@@ -3060,8 +3068,8 @@ function summaryTableHTML(rpt){
   const kindCols = RPT_SUMMARY_KINDS;
   let html = `<thead><tr><th class="namecol">ชื่อพนักงาน</th><th>มาทำงาน</th><th>เทรนงาน</th><th>สาย (ครั้ง)</th><th>รวมนาทีสาย</th><th>ขาดงาน</th>`;
   kindCols.forEach(k=>{ html += `<th>${leaveLabel(k)}</th>`; });
-  html += `<th>ลาชั่วโมง (ชม.)</th><th class="totcol">OT (ชม.)</th></tr></thead><tbody>`;
-  const span = 7 + kindCols.length + 2;
+  html += `<th>ลาชม. ป่วย<br><span style="font-weight:400;font-size:10px;">ไม่หักเงิน</span></th><th>ลาชม. กิจ<br><span style="font-weight:400;font-size:10px;">หักเงิน</span></th><th class="totcol">OT (ชม.)</th></tr></thead><tbody>`;
+  const span = 7 + kindCols.length + 3;
   rpt.groups.forEach(g=>{
     html += `<tr class="brrow"><td colspan="${span}">${g.branch.name}</td></tr>`;
     g.rows.forEach(r=>{
@@ -3072,7 +3080,7 @@ function summaryTableHTML(rpt){
         + `<td style="${s.lateMinutes?'color:var(--amber);font-weight:600;':''}">${s.lateMinutes||''}</td>`
         + `<td style="${s.absent?'color:var(--red);font-weight:600;':''}">${s.absent||''}</td>`;
       kindCols.forEach(k=>{ html += `<td>${s.byKind[k]||''}</td>`; });
-      html += `<td>${s.leaveHours||''}</td><td class="totcol">${s.otHours||''}</td></tr>`;
+      html += `<td>${s.hourSick||''}</td><td style="${s.hourPersonal?'color:var(--amber);font-weight:600;':''}">${s.hourPersonal||''}</td><td class="totcol">${s.otHours||''}</td></tr>`;
     });
   });
   return html + `</tbody>`;
@@ -3093,9 +3101,9 @@ function reportSheetPayload(rpt){
     mk(`รายงาน OT ${tag}`, ['สาขา','ชื่อพนักงาน','ชื่อเล่น',...dayHeaders,'รวม ชม.'],
       r=>[r.br, r.emp.name, r.emp.nickname||'', ...r.cells.map(c=>c.ot||''), r.summary.otHours]),
     mk(`สรุปเดือน ${tag}`,
-      ['สาขา','ชื่อพนักงาน','ชื่อเล่น','มาทำงาน','เทรนงาน','สาย (ครั้ง)','รวมนาทีสาย','ขาดงาน', ...RPT_SUMMARY_KINDS.map(leaveLabel), 'ลาชั่วโมง (ชม.)','OT (ชม.)'],
+      ['สาขา','ชื่อพนักงาน','ชื่อเล่น','มาทำงาน','เทรนงาน','สาย (ครั้ง)','รวมนาทีสาย','ขาดงาน', ...RPT_SUMMARY_KINDS.map(leaveLabel), 'ลาชั่วโมง ป่วย (ชม.) ไม่หักเงิน','ลาชั่วโมง กิจ (ชม.) หักเงิน','OT (ชม.)'],
       r=>[r.br, r.emp.name, r.emp.nickname||'', r.summary.present, r.summary.training, r.summary.lateCount, r.summary.lateMinutes, r.summary.absent,
-          ...RPT_SUMMARY_KINDS.map(k=>r.summary.byKind[k]||0), r.summary.leaveHours, r.summary.otHours])
+          ...RPT_SUMMARY_KINDS.map(k=>r.summary.byKind[k]||0), r.summary.hourSick, r.summary.hourPersonal, r.summary.otHours])
   ];
 }
 
@@ -4022,17 +4030,21 @@ function grabFrameBlob(){
   });
 }
 function shiftLateMinutes(emp, now){
+  if(!emp.shiftStart) return 0;
   const todayStr = dateKey(now);
-  const hourlyLeave = db.leaves.find(l=>l.employeeId===emp.id && l.status==='approved' && HOURLY_KINDS.includes(l.kind) && l.from===todayStr && l.hourEnd);
-  let h, m;
-  if(hourlyLeave){
-    [h,m] = hourlyLeave.hourEnd.split(':').map(Number);
-  } else if(emp.shiftStart){
-    [h,m] = emp.shiftStart.split(':').map(Number);
-  } else {
-    return 0;
-  }
-  const shiftDate = new Date(now); shiftDate.setHours(h, m + (db.settings.graceMinutes||0), 0, 0);
+  const toMin = t => { const [h,m] = t.split(':').map(Number); return h*60 + m; };
+  let baseMin = toMin(emp.shiftStart);
+  // ใบลาเป็นชั่วโมงที่ครอบคลุมช่วงต้นกะ (เริ่มลาไม่เกินเวลาเข้างาน) ให้เลื่อนจุดเริ่มนับสาย
+  // ไปที่เวลาสิ้นสุดการลาแทน — แต่ใบลาชั่วโมงที่อยู่กลางวันหรือท้ายวัน (เช่นขอออกก่อน)
+  // ต้องไม่เลื่อน ไม่งั้นคนที่ขอลาช่วงบ่ายแล้วมาสายตอนเช้าจะไม่ถูกนับว่าสายเลย
+  db.leaves
+    .filter(l => l.employeeId===emp.id && l.status==='approved' && HOURLY_KINDS.includes(l.kind)
+                 && l.from===todayStr && l.hourStart && l.hourEnd)
+    .forEach(l=>{
+      const start = toMin(l.hourStart), end = toMin(l.hourEnd);
+      if(start <= baseMin && end > baseMin) baseMin = end;
+    });
+  const shiftDate = new Date(now); shiftDate.setHours(0, baseMin + (db.settings.graceMinutes||0), 0, 0);
   const diffMin = Math.round((now - shiftDate)/60000);
   return diffMin > 0 ? diffMin : 0;
 }
