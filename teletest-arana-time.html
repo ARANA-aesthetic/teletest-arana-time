@@ -87,6 +87,18 @@
   .row2 > *{flex:1;}
   .dsel{display:flex;gap:6px;}
   .dsel select{flex:1;background:#FAF6F8;border:1px solid var(--border);border-radius:10px;padding:10px 4px;color:var(--text);font-size:13px;font-family:inherit;}
+  .caldate-input{width:100%;background:#FAF6F8;border:1px solid var(--border);border-radius:10px;padding:10px 12px;color:var(--text);font-size:13.5px;font-family:inherit;cursor:pointer;}
+  .caldate-input::placeholder{color:var(--muted);}
+  .calpopup{position:fixed;z-index:200;background:#fff;border-radius:16px;border:1px solid var(--border);box-shadow:0 12px 34px -10px rgba(0,0,0,.35);padding:14px;width:260px;}
+  .calpopup-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;font-family:'Prompt',sans-serif;font-weight:600;font-size:13.5px;color:var(--pink-dark);}
+  .calpopup-nav button{background:var(--pink-pale);border:none;color:var(--pink-dark);width:28px;height:28px;border-radius:8px;cursor:pointer;font-size:15px;}
+  .calpopup-nav button:disabled{opacity:.3;cursor:not-allowed;}
+  .calpopup-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;}
+  .calpopup-dow{font-size:10.5px;color:var(--muted);font-weight:600;text-align:center;padding-bottom:4px;}
+  .calpopup-day{aspect-ratio:1;border:none;background:#FAF6F8;border-radius:8px;font-size:12px;cursor:pointer;color:var(--text);}
+  .calpopup-day:hover{background:var(--pink-pale);}
+  .calpopup-day.today{box-shadow:inset 0 0 0 1.5px var(--pink);}
+  .calpopup-day.sel{background:var(--pink);color:#fff;font-weight:700;}
 
   /* ---------- app header ---------- */
   .apphead{
@@ -676,7 +688,7 @@
 <!-- Leave request modal -->
 <div class="overlay" id="leaveOverlay">
   <div class="modal">
-    <h3>ยื่นใบลา</h3>
+    <h3 id="leaveFormTitle">ยื่นใบลา</h3>
     <label>ประเภทการลา</label>
     <select id="leaveType">
       <option value="sick_cert">ลาป่วย (มีใบรับรองแพทย์)</option>
@@ -808,6 +820,16 @@
 </div>
 <canvas id="hiddenCanvas" style="display:none"></canvas>
 
+<div id="globalCalPopup" class="calpopup hidden">
+  <div class="calpopup-nav">
+    <button type="button" id="calPopupPrev">‹</button>
+    <div id="calPopupLabel"></div>
+    <button type="button" id="calPopupNext">›</button>
+  </div>
+  <div class="calpopup-grid" id="calPopupGrid"></div>
+  <button type="button" class="btn ghost sm block" id="calPopupToday" style="margin-top:8px;">วันนี้</button>
+</div>
+
 </div>
 
 <script>
@@ -848,40 +870,104 @@ let calCursor = new Date();
 
 // ===== Custom day/month/year date picker (avoids native mm/dd/yyyy locale confusion) =====
 const TH_MONTHS_SHORT = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+// ===== Calendar popup date picker (replaces the old day/month/year dropdown system) =====
+// Public API kept identical to before: dateSelectHTML(prefix), getDateVal(prefix), setDateVal(prefix, iso), wireDateChange(prefix, cb)
+let calPopupPrefix = null;
+let calPopupCursor = new Date();
+let calPopupYearsBack = 1, calPopupYearsForward = 3;
+const calPopupCallbacks = {};
 function dateSelectHTML(prefix, yearsBack, yearsForward){
-  const dOpts = Array.from({length:31},(_,i)=>`<option value="${i+1}">${i+1}</option>`).join('');
-  const mOpts = TH_MONTHS_SHORT.map((m,i)=>`<option value="${i+1}">${m}</option>`).join('');
-  const nowY = new Date().getFullYear();
-  const back = yearsBack ?? 1, fwd = yearsForward ?? 3;
-  const y0 = nowY - back;
-  const yCount = back + fwd + 1;
-  const yOpts = Array.from({length:yCount},(_,i)=>y0+i).map(y=>`<option value="${y}">${y}</option>`).join('');
-  return `<div class="dsel">
-    <select id="${prefix}_d"><option value="">วัน</option>${dOpts}</select>
-    <select id="${prefix}_m"><option value="">เดือน</option>${mOpts}</select>
-    <select id="${prefix}_y"><option value="">ปี</option>${yOpts}</select>
+  return `<div class="caldate" style="position:relative;" data-yback="${yearsBack ?? 1}" data-yfwd="${yearsForward ?? 3}">
+    <input type="text" id="${prefix}_display" class="caldate-input" data-prefix="${prefix}" readonly placeholder="เลือกวันที่">
   </div>`;
 }
 function getDateVal(prefix){
-  const d=document.getElementById(prefix+'_d')?.value, m=document.getElementById(prefix+'_m')?.value, y=document.getElementById(prefix+'_y')?.value;
-  if(!d||!m||!y) return '';
-  return `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+  const el = document.getElementById(prefix+'_display');
+  return el ? (el.dataset.iso || '') : '';
 }
 function setDateVal(prefix, iso){
-  const dEl=document.getElementById(prefix+'_d'), mEl=document.getElementById(prefix+'_m'), yEl=document.getElementById(prefix+'_y');
-  if(!dEl) return;
-  if(!iso){ dEl.value=''; mEl.value=''; yEl.value=''; return; }
-  const [y,m,d] = iso.split('-');
-  dEl.value = String(parseInt(d,10));
-  mEl.value = String(parseInt(m,10));
-  yEl.value = y;
+  const el = document.getElementById(prefix+'_display');
+  if(!el) return;
+  if(!iso){ el.value=''; el.dataset.iso=''; return; }
+  el.dataset.iso = iso;
+  const d = new Date(iso+'T00:00:00');
+  el.value = `${d.getDate()} ${TH_MONTHS_SHORT[d.getMonth()]} ${d.getFullYear()+543}`;
 }
 function wireDateChange(prefix, cb){
-  ['_d','_m','_y'].forEach(suf=>{
-    const el = document.getElementById(prefix+suf);
-    if(el) el.addEventListener('change', cb);
+  calPopupCallbacks[prefix] = calPopupCallbacks[prefix] || [];
+  calPopupCallbacks[prefix].push(cb);
+}
+function openCalPopup(prefix, inputEl){
+  calPopupPrefix = prefix;
+  const wrap = inputEl.closest('.caldate');
+  calPopupYearsBack = parseInt(wrap?.dataset.yback ?? '1');
+  calPopupYearsForward = parseInt(wrap?.dataset.yfwd ?? '3');
+  const currentIso = getDateVal(prefix);
+  calPopupCursor = currentIso ? new Date(currentIso+'T00:00:00') : new Date();
+  renderCalPopup();
+  const popup = document.getElementById('globalCalPopup');
+  popup.classList.remove('hidden');
+  const rect = inputEl.getBoundingClientRect();
+  const popupWidth = 260;
+  let left = rect.left;
+  if(left + popupWidth > window.innerWidth - 8) left = window.innerWidth - popupWidth - 8;
+  popup.style.top = (rect.bottom + 6) + 'px';
+  popup.style.left = Math.max(8,left) + 'px';
+}
+function closeCalPopup(){
+  document.getElementById('globalCalPopup')?.classList.add('hidden');
+  calPopupPrefix = null;
+}
+function renderCalPopup(){
+  if(!calPopupPrefix) return;
+  const y = calPopupCursor.getFullYear(), m = calPopupCursor.getMonth();
+  const minY = new Date().getFullYear() - calPopupYearsBack, maxY = new Date().getFullYear() + calPopupYearsForward;
+  document.getElementById('calPopupLabel').textContent = `${TH_MONTHS_SHORT[m]} ${y+543}`;
+  document.getElementById('calPopupPrev').disabled = (y===minY && m===0);
+  document.getElementById('calPopupNext').disabled = (y===maxY && m===11);
+  const dows = ['อา','จ','อ','พ','พฤ','ศ','ส'];
+  let html = dows.map(d=>`<div class="calpopup-dow">${d}</div>`).join('');
+  const firstDow = new Date(y,m,1).getDay();
+  const daysInMonth = new Date(y,m+1,0).getDate();
+  for(let i=0;i<firstDow;i++) html += `<div></div>`;
+  const selectedIso = getDateVal(calPopupPrefix);
+  const todayIso = dateKey(new Date());
+  for(let d=1; d<=daysInMonth; d++){
+    const iso = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    let cls = 'calpopup-day';
+    if(iso===selectedIso) cls += ' sel';
+    if(iso===todayIso) cls += ' today';
+    html += `<button type="button" class="${cls}" data-iso="${iso}">${d}</button>`;
+  }
+  document.getElementById('calPopupGrid').innerHTML = html;
+  document.querySelectorAll('.calpopup-day').forEach(btn=>{
+    btn.onclick = (e)=>{
+      e.stopPropagation();
+      setDateVal(calPopupPrefix, btn.dataset.iso);
+      (calPopupCallbacks[calPopupPrefix]||[]).forEach(cb=>cb());
+      closeCalPopup();
+    };
   });
 }
+document.getElementById('calPopupPrev').onclick = (e)=>{ e.stopPropagation(); calPopupCursor = new Date(calPopupCursor.getFullYear(), calPopupCursor.getMonth()-1, 1); renderCalPopup(); };
+document.getElementById('calPopupNext').onclick = (e)=>{ e.stopPropagation(); calPopupCursor = new Date(calPopupCursor.getFullYear(), calPopupCursor.getMonth()+1, 1); renderCalPopup(); };
+document.getElementById('calPopupToday').onclick = (e)=>{
+  e.stopPropagation();
+  if(!calPopupPrefix) return;
+  const iso = dateKey(new Date());
+  setDateVal(calPopupPrefix, iso);
+  (calPopupCallbacks[calPopupPrefix]||[]).forEach(cb=>cb());
+  closeCalPopup();
+};
+document.addEventListener('click', (e)=>{
+  const inputEl = e.target.closest('.caldate-input');
+  if(inputEl){
+    e.stopPropagation();
+    openCalPopup(inputEl.dataset.prefix, inputEl);
+  } else if(!e.target.closest('#globalCalPopup')){
+    closeCalPopup();
+  }
+});
 ['overviewFrom','overviewTo','leaveFrom','leaveTo','leaveSingleDate','otDate','newHolidayDate'].forEach(p=>{
   const holder = document.getElementById(p+'_holder');
   if(holder) holder.innerHTML = dateSelectHTML(p);
@@ -940,8 +1026,8 @@ const employeeToRow = e => ({ id:e.id, name:e.name, nickname:e.nickname||null, d
 const rowToApprover = r => ({ id:r.id, name:r.name, pin:r.pin||null, role:r.role||'hr' });
 const approverToRow = a => ({ id:a.id, name:a.name, pin:a.pin||null, role:a.role||'hr' });
 
-const rowToLog = r => ({ id:r.id, employeeId:r.employee_id, type:r.type, time:r.time, branchId:r.branch_id, lateMinutes:r.late_minutes||0, sent:r.sent, acPointId:r.ac_point_id||null, cleanPointId:r.clean_point_id||null });
-const logToRow = l => ({ id:l.id, employee_id:l.employeeId, type:l.type, time:l.time, branch_id:l.branchId||null, late_minutes:l.lateMinutes||0, sent:l.sent, ac_point_id:l.acPointId||null, clean_point_id:l.cleanPointId||null });
+const rowToLog = r => ({ id:r.id, employeeId:r.employee_id, type:r.type, time:r.time, branchId:r.branch_id, lateMinutes:r.late_minutes||0, sent:r.sent, acPointId:r.ac_point_id||null, cleanPointId:r.clean_point_id||null, leaveConflict:!!r.leave_conflict });
+const logToRow = l => ({ id:l.id, employee_id:l.employeeId, type:l.type, time:l.time, branch_id:l.branchId||null, late_minutes:l.lateMinutes||0, sent:l.sent, ac_point_id:l.acPointId||null, clean_point_id:l.cleanPointId||null, leave_conflict:!!l.leaveConflict });
 
 const rowToLeave = r => ({ id:r.id, employeeId:r.employee_id, kind:r.kind, from:r.from_date, to:r.to_date, hourStart:r.from_time||null, hourEnd:r.to_time||null, reason:r.reason||'', status:r.status, requestedAt:r.requested_at, decidedAt:r.decided_at||null, evidenceSent:r.evidence_sent??null, evidenceFileId:r.evidence_file_id||null });
 const leaveToRow = l => ({ id:l.id, employee_id:l.employeeId, kind:l.kind, from_date:l.from, to_date:l.to, from_time:l.hourStart||null, to_time:l.hourEnd||null, reason:l.reason||null, status:l.status, requested_at:l.requestedAt, decided_at:l.decidedAt||null, evidence_sent:l.evidenceSent??null, evidence_file_id:l.evidenceFileId||null, days: (l.from && l.to) ? (Math.round((new Date(l.to)-new Date(l.from))/86400000)+1) : null });
@@ -1470,6 +1556,7 @@ function renderEmployeeHome(){
     <div class="listrow"><div class="info">
       <div class="name">${typeLabels[l.type]||l.type} — ${fmtDateShort(new Date(l.time))} ${fmtTime(new Date(l.time))}</div>
       <div class="meta">${l.lateMinutes>0?`สาย ${l.lateMinutes} นาที · `:''}${l.sent?'ส่งแจ้งเตือนแล้ว':'ส่งแจ้งเตือนไม่สำเร็จ'}</div>
+      ${l.leaveConflict?'<div class="meta" style="color:var(--red);">⚠️ มีใบลาอนุมัติแล้วครอบคลุมวันนี้ — ข้อมูลไม่สอดคล้องกัน กรุณาแจ้ง HR</div>':''}
     </div>${l.lateMinutes>0?'<span class="badge late">สาย</span>':''}</div>`).join('') : '<div class="empty">ยังไม่มีประวัติ</div>';
 
   const br = currentBranch(emp);
@@ -1564,7 +1651,8 @@ function renderLeaveTab(){
     <div class="listrow"><div class="info">
       <div class="name">${leaveLabel(l.kind)} · ${leaveRangeText(l)}</div>
       <div class="meta">${l.reason||''}${l.evidenceSent?' · แนบหลักฐานแล้ว':''}</div>
-    </div><span class="badge ${l.status}">${leaveStatusLabel(l.status)}</span></div>`).join('') : '<div class="empty">ไม่มีใบลาในช่วงที่เลือก</div>';
+    </div><span class="badge ${l.status}">${leaveStatusLabel(l.status)}</span>${l.status==='pending'?`<button class="btn ghost sm" data-editleave="${l.id}" style="margin-left:8px;">แก้ไข</button>`:''}</div>`).join('') : '<div class="empty">ไม่มีใบลาในช่วงที่เลือก</div>';
+  document.querySelectorAll('[data-editleave]').forEach(btn=> btn.onclick = ()=> openLeaveForm(btn.dataset.editleave));
 }
 document.getElementById('exportMyLeaveBtn').onclick = ()=>{
   const emp = currentEmployee(); if(!emp) return;
@@ -1588,16 +1676,38 @@ document.getElementById('leaveType').addEventListener('change', ()=>{
   document.getElementById('leaveDateRangeFields').classList.toggle('hidden', isHourly);
   document.getElementById('leaveHourlyFields').classList.toggle('hidden', !isHourly);
 });
-document.getElementById('openLeaveFormBtn').onclick = ()=>{
+let editingLeaveId = null;
+function openLeaveForm(leaveId){
+  editingLeaveId = leaveId || null;
+  const existing = editingLeaveId ? db.leaves.find(l=>l.id===editingLeaveId) : null;
+  document.getElementById('leaveFormTitle').textContent = existing ? 'แก้ไขใบลา' : 'ยื่นใบลา';
   document.getElementById('leaveFormMsg').textContent='';
-  document.getElementById('leaveType').value = 'sick_cert';
-  document.getElementById('leaveDateRangeFields').classList.remove('hidden');
-  document.getElementById('leaveHourlyFields').classList.add('hidden');
-  setDateVal('leaveFrom',''); setDateVal('leaveTo','');
-  setDateVal('leaveSingleDate',''); document.getElementById('leaveHourStart').value=''; document.getElementById('leaveHourEnd').value='';
-  document.getElementById('leaveReason').value=''; document.getElementById('leaveEvidenceInput').value='';
+  const kind = existing ? existing.kind : 'sick_cert';
+  document.getElementById('leaveType').value = kind;
+  const isHourly = HOURLY_KINDS.includes(kind);
+  document.getElementById('leaveDateRangeFields').classList.toggle('hidden', isHourly);
+  document.getElementById('leaveHourlyFields').classList.toggle('hidden', !isHourly);
+  if(existing){
+    if(isHourly){
+      setDateVal('leaveSingleDate', existing.from);
+      document.getElementById('leaveHourStart').value = existing.hourStart||'';
+      document.getElementById('leaveHourEnd').value = existing.hourEnd||'';
+      setDateVal('leaveFrom',''); setDateVal('leaveTo','');
+    } else {
+      setDateVal('leaveFrom', existing.from); setDateVal('leaveTo', existing.to);
+      setDateVal('leaveSingleDate',''); document.getElementById('leaveHourStart').value=''; document.getElementById('leaveHourEnd').value='';
+    }
+    document.getElementById('leaveReason').value = existing.reason||'';
+  } else {
+    setDateVal('leaveFrom',''); setDateVal('leaveTo','');
+    setDateVal('leaveSingleDate',''); document.getElementById('leaveHourStart').value=''; document.getElementById('leaveHourEnd').value='';
+    document.getElementById('leaveReason').value='';
+  }
+  document.getElementById('leaveEvidenceInput').value='';
+  document.getElementById('submitLeaveBtn').textContent = existing ? 'บันทึกการแก้ไข' : 'ส่งใบลา';
   document.getElementById('leaveOverlay').classList.add('show');
-};
+}
+document.getElementById('openLeaveFormBtn').onclick = ()=> openLeaveForm(null);
 document.getElementById('closeLeaveBtn').onclick = ()=> document.getElementById('leaveOverlay').classList.remove('show');
 document.getElementById('submitLeaveBtn').onclick = async ()=>{
   const emp = currentEmployee();
@@ -1617,6 +1727,17 @@ document.getElementById('submitLeaveBtn').onclick = async ()=>{
     from = getDateVal('leaveFrom');
     to = getDateVal('leaveTo');
     if(!from || !to){ msg.className='msg err'; msg.textContent='กรุณาระบุวันที่'; return; }
+  }
+  if(editingLeaveId){
+    const leave = db.leaves.find(l=>l.id===editingLeaveId);
+    if(!leave || leave.status!=='pending'){ msg.className='msg err'; msg.textContent='ไม่สามารถแก้ไขได้ (อาจถูกอนุมัติ/ปฏิเสธไปแล้ว)'; return; }
+    Object.assign(leave, {kind, from, to, hourStart, hourEnd, reason});
+    await saveLeaveRow(leave);
+    msg.className='msg ok'; msg.textContent='บันทึกการแก้ไขเรียบร้อย';
+    renderLeaveTab();
+    await pushNotification(emp.id, 'แก้ไขใบลาแล้ว', `${leaveLabel(kind)} ${leaveRangeText(leave)}`);
+    setTimeout(()=>{ document.getElementById('leaveOverlay').classList.remove('show'); editingLeaveId=null; }, 900);
+    return;
   }
   const leave = {id:uid(), employeeId:emp.id, kind, from, to, hourStart, hourEnd, reason, status:'pending', requestedAt:new Date().toISOString(), evidenceSent:null, evidenceFileId:null};
   db.leaves.push(leave); await saveLeaveRow(leave);
@@ -1668,7 +1789,7 @@ acInput.addEventListener('change', async (e)=>{
   const emp = currentEmployee(); const br = currentBranch(emp);
   const point = (br.acPoints||[]).find(p=>p.id===acPointFileTarget);
   const now = new Date();
-  const caption = `<b>${emp.name}</b> แจ้งปิดแอร์ "${point?.name||'-'}" ที่ ${br?.name||'-'} เวลา ${fmtTime(now)} น.`;
+  const caption = `✅${emp.name}\nแจ้งปิดแอร์\n"${point?.name||'-'}"\nเวลา ${fmtTime(now)} น.`;
   const logEntry = {id:uid(), employeeId:emp.id, type:'AC', time:now.toISOString(), branchId:br?.id, acPointId:acPointFileTarget, lateMinutes:0, sent:null};
   db.logs.unshift(logEntry); await saveLogRow(logEntry);
   renderAcTab(); renderEmployeeHome();
@@ -1708,7 +1829,7 @@ cleanInput.addEventListener('change', async (e)=>{
   const emp = currentEmployee(); const br = currentBranch(emp);
   const point = (br.cleaningPoints||[]).find(p=>p.id===cleanPointFileTarget);
   const now = new Date();
-  const caption = `<b>${emp.name}</b> ส่งตรวจความสะอาด "${point?.name||'-'}" ที่ ${br?.name||'-'} เวลา ${fmtTime(now)} น.`;
+  const caption = `✅${emp.name}\nส่งตรวจความสะอาด\n"${point?.name||'-'}"\nเวลา ${fmtTime(now)} น.`;
   const logEntry = {id:uid(), employeeId:emp.id, type:'CLEAN', time:now.toISOString(), branchId:br?.id, cleanPointId:cleanPointFileTarget, lateMinutes:0, sent:null};
   db.logs.unshift(logEntry); await saveLogRow(logEntry);
   renderCleanTab(); renderEmployeeHome();
@@ -1728,7 +1849,7 @@ groomInput.addEventListener('change', async (e)=>{
   if(!file) return;
   const emp = currentEmployee(); const br = currentBranch(emp);
   const now = new Date();
-  const caption = `<b>${emp.name}</b> ส่งรูปความเรียบร้อยประจำวันที่ ${br?.name||'-'} เวลา ${fmtTime(now)} น.`;
+  const caption = `✅${emp.name}\nส่งรูปความเรียบร้อย ${br?.name||'-'}\nเวลา ${fmtTime(now)} น.`;
   const logEntry = {id:uid(), employeeId:emp.id, type:'GROOM', time:now.toISOString(), branchId:br?.id, lateMinutes:0, sent:null};
   db.logs.unshift(logEntry); await saveLogRow(logEntry);
   renderEmployeeHome();
@@ -2207,7 +2328,10 @@ function renderInspectTab(){
     emps.forEach(e=>{
       const st = empStatusOnDate(e.id, dateStr);
       let statusText, badgeClass;
-      if(st.leave){ statusText = `ลา: ${leaveLabel(st.leave.kind)}`; badgeClass='pending'; }
+      if(st.leave){
+        statusText = `ลา: ${leaveLabel(st.leave.kind)}`; badgeClass='pending';
+        if(st.inLog && !HOURLY_KINDS.includes(st.leave.kind)){ statusText += ` ⚠️ แต่มีการเช็กอินเข้างาน (${fmtTime(new Date(st.inLog.time))}) — ข้อมูลไม่สอดคล้องกัน`; badgeClass='rejected'; }
+      }
       else if(st.isHol){ statusText = 'วันหยุดบริษัท'; badgeClass='idle'; }
       else if(st.inLog){ statusText = st.inLog.lateMinutes>0 ? `สาย ${st.inLog.lateMinutes} นาที (เข้า ${fmtTime(new Date(st.inLog.time))})` : `ตรงเวลา (เข้า ${fmtTime(new Date(st.inLog.time))})`; badgeClass = st.inLog.lateMinutes>0?'late':'approved'; }
       else { statusText = 'ยังไม่เข้างาน'; badgeClass='rejected'; }
@@ -2685,14 +2809,34 @@ function renderAcPointEditor(){
   el.innerHTML = db.branches.map(b=>`
     <div style="padding:12px 0;border-bottom:1px solid var(--border);">
       <div style="font-weight:600;font-size:13.5px;margin-bottom:6px;">${b.name}</div>
-      <div class="taglist" data-branch="${b.id}">
-        ${(b.acPoints||[]).map(p=>`<span class="tagchip">${p.name}<button data-rmpoint="${b.id}:${p.id}">✕</button></span>`).join('')}
-      </div>
+      ${(b.acPoints||[]).map((p,idx)=>`
+        <div class="settingsrow" style="padding:6px 0;">
+          <div class="info"><div class="name" style="font-size:13px;">${p.name}</div></div>
+          <button class="btn ghost sm" data-moveuppoint="${b.id}:${p.id}" ${idx===0?'disabled':''}>▲</button>
+          <button class="btn ghost sm" data-movedownpoint="${b.id}:${p.id}" ${idx===(b.acPoints.length-1)?'disabled':''}>▼</button>
+          <button class="btn ghost sm" data-rmpoint="${b.id}:${p.id}">ลบ</button>
+        </div>`).join('')}
       <div class="row2" style="margin-top:8px;">
         <input type="text" placeholder="ชื่อจุดใหม่ เช่น ห้องทรีตเมนต์ 1" data-newpoint="${b.id}">
         <button class="btn ghost sm" data-addpoint="${b.id}">เพิ่ม</button>
       </div>
     </div>`).join('') + '<div class="msg" id="acPointMsg"></div>';
+  el.querySelectorAll('[data-moveuppoint]').forEach(btn=>{
+    btn.onclick = async ()=>{
+      const [bid,pid] = btn.dataset.moveuppoint.split(':');
+      const b = db.branches.find(x=>x.id===bid);
+      const idx = b.acPoints.findIndex(p=>p.id===pid);
+      if(idx>0){ [b.acPoints[idx-1], b.acPoints[idx]] = [b.acPoints[idx], b.acPoints[idx-1]]; await saveBranchRow(b); renderAcPointEditor(); }
+    };
+  });
+  el.querySelectorAll('[data-movedownpoint]').forEach(btn=>{
+    btn.onclick = async ()=>{
+      const [bid,pid] = btn.dataset.movedownpoint.split(':');
+      const b = db.branches.find(x=>x.id===bid);
+      const idx = b.acPoints.findIndex(p=>p.id===pid);
+      if(idx<b.acPoints.length-1){ [b.acPoints[idx+1], b.acPoints[idx]] = [b.acPoints[idx], b.acPoints[idx+1]]; await saveBranchRow(b); renderAcPointEditor(); }
+    };
+  });
   el.querySelectorAll('[data-rmpoint]').forEach(btn=>{
     btn.onclick = async ()=>{
       const [bid,pid] = btn.dataset.rmpoint.split(':');
@@ -2722,14 +2866,34 @@ function renderCleanPointEditor(){
   el.innerHTML = db.branches.map(b=>`
     <div style="padding:12px 0;border-bottom:1px solid var(--border);">
       <div style="font-weight:600;font-size:13.5px;margin-bottom:6px;">${b.name}</div>
-      <div class="taglist" data-branch="${b.id}">
-        ${(b.cleaningPoints||[]).map(p=>`<span class="tagchip">${p.name}<button data-rmcpoint="${b.id}:${p.id}">✕</button></span>`).join('')}
-      </div>
+      ${(b.cleaningPoints||[]).map((p,idx)=>`
+        <div class="settingsrow" style="padding:6px 0;">
+          <div class="info"><div class="name" style="font-size:13px;">${p.name}</div></div>
+          <button class="btn ghost sm" data-moveupcpoint="${b.id}:${p.id}" ${idx===0?'disabled':''}>▲</button>
+          <button class="btn ghost sm" data-movedowncpoint="${b.id}:${p.id}" ${idx===(b.cleaningPoints.length-1)?'disabled':''}>▼</button>
+          <button class="btn ghost sm" data-rmcpoint="${b.id}:${p.id}">ลบ</button>
+        </div>`).join('')}
       <div class="row2" style="margin-top:8px;">
         <input type="text" placeholder="ชื่อจุดใหม่ เช่น ห้องน้ำ" data-newcpoint="${b.id}">
         <button class="btn ghost sm" data-addcpoint="${b.id}">เพิ่ม</button>
       </div>
     </div>`).join('') + '<div class="msg" id="cleanPointMsg"></div>';
+  el.querySelectorAll('[data-moveupcpoint]').forEach(btn=>{
+    btn.onclick = async ()=>{
+      const [bid,pid] = btn.dataset.moveupcpoint.split(':');
+      const b = db.branches.find(x=>x.id===bid);
+      const idx = b.cleaningPoints.findIndex(p=>p.id===pid);
+      if(idx>0){ [b.cleaningPoints[idx-1], b.cleaningPoints[idx]] = [b.cleaningPoints[idx], b.cleaningPoints[idx-1]]; await saveBranchRow(b); renderCleanPointEditor(); }
+    };
+  });
+  el.querySelectorAll('[data-movedowncpoint]').forEach(btn=>{
+    btn.onclick = async ()=>{
+      const [bid,pid] = btn.dataset.movedowncpoint.split(':');
+      const b = db.branches.find(x=>x.id===bid);
+      const idx = b.cleaningPoints.findIndex(p=>p.id===pid);
+      if(idx<b.cleaningPoints.length-1){ [b.cleaningPoints[idx+1], b.cleaningPoints[idx]] = [b.cleaningPoints[idx], b.cleaningPoints[idx+1]]; await saveBranchRow(b); renderCleanPointEditor(); }
+    };
+  });
   el.querySelectorAll('[data-rmcpoint]').forEach(btn=>{
     btn.onclick = async ()=>{
       const [bid,pid] = btn.dataset.rmcpoint.split(':');
@@ -2932,8 +3096,16 @@ function grabFrameBlob(){
   });
 }
 function shiftLateMinutes(emp, now){
-  if(!emp.shiftStart) return 0;
-  const [h,m] = emp.shiftStart.split(':').map(Number);
+  const todayStr = dateKey(now);
+  const hourlyLeave = db.leaves.find(l=>l.employeeId===emp.id && l.status==='approved' && HOURLY_KINDS.includes(l.kind) && l.from===todayStr && l.hourEnd);
+  let h, m;
+  if(hourlyLeave){
+    [h,m] = hourlyLeave.hourEnd.split(':').map(Number);
+  } else if(emp.shiftStart){
+    [h,m] = emp.shiftStart.split(':').map(Number);
+  } else {
+    return 0;
+  }
   const shiftDate = new Date(now); shiftDate.setHours(h, m + (db.settings.graceMinutes||0), 0, 0);
   const diffMin = Math.round((now - shiftDate)/60000);
   return diffMin > 0 ? diffMin : 0;
@@ -2944,19 +3116,25 @@ async function finalizeScan(emp, confidence, pos, distance){
   const st = todayStatus(emp.id);
   const br = currentBranch(emp);
   let type, lateMinutes=0, text, notiTitle, notiBody;
+  const conflictLeave = db.leaves.find(l=>l.employeeId===emp.id && l.status==='approved' && !HOURLY_KINDS.includes(l.kind) && new Date(l.from+'T00:00:00')<=now && new Date(l.to+'T23:59:59')>=now);
   if(!st.inTime){
     type='IN'; lateMinutes = shiftLateMinutes(emp, now);
-    text = `<b>${emp.name}</b> เช็กอินเข้างานที่ ${br?.name||'-'} เวลา ${fmtTime(now)} น. (${lateMinutes>0?`สาย ${lateMinutes} นาที`:'ตรงเวลา'}) — ยืนยันใบหน้า ${confidence}%`;
+    text = `✅${emp.name}${emp.nickname?` (${emp.nickname})`:''}\nเข้างาน เวลา ${fmtTime(now)} น.${lateMinutes>0?`\nสาย ${lateMinutes} นาที`:''}\nยืนยันใบหน้า ${confidence}%`;
     notiTitle = 'เช็กอินสำเร็จ'; notiBody = `บันทึกเวลาเข้างานที่ ${br?.name||'-'} เรียบร้อย${lateMinutes>0?` (สาย ${lateMinutes} นาที)`:''}`;
+    if(conflictLeave){
+      text += `\n⚠️ ข้อมูลไม่สอดคล้องกัน: มีใบลา ${leaveLabel(conflictLeave.kind)} ที่อนุมัติแล้ววันนี้ แต่มาเช็กอินเข้างาน`;
+      notiTitle = '⚠️ พบข้อมูลไม่สอดคล้องกัน';
+      notiBody = `เช็กอินเข้างานแล้ว แต่มีใบลา ${leaveLabel(conflictLeave.kind)} ที่อนุมัติแล้วครอบคลุมวันนี้ — กรุณาตรวจสอบกับ HR`;
+    }
   } else {
     type='OUT';
-    text = `<b>${emp.name}</b> เช็กเอาท์ออกจากงานที่ ${br?.name||'-'} เวลา ${fmtTime(now)} น. — ยืนยันใบหน้า ${confidence}%`;
+    text = `✅${emp.name}${emp.nickname?` (${emp.nickname})`:''}\nออกงาน เวลา ${fmtTime(now)} น.\nยืนยันใบหน้า ${confidence}%`;
     notiTitle = 'เช็กเอาท์สำเร็จ'; notiBody = `บันทึกเวลาออกงานที่ ${br?.name||'-'} เรียบร้อย`;
   }
   if(distance!=null) text += `\nระยะห่างจากสาขา: ${distance} ม.`;
   document.getElementById('camStatusText').innerHTML = `ยืนยันตัวตนสำเร็จ<br>กำลังบันทึกและส่งแจ้งเตือน…`;
   const blob = await grabFrameBlob();
-  const logEntry = {id:uid(), employeeId:emp.id, type, time: now.toISOString(), branchId: br?.id, lateMinutes, sent:null};
+  const logEntry = {id:uid(), employeeId:emp.id, type, time: now.toISOString(), branchId: br?.id, lateMinutes, sent:null, leaveConflict: (type==='IN' && conflictLeave) ? true : false};
   db.logs.unshift(logEntry); await saveLogRow(logEntry);
   const notifyKey = type==='IN' ? 'checkin' : 'checkout';
   let anyOk = false;
