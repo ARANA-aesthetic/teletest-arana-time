@@ -2619,7 +2619,7 @@ function leaveAbbrev(kind){
   const map = {
     sick_nocert:'Sick/N', sick_cert:'Sick/Y',
     personal_nodeduct:'Leave/Y', personal_deduct:'Leave/N',
-    traditional:'Holiday', vacation:'VAC',
+    traditional:'Holiday', vacation:'VAC', maternity:'MAT',
     hourly_personal:'Hour-L', hourly_sick:'Hour-S'
   };
   return map[kind] || kind;
@@ -2907,18 +2907,18 @@ function renderInspectTab(){
 
 /* ================= Reports tab ================= */
 const THAI_MONTHS = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
-// รหัสย่อในตารางรายวัน (สั้นเพื่อให้ตารางทั้งเดือนอ่านได้บนมือถือ)
-const RPT_LEAVE_CODES = {
-  sick_cert:'ป+', sick_nocert:'ป-', personal_nodeduct:'ก+', personal_deduct:'ก-',
-  traditional:'ปณ', vacation:'พร', maternity:'คล', hourly_sick:'ชป', hourly_personal:'ชก',
-  sick:'ป', personal:'ก'
-};
+// รหัสย่อในตารางรายวัน ใช้ชุดเดียวกับที่ใช้ในไฟล์ Excel ขาด-ลา-มาสาย เดิม (ผ่าน leaveAbbrev())
+// เพื่อให้คนที่คุ้นกับตารางเดิมอ่านได้ทันทีโดยไม่ต้องเรียนรู้รหัสใหม่
+const RPT_CODE_ABSENT = 'AWOL';   // ขาดงาน
+const RPT_CODE_OFF = 'OFF';       // วันหยุด
+const RPT_CODE_WORK = '0';        // มาทำงานปกติ
 const RPT_LEGEND = [
-  ['ป+','ลาป่วย (มีใบรับรองแพทย์)'], ['ป-','ลาป่วย (ไม่มีใบรับรองแพทย์)'],
-  ['ก+','ลากิจ (ไม่หักเงิน)'], ['ก-','ลากิจ (หักเงิน)'],
-  ['ปณ','ลาวันหยุดประเพณี'], ['พร','ลาพักร้อน'], ['คล','ลาคลอด'],
-  ['ชป','ลาชั่วโมง (ป่วย)'], ['ชก','ลาชั่วโมง (กิจ)'],
-  ['ข','ขาดงาน'], ['—','วันหยุด']
+  ['Sick/Y','ลาป่วย (มีใบรับรองแพทย์)'], ['Sick/N','ลาป่วย (ไม่มีใบรับรองแพทย์)'],
+  ['Leave/Y','ลากิจ (มีเอกสาร)'], ['Leave/N','ลากิจ (หักเงิน)'],
+  ['Holiday','ลาประเพณี'], ['VAC','ลาพักร้อน'], ['MAT','ลาคลอด'],
+  ['Hour-S','ลาเป็นชั่วโมง (ป่วย)'], ['Hour-L','ลาเป็นชั่วโมง (กิจ)'],
+  ['AWOL','ขาดงาน','color:var(--red);'], ['OFF','วันหยุด','color:#9CA3AF;'],
+  ['0','มาทำงานปกติ'], ['0','ช่วงเทรนงาน','color:var(--blue);']
 ];
 let reportCursor = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 let reportView = 'leave';
@@ -2969,27 +2969,34 @@ function buildMonthReport(){
       const cells = days.map(d=>{
         const cell = { day:d, code:'', late:0, ot:0, off:false };
         const offWeekly = (br.weeklyOffDays||[]).includes(d.getDay());
-        if(!hasStartedBy(e, d)) { cell.code = ''; cell.na = true; return cell; }
         const leave = db.leaves.find(l=>l.employeeId===e.id && l.status==='approved' && new Date(l.from+'T00:00:00')<=d && d<=new Date(l.to+'T00:00:00'));
         const inLog = db.logs.find(l=>l.employeeId===e.id && l.type==='IN' && todayKey(new Date(l.time))===d.toDateString());
         if(inLog) cell.late = inLog.lateMinutes||0;
         db.otRequests.filter(o=>o.employeeId===e.id && o.status==='approved' && o.date===dateKey(d)).forEach(o=>{ cell.ot += otHours(o); });
-        if(leave){ cell.code = RPT_LEAVE_CODES[leave.kind] || 'ล'; cell.leaveKind = leave.kind; cell.leaveHours = leaveHours(leave); }
-        else if(isHoliday(d) || offWeekly){ cell.code = '—'; cell.off = true; }
-        else if(!inLog && d <= lastClosedDay) cell.code = 'ข';
+        // ก่อนถึงวันเริ่มงานจริงแต่มีการสแกนเข้างาน = ช่วงเทรนงาน (แสดง 0 สีน้ำเงินแยกจากวันทำงานปกติ)
+        if(!hasStartedBy(e, d)){
+          if(inLog){ cell.code = RPT_CODE_WORK; cell.training = true; }
+          else cell.na = true;
+          return cell;
+        }
+        if(leave){ cell.code = leaveAbbrev(leave.kind); cell.leaveKind = leave.kind; cell.leaveHours = leaveHours(leave); }
+        else if(isHoliday(d) || offWeekly){ cell.code = RPT_CODE_OFF; cell.off = true; }
+        else if(inLog) cell.code = RPT_CODE_WORK;
+        else if(d <= lastClosedDay) cell.code = RPT_CODE_ABSENT;
         return cell;
       });
-      const s = { present:0, lateCount:0, lateMinutes:0, absent:0, otHours:0, leaveHours:0, byKind:{} };
+      const s = { present:0, training:0, lateCount:0, lateMinutes:0, absent:0, otHours:0, leaveHours:0, byKind:{} };
       cells.forEach(c=>{
         if(c.na) return;
         s.otHours += c.ot;
         if(c.late>0){ s.lateCount++; s.lateMinutes += c.late; }
+        if(c.training){ s.training++; return; }
         if(c.leaveKind){
           if(HOURLY_KINDS.includes(c.leaveKind)){ s.leaveHours += c.leaveHours||0; s.present++; }
           else s.byKind[c.leaveKind] = (s.byKind[c.leaveKind]||0) + 1;
         }
-        else if(c.code==='ข') s.absent++;
-        else if(!c.off) s.present++;
+        else if(c.code===RPT_CODE_ABSENT) s.absent++;
+        else if(c.code===RPT_CODE_WORK) s.present++;
       });
       s.otHours = Math.round(s.otHours*100)/100;
       s.leaveHours = Math.round(s.leaveHours*100)/100;
@@ -3008,7 +3015,7 @@ function renderReportsTab(){
   const titles = { leave:'ตารางขาด-ลา รายวัน', late:'ตารางนาทีที่มาสาย รายวัน', ot:'ตารางชั่วโมง OT รายวัน (อนุมัติแล้ว)', summary:'สรุปรวมทั้งเดือน' };
   document.getElementById('reportTitle').textContent = titles[reportView];
   document.getElementById('reportLegend').innerHTML = reportView==='leave'
-    ? RPT_LEGEND.map(([c,t])=>`<span><b>${c}</b> ${t}</span>`).join('') : '';
+    ? RPT_LEGEND.map(([c,t,style])=>`<span><b style="${style||''}">${c}</b> ${t}</span>`).join('') : '';
 
   const rpt = buildMonthReport();
   const table = document.getElementById('reportTable');
@@ -3029,7 +3036,14 @@ function dailyTableHTML(rpt, view){
       r.cells.forEach(c=>{
         const wk = c.day.getDay()===0||c.day.getDay()===6;
         let txt = '', color = '';
-        if(view==='leave'){ txt = c.code; if(c.code==='ข') color='color:var(--red);font-weight:600;'; else if(c.code==='—') color='color:#D1D5DB;'; else if(c.code) color='color:var(--blue);font-weight:600;'; }
+        if(view==='leave'){
+          txt = c.code;
+          if(c.training) color='color:var(--blue);font-weight:700;';
+          else if(c.code===RPT_CODE_ABSENT) color='color:var(--red);font-weight:600;';
+          else if(c.code===RPT_CODE_OFF) color='color:#D1D5DB;';
+          else if(c.code===RPT_CODE_WORK) color='color:var(--muted);';
+          else if(c.code) color='color:var(--pink-dark);font-weight:600;';
+        }
         else if(view==='late'){ if(c.late>0){ txt = c.late; color='color:var(--amber);font-weight:600;'; } }
         else { if(c.ot>0){ txt = c.ot; color='color:var(--green);font-weight:600;'; } }
         html += `<td class="${wk?'weekend':''}" style="${color}">${txt}</td>`;
@@ -3044,16 +3058,17 @@ function dailyTableHTML(rpt, view){
 
 function summaryTableHTML(rpt){
   const kindCols = RPT_SUMMARY_KINDS;
-  let html = `<thead><tr><th class="namecol">ชื่อพนักงาน</th><th>มาทำงาน</th><th>สาย (ครั้ง)</th><th>รวมนาทีสาย</th><th>ขาดงาน</th>`;
+  let html = `<thead><tr><th class="namecol">ชื่อพนักงาน</th><th>มาทำงาน</th><th>เทรนงาน</th><th>สาย (ครั้ง)</th><th>รวมนาทีสาย</th><th>ขาดงาน</th>`;
   kindCols.forEach(k=>{ html += `<th>${leaveLabel(k)}</th>`; });
   html += `<th>ลาชั่วโมง (ชม.)</th><th class="totcol">OT (ชม.)</th></tr></thead><tbody>`;
-  const span = 6 + kindCols.length + 2;
+  const span = 7 + kindCols.length + 2;
   rpt.groups.forEach(g=>{
     html += `<tr class="brrow"><td colspan="${span}">${g.branch.name}</td></tr>`;
     g.rows.forEach(r=>{
       const s = r.summary;
       html += `<tr><td class="namecol">${r.emp.name}${r.emp.nickname?` (${r.emp.nickname})`:''}</td>`
-        + `<td>${s.present}</td><td style="${s.lateCount?'color:var(--amber);font-weight:600;':''}">${s.lateCount||''}</td>`
+        + `<td>${s.present}</td><td style="${s.training?'color:var(--blue);font-weight:600;':''}">${s.training||''}</td>`
+        + `<td style="${s.lateCount?'color:var(--amber);font-weight:600;':''}">${s.lateCount||''}</td>`
         + `<td style="${s.lateMinutes?'color:var(--amber);font-weight:600;':''}">${s.lateMinutes||''}</td>`
         + `<td style="${s.absent?'color:var(--red);font-weight:600;':''}">${s.absent||''}</td>`;
       kindCols.forEach(k=>{ html += `<td>${s.byKind[k]||''}</td>`; });
@@ -3078,8 +3093,8 @@ function reportSheetPayload(rpt){
     mk(`รายงาน OT ${tag}`, ['สาขา','ชื่อพนักงาน','ชื่อเล่น',...dayHeaders,'รวม ชม.'],
       r=>[r.br, r.emp.name, r.emp.nickname||'', ...r.cells.map(c=>c.ot||''), r.summary.otHours]),
     mk(`สรุปเดือน ${tag}`,
-      ['สาขา','ชื่อพนักงาน','ชื่อเล่น','มาทำงาน','สาย (ครั้ง)','รวมนาทีสาย','ขาดงาน', ...RPT_SUMMARY_KINDS.map(leaveLabel), 'ลาชั่วโมง (ชม.)','OT (ชม.)'],
-      r=>[r.br, r.emp.name, r.emp.nickname||'', r.summary.present, r.summary.lateCount, r.summary.lateMinutes, r.summary.absent,
+      ['สาขา','ชื่อพนักงาน','ชื่อเล่น','มาทำงาน','เทรนงาน','สาย (ครั้ง)','รวมนาทีสาย','ขาดงาน', ...RPT_SUMMARY_KINDS.map(leaveLabel), 'ลาชั่วโมง (ชม.)','OT (ชม.)'],
+      r=>[r.br, r.emp.name, r.emp.nickname||'', r.summary.present, r.summary.training, r.summary.lateCount, r.summary.lateMinutes, r.summary.absent,
           ...RPT_SUMMARY_KINDS.map(k=>r.summary.byKind[k]||0), r.summary.leaveHours, r.summary.otHours])
   ];
 }
