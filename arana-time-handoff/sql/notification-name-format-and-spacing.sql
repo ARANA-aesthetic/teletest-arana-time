@@ -1,4 +1,4 @@
--- ARANA TIME — ปรับ 2 เรื่อง ในข้อความแจ้งเตือน Telegram อัตโนมัติ (pg_cron functions)
+-- ARANA TIME — ปรับ 3 เรื่อง ในข้อความแจ้งเตือน Telegram อัตโนมัติ (pg_cron functions)
 -- รันทั้งไฟล์นี้ใน Supabase SQL Editor ครั้งเดียว (ปลอดภัย รันซ้ำได้ ใช้ CREATE OR REPLACE)
 --
 -- 1) เปลี่ยนการแสดงชื่อพนักงานในข้อความสรุปทุกฟังก์ชัน จาก "ชื่อ-นามสกุล (ชื่อเล่น)"
@@ -16,6 +16,8 @@
 --    ❌ไม่ครบ (2 คน)
 --    ⛔ภูริชญา (ฮาเดียร์)
 --    ⛔จันบาล (น้อย)
+-- 3) ปรับข้อความสรุปปิดแอร์ (send_ac_missing_reminder) ให้เว้นบรรทัด/ขึ้นบรรทัดใหม่แบบเดียวกับข้อ 2
+--    (ไม่มีชื่อพนักงานในข้อความนี้ — เป็นชื่อจุดปิดแอร์ เลยปรับแค่ spacing ไม่ต้องแก้เรื่องชื่อ)
 
 -- ===== 1. สรุป 10:30 น. — ลางาน + มาสาย (เปลี่ยนแค่รูปแบบชื่อ) =====
 create or replace function send_daily_leave_summary()
@@ -279,7 +281,65 @@ begin
 end;
 $$;
 
+-- ===== 4. สรุปปิดแอร์ 23:00 น. — เว้นบรรทัดแบบเดียวกับข้อ 2 (ไม่มีชื่อพนักงาน ไม่ต้องแก้เรื่องชื่อ) =====
+create or replace function send_ac_missing_reminder()
+returns void
+language plpgsql
+security definer
+as $$
+declare
+  v_token text;
+  v_today date;
+  v_branch record;
+  v_point record;
+  v_missing text[];
+  v_total int;
+  v_msg text;
+  v_done boolean;
+begin
+  select central_token into v_token from settings where id = 1;
+  if v_token is null or v_token = '' then return; end if;
+  v_today := (now() at time zone 'Asia/Bangkok')::date;
+
+  for v_branch in select id, name, chat_id_facility, ac_points from branches
+    where chat_id_facility is not null and chat_id_facility != ''
+  loop
+    if is_shop_closed(v_branch.id, v_today) then continue; end if;
+    v_missing := array[]::text[];
+    v_total := 0;
+    for v_point in select value->>'id' as pid, value->>'name' as pname from jsonb_array_elements(coalesce(v_branch.ac_points,'[]'::jsonb)) loop
+      v_total := v_total + 1;
+      select exists(
+        select 1 from logs
+        where branch_id = v_branch.id and type = 'AC' and ac_point_id = v_point.pid
+          and (time at time zone 'Asia/Bangkok')::date = v_today
+      ) into v_done;
+      if not v_done then
+        v_missing := array_append(v_missing, v_point.pname);
+      end if;
+    end loop;
+
+    if v_total = 0 then continue; end if;
+
+    v_msg := '📍สาขา ' || v_branch.name || E'\n\n';
+    if array_length(v_missing,1) > 0 then
+      v_msg := v_msg || '▪️ส่งปิดแอร์' || E'\n❌ไม่ครบ (' || array_length(v_missing,1) || ' จุด)' || E'\n' ||
+        (select string_agg('⛔' || x, E'\n') from unnest(v_missing) as x);
+    else
+      v_msg := v_msg || '▪️ส่งปิดแอร์' || E'\n✅ครบแล้ว (' || v_total || ' จุด)';
+    end if;
+
+    perform net.http_post(
+      url := 'https://api.telegram.org/bot' || v_token || '/sendMessage',
+      headers := '{"Content-Type": "application/json"}'::jsonb,
+      body := jsonb_build_object('chat_id', v_branch.chat_id_facility, 'text', v_msg)
+    );
+  end loop;
+end;
+$$;
+
 -- ทดสอบทันที:
 -- select send_daily_leave_summary();
 -- select send_hourly_leave_checkin_summary();
 -- select send_facility_missing_reminder();
+-- select send_ac_missing_reminder();
