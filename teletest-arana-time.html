@@ -339,8 +339,9 @@
     body.deskmode #atabOverview #overviewPreset{margin-bottom:0 !important;width:176px;}
     body.deskmode #atabOverview #overviewCustomRow{width:330px;}
     /* กล่องปุ่มดาวน์โหลดรายงาน ดันไปชิดขวาของแถบเดียวกัน ไม่ต้องเป็นการ์ดซ้อนการ์ด */
+    body.deskmode #atabOverview > section:nth-child(1) > :not(.card){order:1;}
     body.deskmode #atabOverview > section:nth-child(1) > .card{
-      margin:0 0 0 auto !important;border:none;box-shadow:none;padding:0;background:transparent;
+      order:2;margin:0 0 0 auto !important;border:none;box-shadow:none;padding:0;background:transparent;
       display:flex;align-items:center;gap:10px;flex-wrap:wrap;
     }
     body.deskmode #atabOverview > section:nth-child(1) > .card > div{margin:0 !important;}
