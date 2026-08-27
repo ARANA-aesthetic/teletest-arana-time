@@ -271,6 +271,87 @@
     .statgrid{grid-template-columns:repeat(4,1fr);}
     .menu-grid{grid-template-columns:repeat(6,1fr);}
   }
+
+  /* ---------- โหมดคอมพิวเตอร์ เฉพาะหน้าผู้ดูแล/ผู้บริหาร (body.deskmode) ----------
+     HR ใช้หน้านี้ดูข้อมูลทำสรุปรายงานบนคอม จึงกางเต็มจอ ย้ายเมนูล่างไปเป็นแถบข้าง
+     แล้วจัดตัวกรองไว้คอลัมน์ซ้าย เนื้อหา/ตารางอยู่คอลัมน์ขวา ดูเทียบกันได้ในจอเดียว
+     ทั้งบล็อกนี้เป็นกฎ "เพิ่ม" ที่มีผลเฉพาะจอ ≥1100px และเฉพาะตอนอยู่หน้าผู้ดูแลเท่านั้น
+     หน้าพนักงานและการแสดงผลบนมือถือไม่ถูกแตะเลย */
+  @media (min-width: 1100px){
+    body.deskmode{background:var(--bg);}
+    body.deskmode .phonewrap{max-width:none;box-shadow:none;padding-bottom:0;padding-left:232px;min-height:100vh;}
+
+    /* เมนูล่าง → แถบเมนูด้านข้าง */
+    body.deskmode .bottomnav{
+      left:0;top:0;bottom:0;transform:none;width:232px;max-width:232px;height:100vh;
+      flex-direction:column;justify-content:flex-start;gap:4px;
+      padding:96px 14px 20px;border-top:none;border-right:1px solid var(--border);
+      box-shadow:4px 0 20px -18px rgba(0,0,0,.35);
+    }
+    body.deskmode .bottomnav::before{
+      content:'ARANA TIME';position:absolute;top:34px;left:20px;
+      font-family:'Prompt',sans-serif;font-weight:700;font-size:15px;
+      letter-spacing:.5px;color:var(--pink-dark);
+    }
+    body.deskmode .navbtn{
+      flex:0 0 auto;flex-direction:row;justify-content:flex-start;gap:12px;
+      width:100%;padding:11px 14px;border-radius:12px;
+    }
+    body.deskmode .navbtn.active{background:var(--pink-pale);}
+    body.deskmode .navbtn .lbl{font-size:13.5px;}
+    body.deskmode .navbtn svg{width:19px;height:19px;}
+
+    /* หัวเรื่อง + พื้นที่เนื้อหา */
+    body.deskmode .apphead{border-radius:0;padding:22px 32px 26px;}
+    body.deskmode .apphead .top{max-width:1560px;margin:0 auto 12px;}
+    body.deskmode .apphead h1{font-size:23px;}
+    body.deskmode .apphead > h1,
+    body.deskmode .apphead > .meta{max-width:1560px;margin-left:auto;margin-right:auto;}
+    body.deskmode .content{padding:0 32px;max-width:1624px;margin:26px auto 48px;}
+
+    /* แท็บที่มีตัวกรอง: คอลัมน์ซ้าย = ตัวกรอง (ตรึงไว้ให้เห็นตลอด) ขวา = เนื้อหา */
+    body.deskmode #atabOverview,
+    body.deskmode #atabLeaves,
+    body.deskmode #atabInspect,
+    body.deskmode #atabReports{
+      display:grid;grid-template-columns:296px minmax(0,1fr);
+      gap:0 28px;align-items:start;
+    }
+    body.deskmode #atabOverview > section:first-child,
+    body.deskmode #atabLeaves > section:first-child,
+    body.deskmode #atabInspect > section:first-child,
+    body.deskmode #atabReports > section:first-child{
+      grid-column:1;grid-row:1 / span 99;position:sticky;top:22px;
+    }
+    body.deskmode #atabOverview > section:not(:first-child),
+    body.deskmode #atabLeaves > section:not(:first-child),
+    body.deskmode #atabInspect > section:not(:first-child),
+    body.deskmode #atabReports > section:not(:first-child){ grid-column:2; }
+
+    /* แท็บที่ไม่มีตัวกรองข้าง ให้กว้างเต็มแต่ไม่ยืดจนอ่านยาก */
+    body.deskmode #atabEmployees,
+    body.deskmode #atabSettings{max-width:1180px;}
+    body.deskmode #atabSettings{
+      display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+      gap:0 24px;align-items:start;max-width:none;
+    }
+
+    /* การ์ดสรุปรายพนักงาน + รายชื่อ วางเป็นกริดหลายคอลัมน์ */
+    body.deskmode #empSummaryList{
+      display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:10px;
+    }
+    body.deskmode #empSummaryList .miniempcard{margin-bottom:0;}
+    body.deskmode .statgrid{grid-template-columns:repeat(4,1fr);gap:14px;}
+    body.deskmode .stat .num{font-size:22px !important;}
+
+    /* ตารางรายงาน: ใช้พื้นที่จอเต็ม ตรึงหัวตาราง เลื่อนดูได้ในกรอบ */
+    body.deskmode .rptscroll{max-height:calc(100vh - 250px);overflow:auto;}
+    body.deskmode .rpttable{font-size:12.5px;}
+    body.deskmode .rpttable th,
+    body.deskmode .rpttable td{padding:7px 9px;}
+    body.deskmode .rpttable .namecol{min-width:180px;max-width:180px;}
+    body.deskmode .segbtn{font-size:13.5px;padding:9px 6px;}
+  }
 </style>
 </head>
 <body>
@@ -554,7 +635,9 @@
           <div><div id="overviewFrom_holder"></div></div>
           <div><div id="overviewTo_holder"></div></div>
         </div>
-        <div class="statgrid" style="margin-top:14px;">
+      </section>
+      <section>
+        <div class="statgrid" style="margin-top:0;">
           <div class="stat"><div class="t">เข้างานแล้ว</div><div class="num" style="color:var(--pink-dark);font-size:17px;" id="oIn">0/0</div><div class="lbl" id="oInLbl">คน</div></div>
           <div class="stat"><div class="t">มาสาย</div><div class="num" style="color:var(--amber);font-size:17px;" id="oLate">0/0</div><div class="lbl" id="oLateLbl">คน</div></div>
           <div class="stat"><div class="t">ขาดงาน</div><div class="num" style="color:var(--red);font-size:17px;" id="oAbsent">0/0</div><div class="lbl" id="oAbsentLbl">คน</div></div>
@@ -1573,6 +1656,9 @@ function showView(view){
   document.getElementById('loginView').classList.toggle('hidden', view!=='login');
   document.getElementById('employeeView').classList.toggle('hidden', view!=='employee');
   document.getElementById('adminView').classList.toggle('hidden', view!=='admin');
+  // เฉพาะหน้าผู้ดูแล/ผู้บริหารเท่านั้นที่ขยายเต็มจอบนคอมพิวเตอร์ (HR ใช้ทำรายงาน)
+  // หน้าพนักงานคงรูปแบบมือถือไว้เหมือนเดิม เพราะใช้สแกนหน้าเข้างานบนมือถือจริง
+  document.body.classList.toggle('deskmode', view==='admin');
 }
 
 // ================= LOGIN =================
