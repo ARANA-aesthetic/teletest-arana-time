@@ -2961,7 +2961,8 @@ function buildMonthReport(){
   const days = []; for(let d=1; d<=daysInMonth; d++) days.push(new Date(y, m, d));
   const branchVal = document.getElementById('reportBranchFilter')?.dataset.current || 'all';
   const branches = branchVal==='all' ? db.branches : db.branches.filter(b=>b.id===branchVal);
-  const today = new Date();
+  // วันนี้ยังไม่จบวัน ยังสรุปว่าขาดงานไม่ได้ นับย้อนหลังถึงเมื่อวานเท่านั้น
+  const lastClosedDay = new Date(); lastClosedDay.setHours(0,0,0,0); lastClosedDay.setDate(lastClosedDay.getDate()-1);
   const groups = branches.map(br=>{
     const emps = db.employees.filter(e=>e.branchId===br.id).sort((a,b)=>a.name.localeCompare(b.name,'th'));
     return { branch: br, rows: emps.map(e=>{
@@ -2975,7 +2976,7 @@ function buildMonthReport(){
         db.otRequests.filter(o=>o.employeeId===e.id && o.status==='approved' && o.date===dateKey(d)).forEach(o=>{ cell.ot += otHours(o); });
         if(leave){ cell.code = RPT_LEAVE_CODES[leave.kind] || 'ล'; cell.leaveKind = leave.kind; cell.leaveHours = leaveHours(leave); }
         else if(isHoliday(d) || offWeekly){ cell.code = '—'; cell.off = true; }
-        else if(!inLog && d <= today) cell.code = 'ข';
+        else if(!inLog && d <= lastClosedDay) cell.code = 'ข';
         return cell;
       });
       const s = { present:0, lateCount:0, lateMinutes:0, absent:0, otHours:0, leaveHours:0, byKind:{} };
