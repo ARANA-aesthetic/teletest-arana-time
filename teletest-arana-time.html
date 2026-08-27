@@ -547,6 +547,7 @@
     <div id="atabEmployees" class="hidden">
       <section>
         <button class="btn ghost block" style="margin-bottom:16px;" id="exportEmpBtn">Export ข้อมูลพนักงาน</button>
+        <div class="branchselect" style="margin-bottom:12px;"><select id="employeesViewBranchFilter"></select></div>
         <div class="card" id="employeesViewList" style="padding:0 16px;"></div>
       </section>
     </div>
@@ -2337,8 +2338,11 @@ function tenureText(startDate){
   return parts.join(' ');
 }
 document.getElementById('exportEmpBtn').onclick = ()=>{
+  const sel = document.getElementById('employeesViewBranchFilter');
+  const branchVal = sel ? (sel.dataset.current||'all') : 'all';
+  const list = branchVal==='all' ? db.employees : db.employees.filter(e=>e.branchId===branchVal);
   const rows = [['ชื่อ-นามสกุล','ชื่อเล่น','แผนก','ตำแหน่งงาน','สาขา','วันที่เริ่มงาน','อายุงาน','เวลาเข้างาน','เวลาออกงาน','อีเมล','สถานะ']];
-  db.employees.forEach(e=>{
+  list.forEach(e=>{
     const br = db.branches.find(b=>b.id===e.branchId);
     rows.push([e.name, e.nickname||'-', e.department||'-', e.jobTitle||'-', br?.name||'-', e.startDate||'-', tenureText(e.startDate), e.shiftStart||'-', e.shiftEnd||'-', e.email||'-', e.active===false?'ปิดการใช้งาน':'ใช้งานอยู่']);
   });
@@ -2529,8 +2533,16 @@ function renderAdminEmpList(){
   el.querySelectorAll('[data-edit]').forEach(btn=> btn.onclick = ()=> openEmpEditor(btn.dataset.edit));
 }
 function renderEmployeesView(){
+  const sel = document.getElementById('employeesViewBranchFilter');
+  if(sel && !sel.dataset.wired){
+    sel.dataset.wired = '1'; sel.dataset.current = 'all';
+    sel.onchange = ()=>{ sel.dataset.current = sel.value; renderEmployeesView(); };
+  }
+  if(sel){ sel.innerHTML = `<option value="all">ทุกสาขา</option>` + db.branches.map(b=>`<option value="${b.id}">${b.name}</option>`).join(''); sel.value = sel.dataset.current||'all'; }
+  const branchVal = sel ? (sel.dataset.current||'all') : 'all';
   const el = document.getElementById('employeesViewList'); if(!el) return;
-  el.innerHTML = db.employees.length ? db.employees.map(e=>{
+  const list = branchVal==='all' ? db.employees : db.employees.filter(e=>e.branchId===branchVal);
+  el.innerHTML = list.length ? list.map(e=>{
     const br = db.branches.find(b=>b.id===e.branchId);
     const st = todayStatus(e.id);
     let badge = st.outTime ? `<span class="badge out">ออกงานแล้ว</span>` : st.inTime ? `<span class="badge in">เข้างานแล้ว</span>` : `<span class="badge idle">ยังไม่มา</span>`;
@@ -2538,7 +2550,7 @@ function renderEmployeesView(){
     return `<div class="listrow" style="${e.active===false?'opacity:.55;':''}"><div class="avatar">${e.name.trim()[0]||'?'}</div>
       <div class="info"><div class="name">${e.name}${e.jobTitle?' · '+e.jobTitle:''}</div><div class="meta">${br?.name||'ยังไม่ระบุสาขา'} · กะ ${e.shiftStart||'-'}–${e.shiftEnd||'-'} · อายุงาน ${tenureText(e.startDate)}</div></div>
       ${badge}</div>`;
-  }).join('') : '<div class="empty">ยังไม่มีพนักงาน</div>';
+  }).join('') : '<div class="empty">ไม่มีพนักงานในสาขาที่เลือก</div>';
 }
 document.getElementById('addEmpAdminBtn').onclick = ()=> openEmpEditor(null);
 
