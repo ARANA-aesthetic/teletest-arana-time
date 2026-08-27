@@ -1145,12 +1145,24 @@ document.addEventListener('click', (e)=>{
 function sbHeaders(extra){
   return { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}`, ...extra };
 }
+// PostgREST ตอบกลับสูงสุด 1000 แถวต่อ 1 request ต้องไล่ดึงทีละหน้าด้วย header Range
+// ไม่งั้นตาราง logs ที่มีเป็นหมื่นแถวจะถูกตัดเหลือ 1000 แถวเงียบๆ (รายงานย้อนหลังจะขาดข้อมูล)
 async function sbSelectAll(table){
+  const PAGE = 1000;
+  let out = [], from = 0;
   try{
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?select=*`, { headers: sbHeaders() });
-    if(!res.ok) return [];
-    return await res.json();
-  }catch(e){ console.error('sbSelectAll', table, e); return []; }
+    for(;;){
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?select=*`, {
+        headers: { ...sbHeaders(), 'Range-Unit':'items', 'Range':`${from}-${from+PAGE-1}` }
+      });
+      if(!res.ok) return from===0 ? [] : out;
+      const chunk = await res.json();
+      out = out.concat(chunk);
+      if(chunk.length < PAGE) return out;
+      from += PAGE;
+      if(from > 200000) return out;
+    }
+  }catch(e){ console.error('sbSelectAll', table, e); return out; }
 }
 async function sbUpsertRow(table, row, conflictCol='id'){
   try{
