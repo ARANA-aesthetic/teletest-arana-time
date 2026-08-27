@@ -585,7 +585,14 @@
       <section>
         <div class="branchselect"><select id="approvalBranchFilter"></select></div>
         <label style="margin-top:0;">ช่วงวันที่ (กรองตามวันที่ยื่นคำขอ)</label>
-        <div class="row2">
+        <select id="approvalPreset" style="margin-bottom:10px;">
+          <option value="all">ทั้งหมด</option>
+          <option value="today">วันนี้</option>
+          <option value="week">สัปดาห์นี้</option>
+          <option value="month">เดือนนี้</option>
+          <option value="custom">เลือกช่วงเวลา</option>
+        </select>
+        <div class="row2 hidden" id="approvalCustomRow">
           <div><div id="approvalFrom_holder"></div></div>
           <div><div id="approvalTo_holder"></div></div>
         </div>
@@ -1140,6 +1147,58 @@ document.addEventListener('click', (e)=>{
   const holder = document.getElementById('editEmpStartDate_holder');
   if(holder) holder.innerHTML = dateSelectHTML('editEmpStartDate', new Date().getFullYear()-2000, 1);
 })();
+
+/* ---------- ตัวเลือกช่วงเวลาดูข้อมูลแบบใช้ร่วมกันทุกหน้า ----------
+   ทุกหน้าที่ให้เลือกช่วงวันที่ดูข้อมูล ใช้รูปแบบเดียวกันหมด:
+   ดรอปดาวน์ วันนี้/สัปดาห์นี้/เดือนนี้/เลือกช่วงเวลา (บางหน้ามี "ทั้งหมด" ด้วย)
+   ถ้าเลือก "เลือกช่วงเวลา" ถึงจะโชว์ช่องปฏิทิน 2 ช่อง (วันเริ่มต้น/วันสิ้นสุด)
+
+   ฝั่ง HTML ต้องมี id ตามแพทเทิร์นนี้: <prefix>Preset, <prefix>CustomRow,
+   <prefix>From_holder, <prefix>To_holder  แล้วเรียก wireDatePreset(prefix, onChange)
+   ครั้งเดียวตอน init ของแท็บนั้น */
+function applyDatePreset(prefix, onChange){
+  const sel = document.getElementById(prefix+'Preset'); if(!sel) return;
+  const preset = sel.value;
+  const now = new Date();
+  const todayStr = dateKey(now);
+  const customRow = document.getElementById(prefix+'CustomRow');
+  if(customRow) customRow.classList.toggle('hidden', preset!=='custom');
+  if(preset==='all'){
+    setDateVal(prefix+'From', ''); setDateVal(prefix+'To', '');
+  } else if(preset==='today'){
+    setDateVal(prefix+'From', todayStr); setDateVal(prefix+'To', todayStr);
+  } else if(preset==='week'){
+    const start = new Date(now); start.setDate(now.getDate()-now.getDay());
+    setDateVal(prefix+'From', dateKey(start)); setDateVal(prefix+'To', todayStr);
+  } else if(preset==='month'){
+    const start = new Date(now.getFullYear(), now.getMonth(), 1);
+    setDateVal(prefix+'From', dateKey(start)); setDateVal(prefix+'To', todayStr);
+  } else {
+    if(!getDateVal(prefix+'From')) setDateVal(prefix+'From', todayStr);
+    if(!getDateVal(prefix+'To')) setDateVal(prefix+'To', todayStr);
+  }
+  if(onChange) onChange();
+}
+function wireDatePreset(prefix, onChange){
+  ['From','To'].forEach(side=>{
+    const holder = document.getElementById(prefix+side+'_holder');
+    if(holder && !holder.dataset.wired){
+      holder.innerHTML = dateSelectHTML(prefix+side);
+      holder.dataset.wired = '1';
+      wireDateChange(prefix+side, onChange);
+    }
+  });
+  const sel = document.getElementById(prefix+'Preset');
+  if(sel && !sel.dataset.wired){
+    sel.dataset.wired = '1';
+    sel.onchange = ()=> applyDatePreset(prefix, onChange);
+  }
+}
+function setDatePreset(prefix, value, onChange){
+  const sel = document.getElementById(prefix+'Preset'); if(!sel) return;
+  sel.value = value;
+  applyDatePreset(prefix, onChange);
+}
 
 // ===== Storage layer: Supabase (mapped to existing normalized tables) =====
 function sbHeaders(extra){
@@ -2460,30 +2519,8 @@ async function submitNewPin(){
 }
 
 // ================= ADMIN VIEW =================
-function applyOverviewPreset(){
-  const sel = document.getElementById('overviewPreset'); if(!sel) return;
-  const preset = sel.value;
-  const now = new Date();
-  const todayStr = dateKey(now);
-  document.getElementById('overviewCustomRow').classList.toggle('hidden', preset!=='custom');
-  if(preset==='today'){
-    setDateVal('overviewFrom', todayStr); setDateVal('overviewTo', todayStr);
-  } else if(preset==='week'){
-    const start = new Date(now); start.setDate(now.getDate()-now.getDay());
-    setDateVal('overviewFrom', dateKey(start)); setDateVal('overviewTo', todayStr);
-  } else if(preset==='month'){
-    const start = new Date(now.getFullYear(), now.getMonth(), 1);
-    setDateVal('overviewFrom', dateKey(start)); setDateVal('overviewTo', todayStr);
-  } else {
-    if(!getDateVal('overviewFrom')) setDateVal('overviewFrom', todayStr);
-    if(!getDateVal('overviewTo')) setDateVal('overviewTo', todayStr);
-  }
-  renderOverviewStats();
-}
-(function(){
-  const sel = document.getElementById('overviewPreset');
-  if(sel) sel.onchange = applyOverviewPreset;
-})();
+function applyOverviewPreset(){ applyDatePreset('overview', renderOverviewStats); }
+wireDatePreset('overview', renderOverviewStats);
 function enterAdminView(){
   showView('admin');
   document.getElementById('graceMinutesInput').value = db.settings.graceMinutes;
@@ -2706,8 +2743,7 @@ function renderOverviewStats(){
     document.getElementById('oGroom').textContent = `${groomSent}/${groomExpTotal}`;
   }
 }
-wireDateChange('overviewFrom', renderOverviewStats);
-wireDateChange('overviewTo', renderOverviewStats);
+// ช่องปฏิทินของ overview ถูกผูกไว้แล้วใน wireDatePreset('overview', ...) ด้านบน
 document.getElementById('exportLateMatrixBtn').onclick = ()=>{
   const fromStr = getDateVal('overviewFrom') || dateKey(new Date());
   const toStr = getDateVal('overviewTo') || fromStr;
@@ -3133,10 +3169,7 @@ function renderApprovalBranchFilter(){
   sel.innerHTML = `<option value="all">ทุกสาขา</option>` + db.branches.map(b=>`<option value="${b.id}">${b.name}</option>`).join('');
   sel.dataset.wired = '1'; sel.dataset.current = 'all';
   sel.onchange = ()=>{ sel.dataset.current = sel.value; renderLeaveLists(); renderOtLists(); };
-  const fromHolder = document.getElementById('approvalFrom_holder');
-  const toHolder = document.getElementById('approvalTo_holder');
-  if(fromHolder && !fromHolder.dataset.wired){ fromHolder.innerHTML = dateSelectHTML('approvalFrom'); fromHolder.dataset.wired='1'; wireDateChange('approvalFrom', ()=>{ renderLeaveLists(); renderOtLists(); }); }
-  if(toHolder && !toHolder.dataset.wired){ toHolder.innerHTML = dateSelectHTML('approvalTo'); toHolder.dataset.wired='1'; wireDateChange('approvalTo', ()=>{ renderLeaveLists(); renderOtLists(); }); }
+  wireDatePreset('approval', renderApprovalLists);
   const searchBtn = document.getElementById('searchApprovalHistoryBtn');
   if(searchBtn && !searchBtn.dataset.wired){
     searchBtn.dataset.wired = '1';
@@ -3147,13 +3180,13 @@ function renderApprovalBranchFilter(){
     clearBtn.dataset.wired = '1';
     clearBtn.onclick = ()=>{
       sel.value='all'; sel.dataset.current='all';
-      setDateVal('approvalFrom',''); setDateVal('approvalTo','');
       approvalHistorySearched = false;
-      renderLeaveLists(); renderOtLists();
+      setDatePreset('approval', 'all', renderApprovalLists);
     };
   }
 }
 let approvalHistorySearched = false;
+function renderApprovalLists(){ renderLeaveLists(); renderOtLists(); }
 function renderLeaveLists(){
   const empIds = getApprovalFilteredEmpIds();
   const pending = db.leaves.filter(l=>l.status==='pending' && empIds.has(l.employeeId) && inApprovalDateRange(dateKey(new Date(l.requestedAt)))).sort((a,b)=>new Date(a.requestedAt)-new Date(b.requestedAt));
