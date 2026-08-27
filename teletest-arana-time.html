@@ -870,6 +870,18 @@
   </div>
 </div>
 
+<!-- Photo view popup -->
+<div class="overlay" id="photoViewOverlay">
+  <div class="modal" style="padding:12px;">
+    <div style="display:flex;justify-content:flex-end;margin-bottom:8px;">
+      <button class="btn gray sm" id="closePhotoViewBtn">ปิด</button>
+    </div>
+    <div id="photoViewBody" style="text-align:center;">
+      <div class="empty">กำลังโหลดรูปภาพ…</div>
+    </div>
+  </div>
+</div>
+
 <!-- Camera overlay -->
 <div class="camwrap" id="camWrap">
   <div class="camstage">
@@ -1226,19 +1238,25 @@ async function tgSendPhotoById(token, chatId, fileId, caption){
 }
 async function viewTelegramPhoto(fileId){
   const token = db.settings.centralToken;
+  const body = document.getElementById('photoViewBody');
+  const overlay = document.getElementById('photoViewOverlay');
   if(!token || !fileId){ alert('ไม่พบข้อมูลรูปภาพ'); return; }
+  body.innerHTML = '<div class="empty">กำลังโหลดรูปภาพ…</div>';
+  overlay.classList.add('show');
   try{
     const res = await fetch(`https://api.telegram.org/bot${token}/getFile?file_id=${fileId}`);
     const data = await res.json();
     if(data.ok){
-      window.open(`https://api.telegram.org/file/bot${token}/${data.result.file_path}`, '_blank');
+      const url = `https://api.telegram.org/file/bot${token}/${data.result.file_path}`;
+      body.innerHTML = `<img src="${url}" style="max-width:100%;border-radius:12px;">`;
     } else {
-      alert('ไม่พบรูปภาพ (อาจถูกลบจาก Telegram แล้ว หรือรูปหมดอายุ)');
+      body.innerHTML = '<div class="empty">ไม่พบรูปภาพ (อาจถูกลบจาก Telegram แล้ว หรือรูปหมดอายุ)</div>';
     }
   }catch(e){
-    alert('เปิดรูปภาพไม่สำเร็จ ลองใหม่อีกครั้ง');
+    body.innerHTML = '<div class="empty">เปิดรูปภาพไม่สำเร็จ ลองใหม่อีกครั้ง</div>';
   }
 }
+document.getElementById('closePhotoViewBtn').onclick = ()=> document.getElementById('photoViewOverlay').classList.remove('show');
 async function gatedTelegramPhoto(notifyKey, chatId, file, caption){
   if(!db.settings.notifyTypes[notifyKey]) return false;
   if(!chatId) return false;
