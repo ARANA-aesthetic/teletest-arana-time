@@ -1183,6 +1183,10 @@ async function saveDB(){
 async function saveLogRow(row){ await sbUpsertRow('logs', logToRow(row)); }
 async function saveLeaveRow(row){ await sbUpsertRow('leaves', leaveToRow(row)); }
 async function saveOtRow(row){ await sbUpsertRow('ot_requests', otToRow(row)); }
+// เรียกทุกครั้งที่ leave/ot แถวที่เคย sync ไป Google Sheets แล้วมีการเปลี่ยนสถานะ/ค่า (อนุมัติ/ปฏิเสธ/แก้ไข)
+// เพื่อให้รอบ sync ถัดไปดึงไปอัปเดตอีกครั้ง (ไม่งั้น Sheet จะค้างค่าตอน sync ครั้งแรกตลอดไป)
+async function markLeaveForResync(id){ await sbUpsertRow('leaves', {id, synced_at:null}); }
+async function markOtForResync(id){ await sbUpsertRow('ot_requests', {id, synced_at:null}); }
 async function saveBranchTransferRow(row){ await sbUpsertRow('branch_transfers', branchTransferToRow(row)); }
 async function saveNotificationRow(row){ await sbUpsertRow('notifications', notiToRow(row)); }
 
@@ -2260,7 +2264,7 @@ async function decideTransfer(id, status){
 async function decideOt(id, status){
   if(!canApproveOt()){ alert('ไม่มีสิทธิ์อนุมัติ OT ต้องเป็นเจ้าของ/HR เท่านั้น'); return; }
   const ot = db.otRequests.find(o=>o.id===id); if(!ot) return;
-  ot.status = status; ot.decidedAt = new Date().toISOString(); await saveOtRow(ot);
+  ot.status = status; ot.decidedAt = new Date().toISOString(); await saveOtRow(ot); await markOtForResync(ot.id);
   const emp = db.employees.find(e=>e.id===ot.employeeId);
   const br = db.branches.find(b=>b.id===emp?.branchId);
   if(db.settings.notifyTypes.otDecision && db.settings.otChatId) await tgSendMessage(db.settings.centralToken, db.settings.otChatId, `คำขอ OT ของ <b>${notifyName(emp)}</b> (${ot.date} ${ot.hourStart}-${ot.hourEnd}) ถูก${status==='approved'?'อนุมัติ':'ปฏิเสธ'}แล้ว`);
@@ -2273,7 +2277,7 @@ async function decideOtGroup(groupId, status){
   if(!items.length) return;
   const decidedAt = new Date().toISOString();
   const approverName = session.role==='admin' ? 'เจ้าของ/HR' : (currentApprover()?.name || 'ผู้บริหาร');
-  for(const ot of items){ ot.status = status; ot.decidedAt = decidedAt; await saveOtRow(ot); }
+  for(const ot of items){ ot.status = status; ot.decidedAt = decidedAt; await saveOtRow(ot); await markOtForResync(ot.id); }
   await logAudit(status, 'ot_group', groupId, `${status==='approved'?'อนุมัติ':'ปฏิเสธ'} OT กลุ่ม ${items.length} คน วันที่ ${items[0].date}`);
   const first = items[0];
   const br = db.branches.find(b=>b.id===db.employees.find(e=>e.id===first.employeeId)?.branchId);
@@ -2935,6 +2939,7 @@ async function decideLeaveEdit(id, decision){
   const newText = `${leaveLabel(leave.kind)} ${leaveRangeText(leave)}`;
   leave.editRequest = null;
   await saveLeaveRow(leave);
+  if(decision==='approved') await markLeaveForResync(leave.id);
   await logAudit(decision==='approved'?'approve_edit':'reject_edit', 'leave', leave.id,
     decision==='approved' ? `อนุมัติการแก้ไขใบลา: ${oldText} → ${newText}` : `ปฏิเสธการแก้ไขใบลา (คงค่าเดิม: ${oldText})`);
   if(db.settings.notifyTypes.leaveDecision && br?.chatIdLeaveApproval){
@@ -2970,7 +2975,7 @@ document.getElementById('exportLeaveReportBtn').onclick = ()=>{
 async function decideLeave(id, status){
   if(!canApproveLeave()){ alert('ไม่มีสิทธิ์อนุมัติใบลา ต้องเป็นเจ้าของ/HR/ผู้จัดการ'); return; }
   const leave = db.leaves.find(l=>l.id===id); if(!leave) return;
-  leave.status = status; leave.decidedAt = new Date().toISOString(); await saveLeaveRow(leave);
+  leave.status = status; leave.decidedAt = new Date().toISOString(); await saveLeaveRow(leave); await markLeaveForResync(leave.id);
   await logAudit(status, 'leave', leave.id, `${status==='approved'?'อนุมัติ':'ปฏิเสธ'}ใบลาของพนักงาน (${leaveLabel(leave.kind)} ${leave.from}${leave.from!==leave.to?' – '+leave.to:''})`);
   const emp = db.employees.find(e=>e.id===leave.employeeId);
   const br = db.branches.find(b=>b.id===emp?.branchId);
@@ -3074,6 +3079,7 @@ async function decideOtEdit(id, decision){
   const newText = `${fmtDateShort(new Date(ot.date))} ${ot.hourStart}-${ot.hourEnd}`;
   ot.editRequest = null;
   await saveOtRow(ot);
+  if(decision==='approved') await markOtForResync(ot.id);
   await logAudit(decision==='approved'?'approve_edit':'reject_edit', 'ot', ot.id,
     decision==='approved' ? `อนุมัติการแก้ไข OT: ${oldText} → ${newText}` : `ปฏิเสธการแก้ไข OT (คงค่าเดิม: ${oldText})`);
   if(db.settings.notifyTypes.otDecision && db.settings.otChatId){
