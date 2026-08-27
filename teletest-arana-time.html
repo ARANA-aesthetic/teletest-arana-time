@@ -707,6 +707,20 @@
         </div>
       </section>
       <section>
+        <div class="sectitle">Backup ข้อมูลไป Google Sheets</div>
+        <div class="card">
+          <div style="color:var(--muted);font-size:12px;margin-bottom:10px;">ระบบจะส่งข้อมูลขาดลา/มาสาย/OT ที่อนุมัติแล้ว/เวลาเข้า-ออกงาน ไปสำรองไว้ที่ Google Sheets อัตโนมัติทุก 15 นาที (เฉพาะรายการใหม่ที่ยังไม่เคยส่ง)</div>
+          <label>Google Apps Script Web App URL</label>
+          <input type="text" id="gsheetUrl" placeholder="https://script.google.com/macros/s/xxxxx/exec">
+          <label>รหัสลับ (ต้องตรงกับที่ตั้งในสคริปต์)</label>
+          <input type="password" id="gsheetSecret">
+          <button class="btn sm" style="margin-top:10px;" id="saveGsheetBtn">บันทึก</button>
+          <div class="modalfoot"><button class="btn ghost sm" id="syncGsheetBtn">Sync ตอนนี้</button></div>
+          <div style="color:var(--muted);font-size:11.5px;margin-top:6px;" id="gsheetLastSync"></div>
+          <div class="msg" id="gsheetMsg"></div>
+        </div>
+      </section>
+      <section>
         <div class="sectitle">การแจ้งเตือน (Telegram)</div>
         <div class="card" id="notifyTypesEditor"></div>
       </section>
@@ -943,6 +957,7 @@ function defaultDB(){
     branchTransfers: [],
     notifications: [],
     settings: { centralToken:'', centralChatId:'', otChatId:'', graceMinutes:15, adminPassword:'admin1234', holidays:[], telegramRooms:[],
+      gsheetWebappUrl:'', gsheetSecret:'', gsheetLastSync:null,
       notifyTypes: { checkin:true, checkout:true, ac:true, clean:true, groom:true, leaveSubmit:true, leaveDecision:true, otSubmit:true, otDecision:true } }
   };
 }
@@ -1128,8 +1143,8 @@ const branchTransferToRow = t => ({ id:t.id, employee_id:t.employeeId, branch_id
 const rowToNoti = r => ({ id:r.id, employeeId:r.employee_id, title:r.title, body:r.body, time:r.time, read:!!r.read });
 const notiToRow = n => ({ id:n.id, employee_id:n.employeeId, title:n.title, body:n.body, time:n.time, read:!!n.read });
 
-const rowToSettings = r => ({ centralToken:r.central_token||'', centralChatId:r.central_chat_id||'', otChatId:r.ot_chat_id||'', graceMinutes:r.grace_minutes??15, adminPassword:r.admin_password||'admin1234', holidays:r.holidays||[], notifyTypes:r.notify_types||{}, telegramRooms:r.telegram_rooms||[] });
-const settingsToRow = s => ({ id:1, central_token:s.centralToken||'', central_chat_id:s.centralChatId||'', ot_chat_id:s.otChatId||'', grace_minutes:s.graceMinutes??15, admin_password:s.adminPassword||'admin1234', holidays:s.holidays||[], notify_types:s.notifyTypes||{}, telegram_rooms:s.telegramRooms||[] });
+const rowToSettings = r => ({ centralToken:r.central_token||'', centralChatId:r.central_chat_id||'', otChatId:r.ot_chat_id||'', graceMinutes:r.grace_minutes??15, adminPassword:r.admin_password||'admin1234', holidays:r.holidays||[], notifyTypes:r.notify_types||{}, telegramRooms:r.telegram_rooms||[], gsheetWebappUrl:r.gsheet_webapp_url||'', gsheetSecret:r.gsheet_secret||'', gsheetLastSync:r.gsheet_last_sync||null });
+const settingsToRow = s => ({ id:1, central_token:s.centralToken||'', central_chat_id:s.centralChatId||'', ot_chat_id:s.otChatId||'', grace_minutes:s.graceMinutes??15, admin_password:s.adminPassword||'admin1234', holidays:s.holidays||[], notify_types:s.notifyTypes||{}, telegram_rooms:s.telegramRooms||[], gsheet_webapp_url:s.gsheetWebappUrl||'', gsheet_secret:s.gsheetSecret||'' });
 
 async function loadDB(){
   const [branchRows, empRows, approverRows, logRows, leaveRows, otRows, transferRows, notiRows, settingsRows] = await Promise.all([
@@ -1183,7 +1198,8 @@ async function sbCallFunction(fnName){
       const errBody = await res.text().catch(()=> '');
       return { ok:false, error: errBody || `HTTP ${res.status}` };
     }
-    return { ok:true };
+    const data = await res.json().catch(()=> null);
+    return { ok:true, data };
   }catch(e){ return { ok:false, error: e.message }; }
 }
 async function sbDeleteRow(table, id, idCol='id'){
@@ -2298,6 +2314,9 @@ function enterAdminView(){
   document.getElementById('centralToken').value = db.settings.centralToken;
   document.getElementById('centralChat').value = db.settings.centralChatId;
   document.getElementById('otChat').value = db.settings.otChatId;
+  document.getElementById('gsheetUrl').value = db.settings.gsheetWebappUrl;
+  document.getElementById('gsheetSecret').value = db.settings.gsheetSecret;
+  renderGsheetLastSync();
   applyOverviewPreset();
   document.querySelector('#adminView [data-atab="Settings"]').classList.remove('hidden');
   document.getElementById('adminDropdown').querySelector('.dname').textContent = 'เจ้าของ / HR';
@@ -3415,6 +3434,32 @@ async function runScheduledTest(btn, fnName, label){
 document.getElementById('testDailyLeaveBtn').onclick = (e)=> runScheduledTest(e.target, 'send_daily_leave_summary', 'สรุปวันลา');
 document.getElementById('testAcReminderBtn').onclick = (e)=> runScheduledTest(e.target, 'send_ac_missing_reminder', 'เตือนปิดแอร์');
 document.getElementById('testFacilityReminderBtn').onclick = (e)=> runScheduledTest(e.target, 'send_facility_missing_reminder', 'เตือนความสะอาด/ความเรียบร้อย');
+
+function renderGsheetLastSync(){
+  const el = document.getElementById('gsheetLastSync');
+  el.textContent = db.settings.gsheetLastSync ? `Sync ล่าสุด: ${new Date(db.settings.gsheetLastSync).toLocaleString('th-TH')}` : 'ยังไม่เคย sync';
+}
+document.getElementById('saveGsheetBtn').onclick = async ()=>{
+  db.settings.gsheetWebappUrl = document.getElementById('gsheetUrl').value.trim();
+  db.settings.gsheetSecret = document.getElementById('gsheetSecret').value.trim();
+  await saveDB();
+  const msg = document.getElementById('gsheetMsg'); msg.className='msg ok'; msg.textContent='บันทึกแล้ว';
+};
+document.getElementById('syncGsheetBtn').onclick = async (e)=>{
+  const btn = e.target, msg = document.getElementById('gsheetMsg');
+  const original = btn.textContent;
+  btn.textContent = 'กำลัง sync…'; btn.disabled = true;
+  const r = await sbCallFunction('sync_to_google_sheets');
+  btn.textContent = original; btn.disabled = false;
+  if(!r.ok){ msg.className='msg err'; msg.textContent = `เรียกไม่สำเร็จ — ${r.error}`; return; }
+  const d = r.data;
+  if(!d || d.ok === false){ msg.className='msg err'; msg.textContent = `Sync ไม่สำเร็จ — ${d?.error || d?.note || 'ไม่ทราบสาเหตุ'}`; return; }
+  if(d.note){ msg.className='msg ok'; msg.textContent = d.note; return; }
+  msg.className='msg ok';
+  msg.textContent = `Sync สำเร็จ — ใบลา ${d.leaves_synced||0}, เข้า-ออกงาน/มาสาย ${d.logs_synced||0}, OT ${d.ot_synced||0} รายการ`;
+  db.settings.gsheetLastSync = new Date().toISOString();
+  renderGsheetLastSync();
+};
 
 // ================= CAMERA =================
 async function openCamera(mode, target, pos, distance, fromAdmin){
