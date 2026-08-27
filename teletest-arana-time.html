@@ -312,21 +312,30 @@
     /* แท็บที่มีตัวกรอง: คอลัมน์ซ้าย = ตัวกรอง (ตรึงไว้ให้เห็นตลอด) ขวา = เนื้อหา */
     body.deskmode #atabOverview,
     body.deskmode #atabLeaves,
-    body.deskmode #atabInspect,
-    body.deskmode #atabReports{
+    body.deskmode #atabInspect{
       display:grid;grid-template-columns:296px minmax(0,1fr);
       gap:0 28px;align-items:start;
     }
     body.deskmode #atabOverview > section:first-child,
     body.deskmode #atabLeaves > section:first-child,
-    body.deskmode #atabInspect > section:first-child,
-    body.deskmode #atabReports > section:first-child{
+    body.deskmode #atabInspect > section:first-child{
       grid-column:1;grid-row:1 / span 99;position:sticky;top:22px;
     }
     body.deskmode #atabOverview > section:not(:first-child),
     body.deskmode #atabLeaves > section:not(:first-child),
-    body.deskmode #atabInspect > section:not(:first-child),
-    body.deskmode #atabReports > section:not(:first-child){ grid-column:2; }
+    body.deskmode #atabInspect > section:not(:first-child){ grid-column:2; }
+
+    /* หน้ารายงานไม่แบ่งคอลัมน์ เพราะตารางรายวันมี 31 ช่องวันที่ ต้องใช้ความกว้างเต็มจอ
+       ย้ายตัวกรองทั้งหมดขึ้นเป็นแถบเดียวด้านบนแทน แล้วตรึงไว้ตอนเลื่อนดูตาราง */
+    body.deskmode #atabReports > section:first-child{
+      display:flex;align-items:center;gap:18px;flex-wrap:wrap;
+      position:sticky;top:0;z-index:5;background:var(--bg);
+      padding:10px 0 14px;margin-bottom:6px;
+    }
+    body.deskmode #atabReports .branchselect{margin-bottom:0;width:210px;}
+    body.deskmode #atabReports .monthnav{margin-bottom:0;width:240px;}
+    body.deskmode #atabReports .segbar{margin-left:auto;}
+    body.deskmode #atabReports .segbtn{flex:0 0 auto;padding:9px 20px;}
 
     /* แท็บที่ไม่มีตัวกรองข้าง ให้กว้างเต็มแต่ไม่ยืดจนอ่านยาก */
     body.deskmode #atabEmployees,
@@ -345,12 +354,14 @@
     body.deskmode .stat .num{font-size:22px !important;}
 
     /* ตารางรายงาน: ใช้พื้นที่จอเต็ม ตรึงหัวตาราง เลื่อนดูได้ในกรอบ */
-    body.deskmode .rptscroll{max-height:calc(100vh - 250px);overflow:auto;}
-    body.deskmode .rpttable{font-size:12.5px;}
+    body.deskmode .rptscroll{max-height:calc(100vh - 230px);overflow:auto;}
+    body.deskmode .rpttable{font-size:12px;width:100%;}
     body.deskmode .rpttable th,
-    body.deskmode .rpttable td{padding:7px 9px;}
-    body.deskmode .rpttable .namecol{min-width:180px;max-width:180px;}
-    body.deskmode .segbtn{font-size:13.5px;padding:9px 6px;}
+    body.deskmode .rpttable td{padding:7px 4px;}
+    body.deskmode .rpttable .namecol{min-width:172px;max-width:172px;padding-left:10px;padding-right:10px;}
+    body.deskmode .segbtn{font-size:13.5px;}
+    /* หน้าสรุปเดือนมีคอลัมน์ชื่อประเภทการลายาว ตัดให้ขึ้นบรรทัดได้เฉพาะหัวตาราง */
+    body.deskmode .rpttable thead th{white-space:normal;line-height:1.25;min-width:58px;}
   }
 </style>
 </head>
