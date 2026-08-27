@@ -234,6 +234,21 @@
   .camstatus b{color:#F9A8D4;}
   .camclose{position:absolute;top:14px;right:14px;width:34px;height:34px;border-radius:50%;background:#ffffff22;border:none;color:#fff;font-size:16px;cursor:pointer;z-index:2;}
   .camfoot{margin-top:16px;display:flex;gap:10px;}
+  /* ---------- responsive: tablet/desktop (mobile behavior unchanged below 640px) ---------- */
+  @media (min-width: 640px){
+    .phonewrap{max-width:600px;}
+    .bottomnav{max-width:600px;}
+    .statgrid{grid-template-columns:repeat(4,1fr);}
+    .menu-grid{grid-template-columns:repeat(4,1fr);}
+  }
+  @media (min-width: 1024px){
+    body{background:#F3E4EC;}
+    .phonewrap{max-width:900px;box-shadow:0 0 50px -20px rgba(0,0,0,.18);}
+    .bottomnav{max-width:900px;}
+    .qa-grid{grid-template-columns:repeat(8,1fr);}
+    .statgrid{grid-template-columns:repeat(4,1fr);}
+    .menu-grid{grid-template-columns:repeat(6,1fr);}
+  }
 </style>
 </head>
 <body>
@@ -316,6 +331,7 @@
           <p>ต้องอยู่ในพื้นที่สาขาของคุณเท่านั้นจึงจะเช็กอินได้</p>
           <button class="btn" id="empScanBtn" disabled>กำลังโหลดระบบจดจำใบหน้า…</button>
           <div class="msg" id="empScanNote"></div>
+          <button class="backlink hidden" id="cancelLastScanBtn" style="margin-top:8px;"></button>
         </div>
       </section>
       <section>
@@ -610,6 +626,22 @@
       <section>
         <div class="sectitle">จัดการบัญชีผู้บริหาร</div>
         <div class="card" id="approverEditor"></div>
+      </section>
+      <section>
+        <div class="sectitle">ประวัติการแก้ไข/ลบ (Audit Log)</div>
+        <div class="card" id="auditLogViewer" style="padding:0 16px;"></div>
+      </section>
+      <section>
+        <div class="sectitle">นำเข้าข้อมูลเก่า (ประวัติเข้า-ออกงาน)</div>
+        <div class="card">
+          <div style="color:var(--muted);font-size:12px;margin-bottom:10px;">
+            อัปโหลดไฟล์ CSV รูปแบบคอลัมน์: <b>วันที่, ชื่อพนักงาน(ต้องตรงกับชื่อในระบบเป๊ะๆ), ประเภท(IN หรือ OUT), เวลา, สายกี่นาที</b><br>
+            ตัวอย่างแถว: <code>2026-01-05,ทิพาศรี สุขประเสริฐ,IN,09:05,5</code>
+          </div>
+          <input type="file" id="importAttendanceFile" accept=".csv">
+          <button class="btn sm" style="margin-top:10px;" id="importAttendanceBtn">นำเข้าข้อมูล</button>
+          <div class="msg" id="importAttendanceMsg"></div>
+        </div>
       </section>
       <section>
         <div class="sectitle">สาขา</div>
@@ -1057,8 +1089,8 @@ const employeeToRow = e => ({ id:e.id, name:e.name, nickname:e.nickname||null, d
 const rowToApprover = r => ({ id:r.id, name:r.name, pin:r.pin||null, role:r.role||'hr' });
 const approverToRow = a => ({ id:a.id, name:a.name, pin:a.pin||null, role:a.role||'hr' });
 
-const rowToLog = r => ({ id:r.id, employeeId:r.employee_id, type:r.type, time:r.time, branchId:r.branch_id, lateMinutes:r.late_minutes||0, sent:r.sent, acPointId:r.ac_point_id||null, cleanPointId:r.clean_point_id||null, leaveConflict:!!r.leave_conflict });
-const logToRow = l => ({ id:l.id, employee_id:l.employeeId, type:l.type, time:l.time, branch_id:l.branchId||null, late_minutes:l.lateMinutes||0, sent:l.sent, ac_point_id:l.acPointId||null, clean_point_id:l.cleanPointId||null, leave_conflict:!!l.leaveConflict });
+const rowToLog = r => ({ id:r.id, employeeId:r.employee_id, type:r.type, time:r.time, branchId:r.branch_id, lateMinutes:r.late_minutes||0, sent:r.sent, acPointId:r.ac_point_id||null, cleanPointId:r.clean_point_id||null, leaveConflict:!!r.leave_conflict, corrected:!!r.corrected });
+const logToRow = l => ({ id:l.id, employee_id:l.employeeId, type:l.type, time:l.time, branch_id:l.branchId||null, late_minutes:l.lateMinutes||0, sent:l.sent, ac_point_id:l.acPointId||null, clean_point_id:l.cleanPointId||null, leave_conflict:!!l.leaveConflict, corrected:!!l.corrected });
 
 const rowToLeave = r => ({ id:r.id, employeeId:r.employee_id, kind:r.kind, from:r.from_date, to:r.to_date, hourStart:r.from_time||null, hourEnd:r.to_time||null, reason:r.reason||'', status:r.status, requestedAt:r.requested_at, decidedAt:r.decided_at||null, evidenceSent:r.evidence_sent??null, evidenceFileId:r.evidence_file_id||null });
 const leaveToRow = l => ({ id:l.id, employee_id:l.employeeId, kind:l.kind, from_date:l.from, to_date:l.to, from_time:l.hourStart||null, to_time:l.hourEnd||null, reason:l.reason||null, status:l.status, requested_at:l.requestedAt, decided_at:l.decidedAt||null, evidence_sent:l.evidenceSent??null, evidence_file_id:l.evidenceFileId||null, days: (l.from && l.to) ? (Math.round((new Date(l.to)-new Date(l.from))/86400000)+1) : null });
@@ -1105,6 +1137,13 @@ async function saveOtRow(row){ await sbUpsertRow('ot_requests', otToRow(row)); }
 async function saveBranchTransferRow(row){ await sbUpsertRow('branch_transfers', branchTransferToRow(row)); }
 async function saveNotificationRow(row){ await sbUpsertRow('notifications', notiToRow(row)); }
 
+async function logAudit(action, targetType, targetId, details){
+  try{
+    const actorName = session.role==='admin' ? 'เจ้าของ/HR (รหัสผ่านหลัก)' : session.role==='approver' ? (currentApprover()?.name || 'ผู้บริหาร') : (currentEmployee()?.name || 'พนักงาน');
+    const row = { id:uid(), actor_name:actorName, actor_role:session.role||'-', action, target_type:targetType, target_id:targetId||null, details:details||null, created_at:new Date().toISOString() };
+    await sbUpsertRow('audit_log', row);
+  }catch(e){ console.error('logAudit', e); }
+}
 async function saveEmployeeRow(row){ return await sbUpsertRow('employees', employeeToRow(row)); }
 async function saveApproverRow(row){ return await sbUpsertRow('approvers', approverToRow(row)); }
 async function saveBranchRow(row){ return await sbUpsertRow('branches', branchToRow(row)); }
@@ -1594,6 +1633,23 @@ document.getElementById('menuAcShort').onclick = ()=> switchETab('Ac');
 function renderEmployeeHome(){
   const emp = currentEmployee(); if(!emp) return;
   updateScanButtonLabel();
+  const lastScan = db.logs.filter(l=>l.employeeId===emp.id && (l.type==='IN'||l.type==='OUT') && todayKey(new Date(l.time))===todayKey()).sort((a,b)=>new Date(b.time)-new Date(a.time))[0];
+  const cancelBtn = document.getElementById('cancelLastScanBtn');
+  const withinWindow = lastScan && (Date.now() - new Date(lastScan.time).getTime()) < 15*60*1000;
+  if(withinWindow){
+    cancelBtn.classList.remove('hidden');
+    cancelBtn.textContent = `ยกเลิกรายการล่าสุด (${lastScan.type==='IN'?'เช็กอิน':'เช็กเอาท์'} ${fmtTime(new Date(lastScan.time))})`;
+    cancelBtn.onclick = async ()=>{
+      if(!confirm('ยกเลิกรายการสแกนล่าสุดนี้? ใช้เมื่อกดเช็กอิน/เช็กเอาท์ผิดพลาดเท่านั้น')) return;
+      const r = await sbDeleteRow('logs', lastScan.id);
+      if(!r.ok){ alert('ยกเลิกไม่สำเร็จ: '+r.error); return; }
+      db.logs = db.logs.filter(l=>l.id!==lastScan.id);
+      await logAudit('cancel_scan', 'log', lastScan.id, `ยกเลิกรายการสแกน ${lastScan.type==='IN'?'เช็กอิน':'เช็กเอาท์'} ของ ${emp.name}`);
+      renderEmployeeHome();
+    };
+  } else {
+    cancelBtn.classList.add('hidden');
+  }
   const range = getEmpFilterRange();
   const m = summaryForRange(emp.id, range.from, range.to);
   document.getElementById('mOnTime').textContent = m.onTime;
@@ -1828,14 +1884,15 @@ function renderAcTab(){
     return `<div class="acrow">
       <div class="check ${log?'done':''}">${log?'✓':''}</div>
       <div class="info"><div class="name">${p.name}</div><div class="meta">${log?`ปิดแล้วเมื่อ ${fmtTime(new Date(log.time))} โดย ${doer?.name||'-'}`:'ยังไม่ได้แจ้ง'}</div></div>
-      ${log?'':`<button class="btn ghost sm" data-acpoint="${p.id}">แนบรูป</button>`}
+      ${log?`<button class="btn ghost sm" data-acpoint="${p.id}" data-accorrect="1">แก้ไขรูป</button>`:`<button class="btn ghost sm" data-acpoint="${p.id}">แนบรูป</button>`}
     </div>`;
   }).join('') : '<div class="empty">HR ยังไม่ได้ตั้งจุดปิดแอร์ของสาขานี้</div>';
   document.querySelectorAll('[data-acpoint]').forEach(btn=>{
-    btn.onclick = ()=>{ acPointFileTarget = btn.dataset.acpoint; document.getElementById('acPhotoInput').click(); };
+    btn.onclick = ()=>{ acPointFileTarget = btn.dataset.acpoint; acPointIsCorrection = btn.dataset.accorrect==='1'; document.getElementById('acPhotoInput').click(); };
   });
 }
 let acPointFileTarget = null;
+let acPointIsCorrection = false;
 const acInput = document.createElement('input');
 acInput.type='file'; acInput.accept='image/*'; acInput.capture='environment'; acInput.id='acPhotoInput'; acInput.style.display='none';
 document.body.appendChild(acInput);
@@ -1845,13 +1902,25 @@ acInput.addEventListener('change', async (e)=>{
   const emp = currentEmployee(); const br = currentBranch(emp);
   const point = (br.acPoints||[]).find(p=>p.id===acPointFileTarget);
   const now = new Date();
-  const caption = `✅${emp.name}\nแจ้งปิดแอร์\n"${point?.name||'-'}"\nเวลา ${fmtTime(now)} น.`;
-  const logEntry = {id:uid(), employeeId:emp.id, type:'AC', time:now.toISOString(), branchId:br?.id, acPointId:acPointFileTarget, lateMinutes:0, sent:null};
-  db.logs.unshift(logEntry); await saveLogRow(logEntry);
+  const isCorrection = acPointIsCorrection;
+  const caption = `${isCorrection?'♻️ (รูปแก้ไข) ':'✅'}${emp.name}\nแจ้งปิดแอร์\n"${point?.name||'-'}"\nเวลา ${fmtTime(now)} น.`;
+  let logEntry;
+  if(isCorrection){
+    const todayK = todayKey();
+    logEntry = db.logs.find(l=>l.type==='AC' && l.branchId===br?.id && l.acPointId===acPointFileTarget && todayKey(new Date(l.time))===todayK);
+  }
+  if(logEntry){
+    logEntry.time = now.toISOString(); logEntry.employeeId = emp.id; logEntry.sent = null; logEntry.corrected = true;
+    await saveLogRow(logEntry);
+    await logAudit('correct_photo', 'ac_log', logEntry.id, `แก้ไขรูปปิดแอร์ "${point?.name||'-'}" ที่ ${br?.name||'-'}`);
+  } else {
+    logEntry = {id:uid(), employeeId:emp.id, type:'AC', time:now.toISOString(), branchId:br?.id, acPointId:acPointFileTarget, lateMinutes:0, sent:null};
+    db.logs.unshift(logEntry); await saveLogRow(logEntry);
+  }
   renderAcTab(); renderEmployeeHome();
   const anyOk = await gatedTelegramPhoto('ac', br?.chatIdFacility, file, caption);
   logEntry.sent = anyOk; await saveLogRow(logEntry);
-  await pushNotification(emp.id, 'แจ้งปิดแอร์สำเร็จ', `${point?.name||'-'} ปิดแอร์เรียบร้อย`);
+  await pushNotification(emp.id, isCorrection?'แก้ไขรูปปิดแอร์แล้ว':'แจ้งปิดแอร์สำเร็จ', `${point?.name||'-'} ${isCorrection?'อัปเดตรูปเรียบร้อย':'ปิดแอร์เรียบร้อย'}`);
   renderAcTab(); renderEmployeeHome();
 });
 
@@ -1868,14 +1937,15 @@ function renderCleanTab(){
     return `<div class="acrow">
       <div class="check ${log?'done':''}">${log?'✓':''}</div>
       <div class="info"><div class="name">${p.name}</div><div class="meta">${log?`ตรวจแล้วเมื่อ ${fmtTime(new Date(log.time))} โดย ${doer?.name||'-'}`:'ยังไม่ได้แจ้ง'}</div></div>
-      ${log?'':`<button class="btn ghost sm" data-cleanpoint="${p.id}">แนบรูป</button>`}
+      ${log?`<button class="btn ghost sm" data-cleanpoint="${p.id}" data-cleancorrect="1">แก้ไขรูป</button>`:`<button class="btn ghost sm" data-cleanpoint="${p.id}">แนบรูป</button>`}
     </div>`;
   }).join('') : '<div class="empty">HR ยังไม่ได้ตั้งจุดตรวจความสะอาดของสาขานี้</div>';
   document.querySelectorAll('[data-cleanpoint]').forEach(btn=>{
-    btn.onclick = ()=>{ cleanPointFileTarget = btn.dataset.cleanpoint; document.getElementById('cleanPhotoInput').click(); };
+    btn.onclick = ()=>{ cleanPointFileTarget = btn.dataset.cleanpoint; cleanPointIsCorrection = btn.dataset.cleancorrect==='1'; document.getElementById('cleanPhotoInput').click(); };
   });
 }
 let cleanPointFileTarget = null;
+let cleanPointIsCorrection = false;
 const cleanInput = document.createElement('input');
 cleanInput.type='file'; cleanInput.accept='image/*'; cleanInput.capture='environment'; cleanInput.id='cleanPhotoInput'; cleanInput.style.display='none';
 document.body.appendChild(cleanInput);
@@ -1885,13 +1955,25 @@ cleanInput.addEventListener('change', async (e)=>{
   const emp = currentEmployee(); const br = currentBranch(emp);
   const point = (br.cleaningPoints||[]).find(p=>p.id===cleanPointFileTarget);
   const now = new Date();
-  const caption = `✅${emp.name}\nส่งตรวจความสะอาด\n"${point?.name||'-'}"\nเวลา ${fmtTime(now)} น.`;
-  const logEntry = {id:uid(), employeeId:emp.id, type:'CLEAN', time:now.toISOString(), branchId:br?.id, cleanPointId:cleanPointFileTarget, lateMinutes:0, sent:null};
-  db.logs.unshift(logEntry); await saveLogRow(logEntry);
+  const isCorrection = cleanPointIsCorrection;
+  const caption = `${isCorrection?'♻️ (รูปแก้ไข) ':'✅'}${emp.name}\nส่งตรวจความสะอาด\n"${point?.name||'-'}"\nเวลา ${fmtTime(now)} น.`;
+  let logEntry;
+  if(isCorrection){
+    const todayK = todayKey();
+    logEntry = db.logs.find(l=>l.type==='CLEAN' && l.branchId===br?.id && l.cleanPointId===cleanPointFileTarget && todayKey(new Date(l.time))===todayK);
+  }
+  if(logEntry){
+    logEntry.time = now.toISOString(); logEntry.employeeId = emp.id; logEntry.sent = null; logEntry.corrected = true;
+    await saveLogRow(logEntry);
+    await logAudit('correct_photo', 'clean_log', logEntry.id, `แก้ไขรูปความสะอาด "${point?.name||'-'}" ที่ ${br?.name||'-'}`);
+  } else {
+    logEntry = {id:uid(), employeeId:emp.id, type:'CLEAN', time:now.toISOString(), branchId:br?.id, cleanPointId:cleanPointFileTarget, lateMinutes:0, sent:null};
+    db.logs.unshift(logEntry); await saveLogRow(logEntry);
+  }
   renderCleanTab(); renderEmployeeHome();
   const anyOk = await gatedTelegramPhoto('clean', br?.chatIdFacility, file, caption);
   logEntry.sent = anyOk; await saveLogRow(logEntry);
-  await pushNotification(emp.id, 'ส่งตรวจความสะอาดสำเร็จ', `${point?.name||'-'} ตรวจความสะอาดเรียบร้อย`);
+  await pushNotification(emp.id, isCorrection?'แก้ไขรูปความสะอาดแล้ว':'ส่งตรวจความสะอาดสำเร็จ', `${point?.name||'-'} ${isCorrection?'อัปเดตรูปเรียบร้อย':'ตรวจความสะอาดเรียบร้อย'}`);
   renderCleanTab(); renderEmployeeHome();
 });
 
@@ -2014,6 +2096,7 @@ async function decideOtGroup(groupId, status){
   const decidedAt = new Date().toISOString();
   const approverName = session.role==='admin' ? 'เจ้าของ/HR' : (currentApprover()?.name || 'ผู้บริหาร');
   for(const ot of items){ ot.status = status; ot.decidedAt = decidedAt; await saveOtRow(ot); }
+  await logAudit(status, 'ot_group', groupId, `${status==='approved'?'อนุมัติ':'ปฏิเสธ'} OT กลุ่ม ${items.length} คน วันที่ ${items[0].date}`);
   const first = items[0];
   const br = db.branches.find(b=>b.id===db.employees.find(e=>e.id===first.employeeId)?.branchId);
   const empLines = items.map((o,i)=>{ const e = db.employees.find(x=>x.id===o.employeeId); return `${i+1}. ${e?.name||'-'}${e?.nickname?` (${e.nickname})`:''}`; }).join('\n');
@@ -2180,7 +2263,7 @@ function switchATab(tab){
   if(tab==='Employees') renderEmployeesView();
   if(tab==='Leaves'){ renderApprovalBranchFilter(); renderLeaveLists(); renderOtLists(); renderTransferList(); }
   if(tab==='Inspect'){ initInspectTab(); renderInspectTab(); }
-  if(tab==='Settings'){ renderDbStatus(); renderAdminEmpList(); renderApproverEditor(); renderBranchEditor(); renderAcPointEditor(); renderCleanPointEditor(); renderHolidayEditor(); renderNotifyTypesEditor(); renderTelegramRoomsEditor(); }
+  if(tab==='Settings'){ renderDbStatus(); renderAdminEmpList(); renderApproverEditor(); renderBranchEditor(); renderAcPointEditor(); renderCleanPointEditor(); renderHolidayEditor(); renderNotifyTypesEditor(); renderTelegramRoomsEditor(); renderAuditLogViewer(); }
 }
 
 function downloadCSV(filename, rows){
@@ -2622,6 +2705,7 @@ async function decideLeave(id, status){
   if(!canApproveLeave()){ alert('ไม่มีสิทธิ์อนุมัติใบลา ต้องเป็นเจ้าของ/HR/ผู้จัดการ'); return; }
   const leave = db.leaves.find(l=>l.id===id); if(!leave) return;
   leave.status = status; leave.decidedAt = new Date().toISOString(); await saveLeaveRow(leave);
+  await logAudit(status, 'leave', leave.id, `${status==='approved'?'อนุมัติ':'ปฏิเสธ'}ใบลาของพนักงาน (${leaveLabel(leave.kind)} ${leave.from}${leave.from!==leave.to?' – '+leave.to:''})`);
   const emp = db.employees.find(e=>e.id===leave.employeeId);
   const br = db.branches.find(b=>b.id===emp?.branchId);
   const rangeText = leaveRangeText(leave);
@@ -2790,6 +2874,7 @@ document.getElementById('deleteEmpBtn').onclick = async ()=>{
     return;
   }
   db.employees = db.employees.filter(x=>x.id!==editingEmpId);
+  await logAudit('delete', 'employee', editingEmpId, `ลบพนักงาน ${e.name}`);
   document.getElementById('empEditOverlay').classList.remove('show');
   renderAdminEmpList(); renderEmpSummary(); renderEmpSelect();
 };
@@ -2797,6 +2882,7 @@ document.getElementById('toggleActiveEmpBtn').onclick = async ()=>{
   const e = db.employees.find(x=>x.id===editingEmpId); if(!e) return;
   e.active = e.active===false ? true : false;
   await saveEmployeeRow(e);
+  await logAudit(e.active===false?'deactivate':'activate', 'employee', e.id, `${e.active===false?'ปิด':'เปิด'}การใช้งานพนักงาน ${e.name}`);
   document.getElementById('toggleActiveEmpBtn').textContent = e.active===false ? 'เปิดการใช้งาน' : 'ปิดการใช้งาน';
   renderAdminEmpList(); renderEmpSelect();
 };
@@ -2812,6 +2898,24 @@ document.getElementById('editEmpFaceBtn').onclick = ()=>{
   openCamera('enroll', e, null, null, true);
 };
 
+async function fetchRecentAuditLog(limit){
+  try{
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/audit_log?select=*&order=created_at.desc&limit=${limit||50}`, { headers: sbHeaders() });
+    if(!res.ok) return [];
+    return await res.json();
+  }catch(e){ return []; }
+}
+async function renderAuditLogViewer(){
+  const el = document.getElementById('auditLogViewer'); if(!el) return;
+  el.innerHTML = '<div class="empty">กำลังโหลด…</div>';
+  const rows = await fetchRecentAuditLog(50);
+  el.innerHTML = rows.length ? rows.map(r=>`
+    <div class="listrow"><div class="info">
+      <div class="name">${r.actor_name||'-'} — ${r.action||'-'}</div>
+      <div class="meta">${r.details||'-'}</div>
+      <div class="meta">${new Date(r.created_at).toLocaleString('th-TH')}</div>
+    </div></div>`).join('') : '<div class="empty">ยังไม่มีประวัติการแก้ไข/ลบ</div>';
+}
 function renderApproverEditor(){
   const el = document.getElementById('approverEditor'); if(!el) return;
   if(!canManageApprovers()){
@@ -2930,8 +3034,10 @@ function renderBranchEditor(){
         ? `สาขานี้มีพนักงาน ${empCount} คนผูกอยู่ ถ้าลบ พนักงานกลุ่มนี้จะไม่มีสาขา ต้องการลบจริงหรือไม่?`
         : 'ต้องการลบสาขานี้หรือไม่?');
       if(!ok) return;
+      const bname = db.branches.find(b=>b.id===bid)?.name || bid;
       db.branches = db.branches.filter(b=>b.id!==bid);
       await deleteBranchRow(bid);
+      await logAudit('delete', 'branch', bid, `ลบสาขา ${bname}`);
       renderBranchEditor(); renderBranchFilter(); renderAcPointEditor(); renderCleanPointEditor(); updateAdminHeaderMeta();
     };
   });
@@ -3169,6 +3275,36 @@ document.getElementById('testCentralTgBtn').onclick = async ()=>{
   const chatId = document.getElementById('centralChat').value.trim();
   const r = await tgSendMessage(token, chatId, 'ทดสอบการเชื่อมต่อ ARANA TIME (ส่วนกลาง) สำเร็จ');
   msg.className = 'msg ' + (r.ok?'ok':'err'); msg.textContent = r.ok ? 'ส่งสำเร็จ' : 'ส่งไม่สำเร็จ: '+r.reason;
+};
+document.getElementById('importAttendanceBtn').onclick = async ()=>{
+  const fileInput = document.getElementById('importAttendanceFile');
+  const msg = document.getElementById('importAttendanceMsg');
+  const file = fileInput.files[0];
+  if(!file){ msg.className='msg err'; msg.textContent='กรุณาเลือกไฟล์ CSV ก่อน'; return; }
+  msg.className='msg'; msg.textContent='กำลังนำเข้า…';
+  const text = await file.text();
+  const lines = text.split(/\r?\n/).map(l=>l.trim()).filter(l=>l);
+  let imported = 0, skipped = 0, errors = [];
+  const startIdx = /^วันที่|^date/i.test(lines[0]) ? 1 : 0;
+  for(let i=startIdx; i<lines.length; i++){
+    const cols = lines[i].split(',').map(c=>c.trim());
+    if(cols.length < 4){ skipped++; continue; }
+    const [dateStr, empName, type, timeStr, lateStr] = cols;
+    const emp = db.employees.find(e=>e.name.trim()===empName.trim());
+    if(!emp){ errors.push(`แถว ${i+1}: ไม่พบพนักงานชื่อ "${empName}"`); skipped++; continue; }
+    if(type!=='IN' && type!=='OUT'){ errors.push(`แถว ${i+1}: ประเภทต้องเป็น IN หรือ OUT เท่านั้น`); skipped++; continue; }
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)){ errors.push(`แถว ${i+1}: รูปแบบวันที่ต้องเป็น YYYY-MM-DD`); skipped++; continue; }
+    const timeVal = timeStr && /^\d{1,2}:\d{2}/.test(timeStr) ? timeStr : '00:00';
+    const isoTime = new Date(`${dateStr}T${timeVal}:00`).toISOString();
+    const row = {id:uid(), employeeId:emp.id, type, time:isoTime, branchId:emp.branchId||null, lateMinutes:parseInt(lateStr)||0, sent:true};
+    db.logs.push(row);
+    await saveLogRow(row);
+    imported++;
+  }
+  await logAudit('import', 'logs', null, `นำเข้าข้อมูลเก่า ${imported} รายการ (ข้าม ${skipped})`);
+  msg.className = errors.length ? 'msg err' : 'msg ok';
+  msg.innerHTML = `นำเข้าสำเร็จ ${imported} รายการ, ข้าม ${skipped} รายการ` + (errors.length ? `<br>${errors.slice(0,10).join('<br>')}${errors.length>10?'<br>...':''}` : '');
+  fileInput.value='';
 };
 document.getElementById('changeAdminPassBtn').onclick = async ()=>{
   const val = document.getElementById('newAdminPass').value.trim();
