@@ -1,22 +1,28 @@
 /**
  * ARANA TIME — Google Apps Script รับข้อมูล backup แบบเรียลไทม์จาก Supabase
  *
+ * ★ ทำเป็นโปรเจกต์ Apps Script ใหม่แยกต่างหาก ไม่ผูกกับ Sheet ผ่าน Extensions → Apps Script ★
+ * เพราะไฟล์ Google Sheet เดิมอาจมีสคริปต์เดิม (เช่น onFormSubmit) ที่ทำงานอยู่กับ Google Form
+ * เดิมที่ยังใช้งานจริง ถ้าไปเปิดผ่าน Extensions → Apps Script แล้วลบโค้ดเดิมทิ้ง อาจทำโค้ด/
+ * ทริกเกอร์เดิมพังได้ — วิธีนี้เป็นคนละโปรเจกต์กันเลย การันตีว่าไม่ไปแตะของเดิมแม้แต่บรรทัดเดียว
+ *
  * วิธีติดตั้ง (ทำครั้งเดียว):
- * 1. สร้าง Google Sheet เปล่า 1 ไฟล์ (ตั้งชื่ออะไรก็ได้ เช่น "ARANA TIME - Backup")
- * 2. เปิดเมนู Extensions → Apps Script
- * 3. ลบโค้ดเดิมในไฟล์ Code.gs ทั้งหมด แล้ววางโค้ดทั้งไฟล์นี้แทน
- * 4. เปลี่ยนค่า SHARED_SECRET ด้านล่างเป็นข้อความสุ่มของคุณเอง (ยาวๆ คาดเดายาก)
+ * 1. เปิด https://script.google.com → กด "New project" (ไม่ต้องเปิดผ่าน Sheet)
+ * 2. ลบโค้ดเดิมในไฟล์ Code.gs (โปรเจกต์ใหม่ มีแค่โค้ดเปล่าๆ) แล้ววางโค้ดทั้งไฟล์นี้แทน
+ * 3. เปลี่ยนค่า SHARED_SECRET ด้านล่างเป็นข้อความสุ่มของคุณเอง (ยาวๆ คาดเดายาก)
  *    แล้วจดค่านี้ไว้ ต้องเอาไปใส่ในหน้าตั้งค่าของแอป ARANA TIME ด้วย (ต้องตรงกันเป๊ะ)
- * 5. กด Deploy (มุมขวาบน) → New deployment
+ * 4. กด Deploy (มุมขวาบน) → New deployment
  *    - Select type: Web app
  *    - Description: ใส่อะไรก็ได้ เช่น "arana sync v1"
  *    - Execute as: Me
  *    - Who has access: Anyone
- *    กด Deploy → อนุญาตสิทธิ์ (Authorize access) ตามที่ Google ถาม
- * 6. จะได้ "Web app URL" มา 1 อัน หน้าตาประมาณ
+ *    กด Deploy → อนุญาตสิทธิ์ (Authorize access) ตามที่ Google ถาม — จะมีหน้าเตือน
+ *    "Google hasn't verified this app" เพราะเป็นสคริปต์ที่คุณเขียนเอง กด Advanced → Go to
+ *    (ชื่อโปรเจกต์) (unsafe) ได้ตามปกติ ปลอดภัย เพราะเป็นโค้ดของคุณเอง
+ * 5. จะได้ "Web app URL" มา 1 อัน หน้าตาประมาณ
  *    https://script.google.com/macros/s/xxxxxxxx/exec
  *    เอา URL นี้ไปใส่ในหน้าตั้งค่าแอป ARANA TIME (ช่อง Google Sheets Web App URL)
- * 7. ถ้าแก้โค้ดไฟล์นี้ทีหลัง ต้องกด Deploy → Manage deployments → แก้ไข (ไอคอนดินสอ)
+ * 6. ถ้าแก้โค้ดไฟล์นี้ทีหลัง ต้องกด Deploy → Manage deployments → แก้ไข (ไอคอนดินสอ)
  *    → เปลี่ยน Version เป็น "New version" → Deploy ใหม่ทุกครั้ง (URL เดิมใช้ต่อได้ไม่ต้องเปลี่ยน)
  *
  * แท็บในชีทจะถูกสร้างอัตโนมัติตอนข้อมูลชุดแรกส่งเข้ามา ไม่ต้องสร้างเองล่วงหน้า
@@ -24,6 +30,9 @@
 
 // ★★★ แก้ค่านี้เป็นรหัสลับของคุณเอง ต้องตรงกับที่ตั้งไว้ในแอป ARANA TIME ★★★
 const SHARED_SECRET = 'เปลี่ยนเป็นรหัสลับของคุณ';
+
+// ★★★ ID ของไฟล์ Google Sheet ปลายทาง (จาก URL ของ Sheet ส่วน .../d/<ตรงนี้>/edit...) ★★★
+const TARGET_SPREADSHEET_ID = '1jTaBqRc9GuUg2wDd4Zm7p_7b1aaJ5J69goo0yfXKAHw';
 
 // ชื่อแท็บ + ลำดับคอลัมน์ของแต่ละรายงาน (ต้องตรงกับที่ฝั่ง Supabase ส่งมา)
 const SHEET_SCHEMAS = {
@@ -59,7 +68,7 @@ function doPost(e) {
     if (body.secret !== SHARED_SECRET) {
       return jsonOut({ ok: false, error: 'unauthorized' }, 401);
     }
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const ss = SpreadsheetApp.openById(TARGET_SPREADSHEET_ID);
     const counts = {};
     for (const key of Object.keys(SHEET_SCHEMAS)) {
       const rows = body[key];
