@@ -69,6 +69,13 @@ function doPost(e) {
       return jsonOut({ ok: false, error: 'unauthorized' }, 401);
     }
     const ss = SpreadsheetApp.openById(TARGET_SPREADSHEET_ID);
+
+    // โหมดที่ 2: ส่งรายงานสรุปทั้งเดือนมาจากหน้า "รายงาน" ในแอป (เขียนทับแท็บเดิมของเดือนนั้น)
+    if (body.reports && body.reports.length) {
+      const names = body.reports.map(function (r) { return writeReportSheet(ss, r); });
+      return jsonOut({ ok: true, reports: names, syncedAt: new Date().toISOString() }, 200);
+    }
+
     const counts = {};
     for (const key of Object.keys(SHEET_SCHEMAS)) {
       const rows = body[key];
@@ -106,6 +113,45 @@ function appendRows(sheet, rows, key) {
     return row;
   });
   sheet.getRange(startRow, 1, values.length, width).setValues(values);
+}
+
+// เขียนรายงานสรุปรายเดือน 1 แท็บ — เขียนทับข้อมูลเดิมของแท็บนั้นทั้งหมด
+//
+// ★ ความปลอดภัย: จะเขียนทับได้เฉพาะแท็บที่สคริปต์นี้สร้างเองเท่านั้น (ดูจากหมายเหตุกำกับที่
+// เซลล์ A1 ว่าเป็น ARANA_REPORT_MARK) ถ้าเจอแท็บชื่อซ้ำที่ "ไม่ใช่" ของสคริปต์นี้ (เช่นแท็บที่
+// คุณทำเองไว้ก่อน) จะไม่แตะเลย แต่จะสร้างแท็บใหม่ต่อท้ายชื่อด้วย " (แอป)" แทน
+// เพื่อกันข้อมูลเดิมที่ตั้งค่าไว้แล้วหายโดยไม่ตั้งใจ
+const ARANA_REPORT_MARK = 'ARANA_REPORT';
+
+function writeReportSheet(ss, rpt) {
+  var name = rpt.name;
+  var sheet = ss.getSheetByName(name);
+  if (sheet) {
+    var note = sheet.getRange(1, 1).getNote();
+    if (note !== ARANA_REPORT_MARK) {
+      name = name + ' (แอป)';
+      sheet = ss.getSheetByName(name);
+    }
+  }
+  if (!sheet) {
+    sheet = ss.insertSheet(name);
+  } else {
+    sheet.clear();
+  }
+  var width = rpt.headers.length;
+  sheet.getRange(1, 1, 1, width).setValues([rpt.headers]).setFontWeight('bold').setBackground('#FCE7F3');
+  sheet.getRange(1, 1).setNote(ARANA_REPORT_MARK);
+  if (rpt.rows.length) {
+    var values = rpt.rows.map(function (r) {
+      var row = r.slice(0, width);
+      while (row.length < width) row.push('');
+      return row;
+    });
+    sheet.getRange(2, 1, values.length, width).setValues(values);
+  }
+  sheet.setFrozenRows(1);
+  sheet.setFrozenColumns(2);
+  return name;
 }
 
 function jsonOut(obj, code) {

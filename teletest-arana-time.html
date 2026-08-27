@@ -201,6 +201,24 @@
   .branchselect{position:relative;margin-bottom:16px;}
   .branchselect select{appearance:none;-webkit-appearance:none;padding-right:36px;font-weight:600;color:var(--pink-dark);border-color:var(--pink-pale);background:#fff;}
   .branchselect::after{content:'';position:absolute;right:14px;top:50%;width:8px;height:8px;border-right:2px solid var(--pink-dark);border-bottom:2px solid var(--pink-dark);transform:translateY(-65%) rotate(45deg);pointer-events:none;}
+  /* ---------- reports ---------- */
+  .monthnav{display:flex;align-items:center;gap:10px;margin-bottom:14px;}
+  .monthnav .ibtn{width:36px;height:36px;flex-shrink:0;font-size:18px;line-height:1;}
+  .monthlabel{flex:1;text-align:center;font-family:'Prompt',sans-serif;font-weight:600;font-size:15px;color:var(--pink-dark);}
+  .segbar{display:flex;gap:6px;background:var(--pink-pale);padding:4px;border-radius:12px;}
+  .segbtn{flex:1;border:none;background:transparent;padding:8px 4px;border-radius:9px;font-family:'Sarabun',sans-serif;font-size:12.5px;font-weight:600;color:var(--pink-dark);cursor:pointer;}
+  .segbtn.active{background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.08);}
+  .rptscroll{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+  .rpttable{border-collapse:collapse;font-size:11.5px;white-space:nowrap;font-variant-numeric:tabular-nums;}
+  .rpttable th,.rpttable td{border:1px solid var(--border);padding:5px 7px;text-align:center;}
+  .rpttable thead th{background:var(--pink-pale);color:var(--pink-dark);font-weight:600;position:sticky;top:0;}
+  .rpttable .namecol{position:sticky;left:0;background:#fff;text-align:left;min-width:118px;max-width:118px;overflow:hidden;text-overflow:ellipsis;z-index:1;}
+  .rpttable thead .namecol{background:var(--pink-pale);z-index:2;}
+  .rpttable .brrow td{background:#FFFBFD;text-align:left;font-weight:600;color:var(--pink-dark);}
+  .rpttable .weekend{background:#FAFAFA;}
+  .rpttable .totcol{background:#FFF9FC;font-weight:600;}
+  .rptlegend{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;}
+  .rptlegend span{font-size:11px;padding:3px 8px;border-radius:20px;border:1px solid var(--border);color:var(--muted);}
   .settingsrow{display:flex;align-items:center;gap:12px;padding:14px 0;border-bottom:1px solid var(--border);}
   .card > .settingsrow:last-child{border-bottom:none;}
   .switch{position:relative;display:inline-block;width:42px;height:24px;flex-shrink:0;}
@@ -631,6 +649,39 @@
       </section>
     </div>
 
+    <!-- Reports -->
+    <div id="atabReports" class="hidden">
+      <section>
+        <div class="branchselect"><select id="reportBranchFilter"></select></div>
+        <div class="monthnav">
+          <button class="ibtn" id="reportPrevMonth">‹</button>
+          <div class="monthlabel" id="reportMonthLabel">-</div>
+          <button class="ibtn" id="reportNextMonth">›</button>
+        </div>
+        <div class="segbar" id="reportViewBar">
+          <button class="segbtn active" data-rview="leave">ขาด-ลา</button>
+          <button class="segbtn" data-rview="late">มาสาย</button>
+          <button class="segbtn" data-rview="ot">OT</button>
+          <button class="segbtn" data-rview="summary">สรุปเดือน</button>
+        </div>
+      </section>
+      <section>
+        <div class="sectitle" id="reportTitle">ตารางขาด-ลา รายวัน</div>
+        <div class="card" style="padding:0;overflow:hidden;">
+          <div class="rptscroll"><table class="rpttable" id="reportTable"></table></div>
+        </div>
+        <div id="reportLegend" class="rptlegend"></div>
+      </section>
+      <section>
+        <div class="sectitle">ส่งรายงานเดือนนี้ไป Google Sheets</div>
+        <div class="card">
+          <div style="color:var(--muted);font-size:12px;margin-bottom:10px;">ส่งตารางทั้ง 4 แบบของเดือนที่เลือก ไปสร้าง/อัปเดตแท็บในไฟล์ Google Sheets เดิม (ไฟล์เดียวกับที่ซิ้งขาดลาอยู่) ใช้แทนตารางสรุปรายเดือนที่เคยทำมือ</div>
+          <button class="btn block" id="syncReportMonthBtn">ส่งรายงานเดือนนี้ไป Google Sheets</button>
+          <div class="msg" id="syncReportMsg"></div>
+        </div>
+      </section>
+    </div>
+
     <!-- Settings -->
     <div id="atabSettings" class="hidden">
       <section>
@@ -751,6 +802,7 @@
     <button class="navbtn" data-atab="Employees" onclick="switchATab('Employees')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg><span class="lbl">พนักงาน</span></button>
     <button class="navbtn" data-atab="Leaves" onclick="switchATab('Leaves')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></svg><span class="lbl">อนุมัติ</span></button>
     <button class="navbtn" data-atab="Inspect" onclick="switchATab('Inspect')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3M11 8v3l2 2"/></svg><span class="lbl">ตรวจ</span></button>
+    <button class="navbtn" data-atab="Reports" onclick="switchATab('Reports')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V9M10 20V4M16 20v-7M22 20H2"/></svg><span class="lbl">รายงาน</span></button>
     <button class="navbtn" data-atab="Settings" onclick="switchATab('Settings')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><span class="lbl">ตั้งค่า</span></button>
   </div>
 </div>
@@ -2461,17 +2513,18 @@ function enterApproverView(){
   switchATab('Leaves');
 }
 function switchATab(tab){
-  ['Overview','Employees','Leaves','Inspect','Settings'].forEach(t=>{
+  ['Overview','Employees','Leaves','Inspect','Reports','Settings'].forEach(t=>{
     const el = document.getElementById('atab'+t); if(el) el.classList.toggle('hidden', t!==tab);
   });
   document.querySelectorAll('#adminView .navbtn').forEach(b=> b.classList.toggle('active', b.dataset.atab===tab));
-  const titles = {Overview:'ภาพรวมองค์กร', Employees:'พนักงานทั้งหมด', Leaves:'จัดการอนุมัติ', Inspect:'ตรวจ', Settings:'ตั้งค่าระบบ'};
+  const titles = {Overview:'ภาพรวมองค์กร', Employees:'พนักงานทั้งหมด', Leaves:'จัดการอนุมัติ', Inspect:'ตรวจ', Reports:'รายงานสรุป', Settings:'ตั้งค่าระบบ'};
   document.getElementById('adminPageTitle').textContent = titles[tab];
   updateAdminHeaderMeta();
   if(tab==='Overview'){ renderBranchFilter(); renderOverviewStats(); renderEmpSummary(); }
   if(tab==='Employees') renderEmployeesView();
   if(tab==='Leaves'){ renderApprovalBranchFilter(); renderLeaveLists(); renderOtLists(); renderTransferList(); }
   if(tab==='Inspect'){ initInspectTab(); renderInspectTab(); }
+  if(tab==='Reports'){ initReportsTab(); renderReportsTab(); }
   if(tab==='Settings'){ renderDbStatus(); renderAdminEmpList(); renderApproverEditor(); renderBranchEditor(); renderAcPointEditor(); renderCleanPointEditor(); renderHolidayEditor(); renderNotifyTypesEditor(); renderTelegramRoomsEditor(); renderAuditLogViewer(); }
 }
 
@@ -2839,6 +2892,204 @@ function renderInspectTab(){
   });
   document.getElementById('inspectGroomList').innerHTML = groomHtml || '<div class="empty">ไม่มีพนักงานแผนกหน้าร้านในสาขาที่เลือก</div>';
 }
+
+/* ================= Reports tab ================= */
+const THAI_MONTHS = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+// รหัสย่อในตารางรายวัน (สั้นเพื่อให้ตารางทั้งเดือนอ่านได้บนมือถือ)
+const RPT_LEAVE_CODES = {
+  sick_cert:'ป+', sick_nocert:'ป-', personal_nodeduct:'ก+', personal_deduct:'ก-',
+  traditional:'ปณ', vacation:'พร', maternity:'คล', hourly_sick:'ชป', hourly_personal:'ชก',
+  sick:'ป', personal:'ก'
+};
+const RPT_LEGEND = [
+  ['ป+','ลาป่วย (มีใบรับรองแพทย์)'], ['ป-','ลาป่วย (ไม่มีใบรับรองแพทย์)'],
+  ['ก+','ลากิจ (ไม่หักเงิน)'], ['ก-','ลากิจ (หักเงิน)'],
+  ['ปณ','ลาวันหยุดประเพณี'], ['พร','ลาพักร้อน'], ['คล','ลาคลอด'],
+  ['ชป','ลาชั่วโมง (ป่วย)'], ['ชก','ลาชั่วโมง (กิจ)'],
+  ['ข','ขาดงาน'], ['—','วันหยุด']
+];
+let reportCursor = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+let reportView = 'leave';
+
+function initReportsTab(){
+  const sel = document.getElementById('reportBranchFilter');
+  if(!sel.dataset.wired){
+    sel.dataset.wired = '1';
+    sel.onchange = renderReportsTab;
+    document.getElementById('reportPrevMonth').onclick = ()=>{ reportCursor = new Date(reportCursor.getFullYear(), reportCursor.getMonth()-1, 1); renderReportsTab(); };
+    document.getElementById('reportNextMonth').onclick = ()=>{ reportCursor = new Date(reportCursor.getFullYear(), reportCursor.getMonth()+1, 1); renderReportsTab(); };
+    document.querySelectorAll('#reportViewBar .segbtn').forEach(b=>{
+      b.onclick = ()=>{ reportView = b.dataset.rview; renderReportsTab(); };
+    });
+  }
+  sel.innerHTML = `<option value="all">ทุกสาขา</option>` + db.branches.map(b=>`<option value="${b.id}">${b.name}</option>`).join('');
+  sel.value = sel.dataset.current || 'all';
+  sel.onchange = ()=>{ sel.dataset.current = sel.value; renderReportsTab(); };
+}
+
+function otHours(o){
+  if(!o.hourStart || !o.hourEnd) return 0;
+  const [sh,sm] = o.hourStart.split(':').map(Number);
+  const [eh,em] = o.hourEnd.split(':').map(Number);
+  let mins = (eh*60+em) - (sh*60+sm);
+  if(mins < 0) mins += 24*60;
+  return Math.round(mins/60*100)/100;
+}
+function leaveHours(l){
+  if(!l.hourStart || !l.hourEnd) return 0;
+  const [sh,sm] = l.hourStart.split(':').map(Number);
+  const [eh,em] = l.hourEnd.split(':').map(Number);
+  return Math.max(0, Math.round(((eh*60+em)-(sh*60+sm))/60*100)/100);
+}
+
+// รวบรวมข้อมูลทั้งเดือนของทุกคนไว้ก้อนเดียว ใช้ร่วมกันทั้งการแสดงผลบนหน้าจอและการส่งไป Google Sheets
+function buildMonthReport(){
+  const y = reportCursor.getFullYear(), m = reportCursor.getMonth();
+  const daysInMonth = new Date(y, m+1, 0).getDate();
+  const days = []; for(let d=1; d<=daysInMonth; d++) days.push(new Date(y, m, d));
+  const branchVal = document.getElementById('reportBranchFilter')?.dataset.current || 'all';
+  const branches = branchVal==='all' ? db.branches : db.branches.filter(b=>b.id===branchVal);
+  const today = new Date();
+  const groups = branches.map(br=>{
+    const emps = db.employees.filter(e=>e.branchId===br.id).sort((a,b)=>a.name.localeCompare(b.name,'th'));
+    return { branch: br, rows: emps.map(e=>{
+      const cells = days.map(d=>{
+        const cell = { day:d, code:'', late:0, ot:0, off:false };
+        const offWeekly = (br.weeklyOffDays||[]).includes(d.getDay());
+        if(!hasStartedBy(e, d)) { cell.code = ''; cell.na = true; return cell; }
+        const leave = db.leaves.find(l=>l.employeeId===e.id && l.status==='approved' && new Date(l.from+'T00:00:00')<=d && d<=new Date(l.to+'T00:00:00'));
+        const inLog = db.logs.find(l=>l.employeeId===e.id && l.type==='IN' && todayKey(new Date(l.time))===d.toDateString());
+        if(inLog) cell.late = inLog.lateMinutes||0;
+        db.otRequests.filter(o=>o.employeeId===e.id && o.status==='approved' && o.date===dateKey(d)).forEach(o=>{ cell.ot += otHours(o); });
+        if(leave){ cell.code = RPT_LEAVE_CODES[leave.kind] || 'ล'; cell.leaveKind = leave.kind; cell.leaveHours = leaveHours(leave); }
+        else if(isHoliday(d) || offWeekly){ cell.code = '—'; cell.off = true; }
+        else if(!inLog && d <= today) cell.code = 'ข';
+        return cell;
+      });
+      const s = { present:0, lateCount:0, lateMinutes:0, absent:0, otHours:0, leaveHours:0, byKind:{} };
+      cells.forEach(c=>{
+        if(c.na) return;
+        s.otHours += c.ot;
+        if(c.late>0){ s.lateCount++; s.lateMinutes += c.late; }
+        if(c.leaveKind){
+          if(HOURLY_KINDS.includes(c.leaveKind)){ s.leaveHours += c.leaveHours||0; s.present++; }
+          else s.byKind[c.leaveKind] = (s.byKind[c.leaveKind]||0) + 1;
+        }
+        else if(c.code==='ข') s.absent++;
+        else if(!c.off) s.present++;
+      });
+      s.otHours = Math.round(s.otHours*100)/100;
+      s.leaveHours = Math.round(s.leaveHours*100)/100;
+      s.leaveDays = Object.values(s.byKind).reduce((a,b)=>a+b,0);
+      return { emp:e, cells, summary:s };
+    })};
+  }).filter(g=>g.rows.length);
+  return { y, m, days, groups };
+}
+
+const RPT_SUMMARY_KINDS = ['sick_cert','sick_nocert','personal_nodeduct','personal_deduct','traditional','vacation','maternity'];
+
+function renderReportsTab(){
+  document.getElementById('reportMonthLabel').textContent = `${THAI_MONTHS[reportCursor.getMonth()]} ${reportCursor.getFullYear()+543}`;
+  document.querySelectorAll('#reportViewBar .segbtn').forEach(b=> b.classList.toggle('active', b.dataset.rview===reportView));
+  const titles = { leave:'ตารางขาด-ลา รายวัน', late:'ตารางนาทีที่มาสาย รายวัน', ot:'ตารางชั่วโมง OT รายวัน (อนุมัติแล้ว)', summary:'สรุปรวมทั้งเดือน' };
+  document.getElementById('reportTitle').textContent = titles[reportView];
+  document.getElementById('reportLegend').innerHTML = reportView==='leave'
+    ? RPT_LEGEND.map(([c,t])=>`<span><b>${c}</b> ${t}</span>`).join('') : '';
+
+  const rpt = buildMonthReport();
+  const table = document.getElementById('reportTable');
+  if(!rpt.groups.length){ table.innerHTML = `<tbody><tr><td style="border:none;"><div class="empty">ไม่มีพนักงานในสาขาที่เลือก</div></td></tr></tbody>`; return; }
+  table.innerHTML = reportView==='summary' ? summaryTableHTML(rpt) : dailyTableHTML(rpt, reportView);
+}
+
+function dailyTableHTML(rpt, view){
+  const totLabel = view==='leave' ? 'ขาด/ลา' : view==='late' ? 'รวมนาที' : 'รวม ชม.';
+  let html = `<thead><tr><th class="namecol">ชื่อพนักงาน</th>`;
+  rpt.days.forEach(d=>{ const wk = d.getDay()===0||d.getDay()===6; html += `<th class="${wk?'weekend':''}">${d.getDate()}</th>`; });
+  html += `<th class="totcol">${totLabel}</th></tr></thead><tbody>`;
+  const span = rpt.days.length + 2;
+  rpt.groups.forEach(g=>{
+    html += `<tr class="brrow"><td colspan="${span}">${g.branch.name}</td></tr>`;
+    g.rows.forEach(r=>{
+      html += `<tr><td class="namecol">${r.emp.name}${r.emp.nickname?` (${r.emp.nickname})`:''}</td>`;
+      r.cells.forEach(c=>{
+        const wk = c.day.getDay()===0||c.day.getDay()===6;
+        let txt = '', color = '';
+        if(view==='leave'){ txt = c.code; if(c.code==='ข') color='color:var(--red);font-weight:600;'; else if(c.code==='—') color='color:#D1D5DB;'; else if(c.code) color='color:var(--blue);font-weight:600;'; }
+        else if(view==='late'){ if(c.late>0){ txt = c.late; color='color:var(--amber);font-weight:600;'; } }
+        else { if(c.ot>0){ txt = c.ot; color='color:var(--green);font-weight:600;'; } }
+        html += `<td class="${wk?'weekend':''}" style="${color}">${txt}</td>`;
+      });
+      const tot = view==='leave' ? (r.summary.absent + r.summary.leaveDays)
+        : view==='late' ? r.summary.lateMinutes : r.summary.otHours;
+      html += `<td class="totcol">${tot||''}</td></tr>`;
+    });
+  });
+  return html + `</tbody>`;
+}
+
+function summaryTableHTML(rpt){
+  const kindCols = RPT_SUMMARY_KINDS;
+  let html = `<thead><tr><th class="namecol">ชื่อพนักงาน</th><th>มาทำงาน</th><th>สาย (ครั้ง)</th><th>รวมนาทีสาย</th><th>ขาดงาน</th>`;
+  kindCols.forEach(k=>{ html += `<th>${leaveLabel(k)}</th>`; });
+  html += `<th>ลาชั่วโมง (ชม.)</th><th class="totcol">OT (ชม.)</th></tr></thead><tbody>`;
+  const span = 6 + kindCols.length + 2;
+  rpt.groups.forEach(g=>{
+    html += `<tr class="brrow"><td colspan="${span}">${g.branch.name}</td></tr>`;
+    g.rows.forEach(r=>{
+      const s = r.summary;
+      html += `<tr><td class="namecol">${r.emp.name}${r.emp.nickname?` (${r.emp.nickname})`:''}</td>`
+        + `<td>${s.present}</td><td style="${s.lateCount?'color:var(--amber);font-weight:600;':''}">${s.lateCount||''}</td>`
+        + `<td style="${s.lateMinutes?'color:var(--amber);font-weight:600;':''}">${s.lateMinutes||''}</td>`
+        + `<td style="${s.absent?'color:var(--red);font-weight:600;':''}">${s.absent||''}</td>`;
+      kindCols.forEach(k=>{ html += `<td>${s.byKind[k]||''}</td>`; });
+      html += `<td>${s.leaveHours||''}</td><td class="totcol">${s.otHours||''}</td></tr>`;
+    });
+  });
+  return html + `</tbody>`;
+}
+
+// แปลงรายงานทั้ง 4 แบบเป็น {name, headers, rows} เพื่อส่งไปสร้างแท็บใน Google Sheets
+function reportSheetPayload(rpt){
+  const tag = `${rpt.y+543}-${String(rpt.m+1).padStart(2,'0')}`;
+  const dayHeaders = rpt.days.map(d=>String(d.getDate()));
+  const flat = [];
+  rpt.groups.forEach(g=> g.rows.forEach(r=> flat.push({ br:g.branch.name, ...r })));
+  const mk = (name, headers, rowFn) => ({ name, headers, rows: flat.map(rowFn) });
+  return [
+    mk(`รายงานลา ${tag}`, ['สาขา','ชื่อพนักงาน','ชื่อเล่น',...dayHeaders,'ขาด (วัน)','ลา (วัน)'],
+      r=>[r.br, r.emp.name, r.emp.nickname||'', ...r.cells.map(c=>c.code), r.summary.absent, r.summary.leaveDays]),
+    mk(`รายงานสาย ${tag}`, ['สาขา','ชื่อพนักงาน','ชื่อเล่น',...dayHeaders,'สาย (ครั้ง)','รวมนาที'],
+      r=>[r.br, r.emp.name, r.emp.nickname||'', ...r.cells.map(c=>c.late||''), r.summary.lateCount, r.summary.lateMinutes]),
+    mk(`รายงาน OT ${tag}`, ['สาขา','ชื่อพนักงาน','ชื่อเล่น',...dayHeaders,'รวม ชม.'],
+      r=>[r.br, r.emp.name, r.emp.nickname||'', ...r.cells.map(c=>c.ot||''), r.summary.otHours]),
+    mk(`สรุปเดือน ${tag}`,
+      ['สาขา','ชื่อพนักงาน','ชื่อเล่น','มาทำงาน','สาย (ครั้ง)','รวมนาทีสาย','ขาดงาน', ...RPT_SUMMARY_KINDS.map(leaveLabel), 'ลาชั่วโมง (ชม.)','OT (ชม.)'],
+      r=>[r.br, r.emp.name, r.emp.nickname||'', r.summary.present, r.summary.lateCount, r.summary.lateMinutes, r.summary.absent,
+          ...RPT_SUMMARY_KINDS.map(k=>r.summary.byKind[k]||0), r.summary.leaveHours, r.summary.otHours])
+  ];
+}
+
+document.getElementById('syncReportMonthBtn').onclick = async ()=>{
+  const btn = document.getElementById('syncReportMonthBtn');
+  const msg = document.getElementById('syncReportMsg');
+  const url = db.settings.gsheetWebappUrl, secret = db.settings.gsheetSecret;
+  if(!url){ msg.className='msg err'; msg.textContent='ยังไม่ได้ตั้งค่า Google Sheets Web App URL ที่หน้าตั้งค่า'; return; }
+  const rpt = buildMonthReport();
+  if(!rpt.groups.length){ msg.className='msg err'; msg.textContent='ไม่มีข้อมูลให้ส่ง'; return; }
+  btn.disabled = true; msg.className='msg'; msg.textContent='กำลังส่ง...';
+  try{
+    // ใช้ Content-Type: text/plain เพื่อเลี่ยง CORS preflight (Apps Script ไม่ตอบ OPTIONS)
+    const res = await fetch(url, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify({ secret, reports: reportSheetPayload(rpt) }) });
+    const out = await res.json();
+    if(out.ok){ msg.className='msg ok'; msg.textContent = `ส่งสำเร็จ — อัปเดตแท็บ: ${(out.reports||[]).join(', ')}`; }
+    else { msg.className='msg err'; msg.textContent = 'ส่งไม่สำเร็จ — ' + (out.error||'ไม่ทราบสาเหตุ'); }
+  }catch(err){
+    msg.className='msg err'; msg.textContent = 'ส่งไม่สำเร็จ — ' + err.message + ' (ตรวจว่า Deploy เป็น Web app แบบ Who has access: Anyone และ deploy เวอร์ชันล่าสุดแล้ว)';
+  }finally{ btn.disabled = false; }
+};
 
 function renderApprovalBranchFilter(){
   const sel = document.getElementById('approvalBranchFilter'); if(!sel) return;
