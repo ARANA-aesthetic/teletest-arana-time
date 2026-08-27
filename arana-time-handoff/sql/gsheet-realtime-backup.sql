@@ -58,8 +58,11 @@ begin
   end if;
 
   -- ===== ขาดลา (leaves) — ส่งทุกสถานะ เพื่อเก็บเป็นบันทึกครบถ้วน =====
+  -- โครงสร้าง A:T ตั้งใจให้ตรงกับคอลัมน์ A:P ของชีทเดิม "ข้อมูลแจ้งลา(สาขา) ปี 69"
+  -- (ดูคอมเมนต์ใน arana-sheets-sync.gs) Q:T เป็นคอลัมน์ใหม่ต่อท้าย ไม่กระทบสูตร All_Data เดิม
   for rec in
-    select l.id, l.requested_at, e.name as emp_name, br.name as branch_name,
+    select l.id, l.requested_at, e.name as emp_name, e.nickname as emp_nickname, e.email as emp_email,
+           e.job_title as emp_job_title, br.name as branch_name,
            l.kind, l.from_date, l.to_date, l.from_time, l.to_time, l.reason, l.status, l.decided_at, l.employee_id
     from leaves l
     left join employees e on e.id = l.employee_id
@@ -70,19 +73,56 @@ begin
   loop
     v_leave_ids := array_append(v_leave_ids, rec.id);
     v_leaves := v_leaves || jsonb_build_array(jsonb_build_array(
-      to_char(rec.requested_at at time zone 'Asia/Bangkok', 'YYYY-MM-DD HH24:MI'),
-      coalesce(rec.emp_name, '(ลบแล้ว)'),
-      coalesce(rec.branch_name, '-'),
-      rec.kind,
+      -- A: แจ้งก่อน (วัน) — จำนวนวัน(ทศนิยม)ระหว่างวันที่ยื่นกับวันที่เริ่มลา
+      round(extract(epoch from (rec.from_date::timestamp - rec.requested_at at time zone 'Asia/Bangkok'))/86400.0, 4),
+      -- B: เดือน — ชีทเดิมใส่ค่าเดียวกับ "ลาวันที่" ไว้ตรงนี้
       rec.from_date::text,
+      -- C: ประทับเวลา
+      to_char(rec.requested_at at time zone 'Asia/Bangkok', 'YYYY-MM-DD HH24:MI'),
+      -- D: ที่อยู่อีเมล
+      coalesce(rec.emp_email, ''),
+      -- E: ชื่อ-นามสกุล
+      coalesce(rec.emp_name, '(ลบแล้ว)'),
+      -- F: ชื่อเล่น
+      coalesce(rec.emp_nickname, ''),
+      -- G: ร้าน/สาขา
+      coalesce(rec.branch_name, '-'),
+      -- H: ตำแหน่งงาน
+      coalesce(rec.emp_job_title, ''),
+      -- I: ลาวันที่
+      rec.from_date::text,
+      -- J: ลาถึงวันที่
       rec.to_date::text,
-      case when rec.from_time is not null then rec.from_time::text || '-' || rec.to_time::text else '' end,
-      case when rec.from_time is not null then round(extract(epoch from (rec.to_time::time - rec.from_time::time))/3600.0, 1)
-           else (rec.to_date - rec.from_date + 1) end,
+      -- K: จำนวนวันที่ลา (ว่างถ้าเป็นการลารายชั่วโมง)
+      case when rec.from_time is null then (rec.to_date - rec.from_date + 1) else null end,
+      -- L: ประเภทการลา (ป้ายภาษาไทยชุดเดียวกับที่แอปใช้แสดงผล)
+      case rec.kind
+        when 'sick_cert' then 'ลาป่วย (มีใบรับรองแพทย์)'
+        when 'sick_nocert' then 'ลาป่วย (ไม่มีใบรับรองแพทย์)'
+        when 'personal_nodeduct' then 'ลากิจ (ไม่หักเงิน)'
+        when 'personal_deduct' then 'ลากิจ (หักเงิน)'
+        when 'traditional' then 'ลาใช้สิทธิ์วันหยุดประเพณี'
+        when 'vacation' then 'ลาพักร้อน'
+        when 'maternity' then 'ลาคลอด'
+        when 'hourly_sick' then 'ลาเป็นชั่วโมง (ป่วย)'
+        when 'hourly_personal' then 'ลาเป็นชั่วโมง (กิจ)'
+        else rec.kind
+      end,
+      -- M: จำนวนชั่วโมง (ว่างถ้าไม่ใช่การลารายชั่วโมง)
+      case when rec.from_time is not null then round(extract(epoch from (rec.to_time::time - rec.from_time::time))/3600.0, 2) else null end,
+      -- N: ลาเป็นชั่วโมง เริ่มเวลา
+      case when rec.from_time is not null then rec.from_time::text else '' end,
+      -- O: ลาเป็นชั่วโมง ถึงเวลา
+      case when rec.to_time is not null then rec.to_time::text else '' end,
+      -- P: เหตุผลในการลา
       coalesce(rec.reason, ''),
+      -- Q: สถานะ (คอลัมน์ใหม่)
       rec.status,
+      -- R: วันที่ตัดสิน (คอลัมน์ใหม่)
       case when rec.decided_at is not null then to_char(rec.decided_at at time zone 'Asia/Bangkok', 'YYYY-MM-DD HH24:MI') else '' end,
+      -- S: leave_id (คอลัมน์ใหม่)
       rec.id::text,
+      -- T: employee_id (คอลัมน์ใหม่)
       coalesce(rec.employee_id::text, '')
     ));
   end loop;
