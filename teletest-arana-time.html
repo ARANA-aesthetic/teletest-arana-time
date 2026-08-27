@@ -4033,7 +4033,9 @@ function shiftLateMinutes(emp, now){
   if(!emp.shiftStart) return 0;
   const todayStr = dateKey(now);
   const toMin = t => { const [h,m] = t.split(':').map(Number); return h*60 + m; };
+  // ตั้งต้นจากเวลาเข้ากะของพนักงานคนนั้นเสมอ (แต่ละคนกะไม่เท่ากัน)
   let baseMin = toMin(emp.shiftStart);
+  let backFromLeave = false;
   // ใบลาเป็นชั่วโมงที่ครอบคลุมช่วงต้นกะ (เริ่มลาไม่เกินเวลาเข้างาน) ให้เลื่อนจุดเริ่มนับสาย
   // ไปที่เวลาสิ้นสุดการลาแทน — แต่ใบลาชั่วโมงที่อยู่กลางวันหรือท้ายวัน (เช่นขอออกก่อน)
   // ต้องไม่เลื่อน ไม่งั้นคนที่ขอลาช่วงบ่ายแล้วมาสายตอนเช้าจะไม่ถูกนับว่าสายเลย
@@ -4042,9 +4044,12 @@ function shiftLateMinutes(emp, now){
                  && l.from===todayStr && l.hourStart && l.hourEnd)
     .forEach(l=>{
       const start = toMin(l.hourStart), end = toMin(l.hourEnd);
-      if(start <= baseMin && end > baseMin) baseMin = end;
+      if(start <= baseMin && end > baseMin){ baseMin = end; backFromLeave = true; }
     });
-  const shiftDate = new Date(now); shiftDate.setHours(0, baseMin + (db.settings.graceMinutes||0), 0, 0);
+  // เวลาผ่อนผันมีไว้เผื่อการเดินทางมาเข้างานตอนต้นวันเท่านั้น กรณีกลับจากลาเป็นชั่วโมง
+  // พนักงานเป็นผู้ระบุเวลากลับเองในใบลา จึงต้องกลับตรงเวลานั้น ไม่ได้รับผ่อนผันซ้ำอีกรอบ
+  const grace = backFromLeave ? 0 : (db.settings.graceMinutes||0);
+  const shiftDate = new Date(now); shiftDate.setHours(0, baseMin + grace, 0, 0);
   const diffMin = Math.round((now - shiftDate)/60000);
   return diffMin > 0 ? diffMin : 0;
 }
