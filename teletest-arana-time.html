@@ -455,6 +455,7 @@
         <div class="menu-item" id="menuHome"><div class="ic">◐</div><div class="lbl" id="menuHomeLbl">ตั้งพิกัดบ้าน</div></div>
         <div class="menu-item" id="menuCalShort"><div class="ic">▦</div><div class="lbl">วันหยุดบริษัท</div></div>
         <div class="menu-item" id="menuAcShort"><div class="ic">AC</div><div class="lbl">จุดปิดแอร์</div></div>
+        <div class="menu-item" id="menuBranchTransfer"><div class="ic">⇄</div><div class="lbl">ขอไปสาขาอื่น</div></div>
         <div class="menu-item" id="menuLogout"><div class="ic">⏻</div><div class="lbl">ออกจากระบบ</div></div>
       </div>
     </div>
@@ -563,6 +564,10 @@
       <section>
         <div class="sectitle">ประวัติ OT ทั้งหมด<button class="btn ghost sm" style="margin-left:auto;" id="exportOtReportBtn">Report</button></div>
         <div class="card" id="allOtList" style="padding:0 16px;"></div>
+      </section>
+      <section>
+        <div class="sectitle">คำขอไปทำงานสาขาอื่นรออนุมัติ</div>
+        <div class="card" id="pendingTransferList" style="padding:0 16px;"></div>
       </section>
     </div>
 
@@ -750,6 +755,29 @@
   </div>
 </div>
 
+<!-- Branch transfer request modal -->
+<div class="overlay" id="branchTransferOverlay">
+  <div class="modal">
+    <h3>ขอไปทำงานสาขาอื่น</h3>
+    <div class="hint">วันที่ได้รับอนุมัติ ระบบจะสลับสาขาให้อัตโนมัติ ไม่ต้องเช็ก GPS ระยะทาง และไม่ต้องส่งจุดปิดแอร์/ความสะอาด (ให้พนักงานสาขานั้นดูแลแทน) ส่วนความเรียบร้อยยังส่งได้ตามปกติ</div>
+    <label>สาขาที่จะไปทำงาน</label>
+    <select id="transferBranch"></select>
+    <div class="row2">
+      <div><label>วันที่เริ่ม</label><div id="transferFrom_holder"></div></div>
+      <div><label>ถึงวันที่</label><div id="transferTo_holder"></div></div>
+    </div>
+    <label>เหตุผล</label>
+    <textarea id="transferReason" placeholder="เช่น ไปช่วยงานสาขาต่างจังหวัด"></textarea>
+    <div class="modalfoot">
+      <button class="btn block" id="submitTransferBtn">ส่งคำขอ</button>
+      <button class="btn gray" id="closeTransferBtn">ยกเลิก</button>
+    </div>
+    <div class="msg" id="transferFormMsg"></div>
+    <div class="hint" style="margin-top:14px;">คำขอของฉัน</div>
+    <div id="myTransferList" style="margin-top:8px;"></div>
+  </div>
+</div>
+
 <!-- Change PIN modal -->
 <div class="overlay" id="changePinOverlay">
   <div class="modal">
@@ -854,6 +882,7 @@ function defaultDB(){
     logs: [],
     leaves: [],
     otRequests: [],
+    branchTransfers: [],
     notifications: [],
     settings: { centralToken:'', centralChatId:'', otChatId:'', graceMinutes:15, adminPassword:'admin1234', holidays:[], telegramRooms:[],
       notifyTypes: { checkin:true, checkout:true, ac:true, clean:true, groom:true, leaveSubmit:true, leaveDecision:true, otSubmit:true, otDecision:true } }
@@ -1035,6 +1064,9 @@ const leaveToRow = l => ({ id:l.id, employee_id:l.employeeId, kind:l.kind, from_
 const rowToOt = r => ({ id:r.id, employeeId:r.employee_id, date:r.date, hourStart:r.hour_start, hourEnd:r.hour_end, reason:r.reason||'', status:r.status, requestedAt:r.requested_at, decidedAt:r.decided_at||null });
 const otToRow = o => ({ id:o.id, employee_id:o.employeeId, date:o.date, hour_start:o.hourStart, hour_end:o.hourEnd, reason:o.reason||null, status:o.status, requested_at:o.requestedAt, decided_at:o.decidedAt||null });
 
+const rowToBranchTransfer = r => ({ id:r.id, employeeId:r.employee_id, branchId:r.branch_id, fromDate:r.from_date, toDate:r.to_date, reason:r.reason||'', status:r.status, requestedAt:r.requested_at, decidedAt:r.decided_at||null });
+const branchTransferToRow = t => ({ id:t.id, employee_id:t.employeeId, branch_id:t.branchId, from_date:t.fromDate, to_date:t.toDate, reason:t.reason||null, status:t.status, requested_at:t.requestedAt, decided_at:t.decidedAt||null });
+
 const rowToNoti = r => ({ id:r.id, employeeId:r.employee_id, title:r.title, body:r.body, time:r.time, read:!!r.read });
 const notiToRow = n => ({ id:n.id, employee_id:n.employeeId, title:n.title, body:n.body, time:n.time, read:!!n.read });
 
@@ -1042,9 +1074,9 @@ const rowToSettings = r => ({ centralToken:r.central_token||'', centralChatId:r.
 const settingsToRow = s => ({ id:1, central_token:s.centralToken||'', central_chat_id:s.centralChatId||'', ot_chat_id:s.otChatId||'', grace_minutes:s.graceMinutes??15, admin_password:s.adminPassword||'admin1234', holidays:s.holidays||[], notify_types:s.notifyTypes||{}, telegram_rooms:s.telegramRooms||[] });
 
 async function loadDB(){
-  const [branchRows, empRows, approverRows, logRows, leaveRows, otRows, notiRows, settingsRows] = await Promise.all([
+  const [branchRows, empRows, approverRows, logRows, leaveRows, otRows, transferRows, notiRows, settingsRows] = await Promise.all([
     sbSelectAll('branches'), sbSelectAll('employees'), sbSelectAll('approvers'), sbSelectAll('logs'),
-    sbSelectAll('leaves'), sbSelectAll('ot_requests'), sbSelectAll('notifications'), sbSelectAll('settings')
+    sbSelectAll('leaves'), sbSelectAll('ot_requests'), sbSelectAll('branch_transfers'), sbSelectAll('notifications'), sbSelectAll('settings')
   ]);
   db = defaultDB();
   if(branchRows.length) db.branches = branchRows.map(rowToBranch);
@@ -1053,6 +1085,7 @@ async function loadDB(){
   db.logs = logRows.map(rowToLog);
   db.leaves = leaveRows.map(rowToLeave);
   db.otRequests = otRows.map(rowToOt);
+  db.branchTransfers = transferRows.map(rowToBranchTransfer);
   db.notifications = notiRows.map(rowToNoti);
   if(settingsRows.length) db.settings = { ...defaultDB().settings, ...rowToSettings(settingsRows[0]) };
   db.settings.notifyTypes = { ...defaultDB().settings.notifyTypes, ...(db.settings.notifyTypes||{}) };
@@ -1067,6 +1100,7 @@ async function saveDB(){
 async function saveLogRow(row){ await sbUpsertRow('logs', logToRow(row)); }
 async function saveLeaveRow(row){ await sbUpsertRow('leaves', leaveToRow(row)); }
 async function saveOtRow(row){ await sbUpsertRow('ot_requests', otToRow(row)); }
+async function saveBranchTransferRow(row){ await sbUpsertRow('branch_transfers', branchTransferToRow(row)); }
 async function saveNotificationRow(row){ await sbUpsertRow('notifications', notiToRow(row)); }
 
 async function saveEmployeeRow(row){ return await sbUpsertRow('employees', employeeToRow(row)); }
@@ -1198,7 +1232,21 @@ function updateScanButtonLabel(){
 }
 
 function currentEmployee(){ return db.employees.find(e=>e.id===session.employeeId) || null; }
-function currentBranch(emp){ return db.branches.find(b=>b.id===emp?.branchId) || null; }
+function currentBranch(emp){
+  if(!emp) return null;
+  const today = dateKey(new Date());
+  const transfer = (db.branchTransfers||[]).find(t=>t.employeeId===emp.id && t.status==='approved' && t.fromDate<=today && t.toDate>=today);
+  if(transfer){
+    const tb = db.branches.find(b=>b.id===transfer.branchId);
+    if(tb) return tb;
+  }
+  return db.branches.find(b=>b.id===emp.branchId) || null;
+}
+function isOnBranchTransferToday(emp){
+  if(!emp) return false;
+  const today = dateKey(new Date());
+  return (db.branchTransfers||[]).some(t=>t.employeeId===emp.id && t.status==='approved' && t.fromDate<=today && t.toDate>=today);
+}
 function dateKey(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
 function todayKey(d=new Date()){ return d.toDateString(); }
 function isHoliday(date){ return db.settings.holidays.some(h=>h.date===dateKey(date)); }
@@ -1517,7 +1565,7 @@ function switchETab(tab){
   const emp = currentEmployee(); if(!emp) return;
   const br = currentBranch(emp);
   const titles = {Home:`สวัสดี, ${emp.name.split(' ')[0]}`, Cal:'ปฏิทินการทำงาน', Leave:'ใบลาของฉัน', Ac:'จุดปิดแอร์', Clean:'ตรวจความสะอาด', Ot:'ขอ OT', Noti:'แจ้งเตือน', Profile:'โปรไฟล์'};
-  const metas = {Home:`${br?.name||'-'} · กะ ${emp.shiftStart||'-'}–${emp.shiftEnd||'-'} น.`, Cal:br?.name||'-', Leave:'ยื่นและติดตามใบลาของคุณ', Ac:br?.name||'-', Clean:br?.name||'-', Ot:'ยื่นและติดตามคำขอ OT', Noti:'ประวัติการแจ้งเตือนของคุณ', Profile:'จัดการบัญชีของคุณ'};
+  const metas = {Home:`${br?.name||'-'}${isOnBranchTransferToday(emp)?' (ชั่วคราว)':''} · กะ ${emp.shiftStart||'-'}–${emp.shiftEnd||'-'} น.`, Cal:br?.name||'-', Leave:'ยื่นและติดตามใบลาของคุณ', Ac:br?.name||'-', Clean:br?.name||'-', Ot:'ยื่นและติดตามคำขอ OT', Noti:'ประวัติการแจ้งเตือนของคุณ', Profile:'จัดการบัญชีของคุณ'};
   document.getElementById('empPageTitle').textContent = titles[tab];
   document.getElementById('empPageMeta').textContent = metas[tab];
   document.getElementById('empDropdownName').textContent = emp.name;
@@ -1561,6 +1609,9 @@ function renderEmployeeHome(){
 
   const br = currentBranch(emp);
   document.getElementById('qaGroom').classList.toggle('hidden', (emp.department||'').trim() !== 'หน้าร้าน');
+  const onTransfer = isOnBranchTransferToday(emp);
+  document.getElementById('qaAc').classList.toggle('hidden', onTransfer);
+  document.getElementById('qaClean').classList.toggle('hidden', onTransfer);
   if(br){
     const todayAcLogs = db.logs.filter(l=>l.type==='AC' && l.branchId===br.id && todayKey(new Date(l.time))===todayKey());
     const doneAcIds = new Set(todayAcLogs.map(l=>l.acPointId));
@@ -1583,6 +1634,9 @@ document.getElementById('empScanBtn').onclick = async ()=>{
   const emp = currentEmployee(); const br = currentBranch(emp);
   if(!emp.descriptor){ openCamera('enroll', emp); return; }
   const note = document.getElementById('empScanNote');
+  if(isOnBranchTransferToday(emp)){
+    note.textContent=''; openCamera('scan', emp, null, null); return;
+  }
   note.style.color = 'var(--muted)'; note.textContent = 'กำลังตรวจสอบตำแหน่ง…';
   const pos = await getPosition();
   if(!br || br.lat==null || br.lng==null){ note.style.color='var(--red)'; note.textContent='ยังไม่ได้ตั้งพิกัดสาขานี้ กรุณาแจ้ง HR'; return; }
@@ -1899,6 +1953,31 @@ document.getElementById('submitOtBtn').onclick = async ()=>{
   await pushNotification(emp.id, 'ส่งคำขอ OT แล้ว', `${date} เวลา ${hourStart}-${hourEnd} กำลังรอการอนุมัติ`);
   setTimeout(()=>{ document.getElementById('otOverlay').classList.remove('show'); }, 900);
 };
+function renderTransferList(){
+  const pending = db.branchTransfers.filter(t=>t.status==='pending').sort((a,b)=>new Date(a.requestedAt)-new Date(b.requestedAt));
+  const el = document.getElementById('pendingTransferList');
+  el.innerHTML = pending.length ? pending.map(t=>{
+    const emp = db.employees.find(e=>e.id===t.employeeId);
+    const homeBr = db.branches.find(b=>b.id===emp?.branchId);
+    const targetBr = db.branches.find(b=>b.id===t.branchId);
+    return `<div class="listrow" style="flex-direction:column;align-items:stretch;gap:6px;">
+      <div style="display:flex;align-items:center;gap:12px;"><div class="avatar">${emp?.name.trim()[0]||'?'}</div><div class="info"><div class="name">${emp?.name||'-'} (${homeBr?.name||'-'} → ${targetBr?.name||'-'})</div><div class="meta">${t.fromDate}${t.fromDate!==t.toDate?' – '+t.toDate:''} · ${t.reason||'-'}</div></div></div>
+      ${canApproveLeave() ? `<div class="actionrow"><button class="btn-mini approve" data-transferapprove="${t.id}">อนุมัติ</button><button class="btn-mini reject" data-transferreject="${t.id}">ปฏิเสธ</button></div>` : `<div style="font-size:11.5px;color:var(--muted);">ไม่มีสิทธิ์อนุมัติรายการนี้ (ต้องเป็นเจ้าของ/HR/ผู้จัดการ)</div>`}
+    </div>`;
+  }).join('') : '<div class="empty">ไม่มีคำขอไปทำงานสาขาอื่นที่รออนุมัติ</div>';
+  el.querySelectorAll('[data-transferapprove]').forEach(b=> b.onclick = ()=> decideTransfer(b.dataset.transferapprove,'approved'));
+  el.querySelectorAll('[data-transferreject]').forEach(b=> b.onclick = ()=> decideTransfer(b.dataset.transferreject,'rejected'));
+}
+async function decideTransfer(id, status){
+  if(!canApproveLeave()){ alert('ไม่มีสิทธิ์อนุมัติ ต้องเป็นเจ้าของ/HR/ผู้จัดการ'); return; }
+  const t = db.branchTransfers.find(x=>x.id===id); if(!t) return;
+  t.status = status; t.decidedAt = new Date().toISOString(); await saveBranchTransferRow(t);
+  const emp = db.employees.find(e=>e.id===t.employeeId);
+  const targetBr = db.branches.find(b=>b.id===t.branchId);
+  if(db.settings.notifyTypes.leaveDecision && db.settings.centralChatId) await tgSendMessage(db.settings.centralToken, db.settings.centralChatId, `คำขอไปทำงานสาขา ${targetBr?.name||'-'} ของ <b>${emp?.name}</b> (${t.fromDate}${t.fromDate!==t.toDate?' – '+t.toDate:''}) ถูก${status==='approved'?'อนุมัติ':'ปฏิเสธ'}แล้ว`);
+  await pushNotification(emp.id, status==='approved'?'คำขอไปสาขาอื่นได้รับการอนุมัติ':'คำขอไปสาขาอื่นถูกปฏิเสธ', `${targetBr?.name||'-'} ${t.fromDate}${t.fromDate!==t.toDate?' – '+t.toDate:''}`);
+  renderTransferList();
+}
 async function decideOt(id, status){
   if(!canApproveOt()){ alert('ไม่มีสิทธิ์อนุมัติ OT ต้องเป็นเจ้าของ/HR เท่านั้น'); return; }
   const ot = db.otRequests.find(o=>o.id===id); if(!ot) return;
@@ -1939,6 +2018,46 @@ function renderProfileTab(){
   document.getElementById('profRole').textContent = `${br?.name||'-'} · พนักงาน`;
 }
 document.getElementById('menuFace').onclick = ()=>{ const emp = currentEmployee(); openCamera('enroll', emp); };
+document.getElementById('menuBranchTransfer').onclick = ()=> openBranchTransferForm();
+function transferStatusLabel(s){ return s==='pending'?'รออนุมัติ':s==='approved'?'อนุมัติแล้ว':'ปฏิเสธ'; }
+function renderMyTransferList(){
+  const emp = currentEmployee(); if(!emp) return;
+  const mine = db.branchTransfers.filter(t=>t.employeeId===emp.id).sort((a,b)=>new Date(b.requestedAt)-new Date(a.requestedAt));
+  document.getElementById('myTransferList').innerHTML = mine.length ? mine.map(t=>{
+    const br = db.branches.find(b=>b.id===t.branchId);
+    return `<div class="listrow"><div class="info"><div class="name">${br?.name||'-'}</div><div class="meta">${t.fromDate}${t.fromDate!==t.toDate?' – '+t.toDate:''} · ${t.reason||'-'}</div></div><span class="badge ${t.status}">${transferStatusLabel(t.status)}</span></div>`;
+  }).join('') : '<div class="empty">ยังไม่มีคำขอ</div>';
+}
+function openBranchTransferForm(){
+  const emp = currentEmployee();
+  const sel = document.getElementById('transferBranch');
+  sel.innerHTML = db.branches.filter(b=>b.id!==emp.branchId).map(b=>`<option value="${b.id}">${b.name}</option>`).join('');
+  setDateVal('transferFrom',''); setDateVal('transferTo','');
+  document.getElementById('transferReason').value='';
+  document.getElementById('transferFormMsg').textContent='';
+  document.getElementById('transferFrom_holder').innerHTML = dateSelectHTML('transferFrom');
+  document.getElementById('transferTo_holder').innerHTML = dateSelectHTML('transferTo');
+  renderMyTransferList();
+  document.getElementById('branchTransferOverlay').classList.add('show');
+}
+document.getElementById('closeTransferBtn').onclick = ()=> document.getElementById('branchTransferOverlay').classList.remove('show');
+document.getElementById('submitTransferBtn').onclick = async ()=>{
+  const emp = currentEmployee();
+  const branchId = document.getElementById('transferBranch').value;
+  const from = getDateVal('transferFrom');
+  const to = getDateVal('transferTo');
+  const reason = document.getElementById('transferReason').value.trim();
+  const msg = document.getElementById('transferFormMsg');
+  if(!branchId){ msg.className='msg err'; msg.textContent='กรุณาเลือกสาขา'; return; }
+  if(!from || !to){ msg.className='msg err'; msg.textContent='กรุณาระบุวันที่'; return; }
+  const transfer = {id:uid(), employeeId:emp.id, branchId, fromDate:from, toDate:to, reason, status:'pending', requestedAt:new Date().toISOString()};
+  db.branchTransfers.push(transfer); await saveBranchTransferRow(transfer);
+  msg.className='msg ok'; msg.textContent='ส่งคำขอแล้ว รออนุมัติ';
+  renderMyTransferList();
+  const br = db.branches.find(b=>b.id===branchId);
+  if(db.settings.notifyTypes.leaveSubmit && db.settings.centralChatId) await tgSendMessage(db.settings.centralToken, db.settings.centralChatId, `<b>${emp.name}</b> ขอไปทำงานสาขา ${br?.name||'-'} วันที่ ${from}${from!==to?' ถึง '+to:''}\nเหตุผล: ${reason||'-'}`);
+  await pushNotification(emp.id, 'ส่งคำขอไปสาขาอื่นแล้ว', `${br?.name||'-'} ${from}${from!==to?' – '+to:''} กำลังรอการอนุมัติ`);
+};
 document.getElementById('menuPin').onclick = ()=>{
   newPinBuffer=''; newPinStage=1; newPinFirst='';
   document.getElementById('changePinMsg').textContent='';
@@ -2021,7 +2140,7 @@ function switchATab(tab){
   updateAdminHeaderMeta();
   if(tab==='Overview'){ renderBranchFilter(); renderOverviewStats(); renderEmpSummary(); }
   if(tab==='Employees') renderEmployeesView();
-  if(tab==='Leaves'){ renderApprovalBranchFilter(); renderLeaveLists(); renderOtLists(); }
+  if(tab==='Leaves'){ renderApprovalBranchFilter(); renderLeaveLists(); renderOtLists(); renderTransferList(); }
   if(tab==='Inspect'){ initInspectTab(); renderInspectTab(); }
   if(tab==='Settings'){ renderDbStatus(); renderAdminEmpList(); renderApproverEditor(); renderBranchEditor(); renderAcPointEditor(); renderCleanPointEditor(); renderHolidayEditor(); renderNotifyTypesEditor(); renderTelegramRoomsEditor(); }
 }
