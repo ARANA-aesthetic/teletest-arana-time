@@ -3454,11 +3454,15 @@ document.getElementById('syncGsheetBtn').onclick = async (e)=>{
   if(!r.ok){ msg.className='msg err'; msg.textContent = `เรียกไม่สำเร็จ — ${r.error}`; return; }
   const d = r.data;
   if(!d || d.ok === false){ msg.className='msg err'; msg.textContent = `Sync ไม่สำเร็จ — ${d?.error || d?.note || 'ไม่ทราบสาเหตุ'}`; return; }
-  if(d.note){ msg.className='msg ok'; msg.textContent = d.note; return; }
+  const parts = [];
+  if(d.resolved_previous_batches) parts.push(`ยืนยันผลรอบก่อนแล้ว ${d.resolved_previous_batches} ชุด`);
+  if(d.queued_leaves || d.queued_logs || d.queued_ot) parts.push(`ส่งคำขอใหม่ — ใบลา ${d.queued_leaves||0}, เข้า-ออกงาน/มาสาย ${d.queued_logs||0}, OT ${d.queued_ot||0} รายการ`);
   msg.className='msg ok';
-  msg.textContent = `Sync สำเร็จ — ใบลา ${d.leaves_synced||0}, เข้า-ออกงาน/มาสาย ${d.logs_synced||0}, OT ${d.ot_synced||0} รายการ`;
-  db.settings.gsheetLastSync = new Date().toISOString();
-  renderGsheetLastSync();
+  msg.textContent = (parts.length ? parts.join(' · ')+' — ' : '') + (d.note||'สำเร็จ');
+  if(d.resolved_previous_batches){
+    db.settings.gsheetLastSync = new Date().toISOString();
+    renderGsheetLastSync();
+  }
 };
 
 // ================= CAMERA =================
