@@ -360,8 +360,9 @@
     body.deskmode .rpttable td{padding:7px 4px;}
     body.deskmode .rpttable .namecol{min-width:172px;max-width:172px;padding-left:10px;padding-right:10px;}
     body.deskmode .segbtn{font-size:13.5px;}
-    /* หน้าสรุปเดือนมีคอลัมน์ชื่อประเภทการลายาว ตัดให้ขึ้นบรรทัดได้เฉพาะหัวตาราง */
-    body.deskmode .rpttable thead th{white-space:normal;line-height:1.25;min-width:58px;}
+    /* ตารางสรุปเดือนมีชื่อคอลัมน์ยาว ให้หัวตารางขึ้นบรรทัดใหม่ได้ จะได้ไม่ดันตารางกว้างเกินจอ
+       (ใช้เฉพาะตารางสรุป ตารางรายวันหัวเป็นเลขวันที่อยู่แล้ว ต้องแคบที่สุดเท่าที่ทำได้) */
+    body.deskmode .rpttable.rpt-summary thead th{white-space:normal;line-height:1.25;}
   }
 </style>
 </head>
@@ -3161,6 +3162,7 @@ function renderReportsTab(){
   const rpt = buildMonthReport();
   const table = document.getElementById('reportTable');
   if(!rpt.groups.length){ table.innerHTML = `<tbody><tr><td style="border:none;"><div class="empty">ไม่มีพนักงานในสาขาที่เลือก</div></td></tr></tbody>`; return; }
+  table.className = reportView==='summary' ? 'rpttable rpt-summary' : 'rpttable rpt-daily';
   table.innerHTML = reportView==='summary' ? summaryTableHTML(rpt) : dailyTableHTML(rpt, reportView);
 }
 
