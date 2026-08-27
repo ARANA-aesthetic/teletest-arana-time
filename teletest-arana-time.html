@@ -747,6 +747,8 @@
     </div>
     <label>เหตุผล / งานที่ต้องทำ</label>
     <textarea id="otReason" placeholder="ระบุเหตุผลการขอ OT"></textarea>
+    <label>พนักงานที่ขอ OT (เลือกได้หลายคน)</label>
+    <div class="card" id="otEmpChecklist" style="max-height:200px;overflow:auto;padding:10px 14px;"></div>
     <div class="modalfoot">
       <button class="btn block" id="submitOtBtn">ส่งคำขอ OT</button>
       <button class="btn gray" id="closeOtBtn">ยกเลิก</button>
@@ -1061,8 +1063,8 @@ const logToRow = l => ({ id:l.id, employee_id:l.employeeId, type:l.type, time:l.
 const rowToLeave = r => ({ id:r.id, employeeId:r.employee_id, kind:r.kind, from:r.from_date, to:r.to_date, hourStart:r.from_time||null, hourEnd:r.to_time||null, reason:r.reason||'', status:r.status, requestedAt:r.requested_at, decidedAt:r.decided_at||null, evidenceSent:r.evidence_sent??null, evidenceFileId:r.evidence_file_id||null });
 const leaveToRow = l => ({ id:l.id, employee_id:l.employeeId, kind:l.kind, from_date:l.from, to_date:l.to, from_time:l.hourStart||null, to_time:l.hourEnd||null, reason:l.reason||null, status:l.status, requested_at:l.requestedAt, decided_at:l.decidedAt||null, evidence_sent:l.evidenceSent??null, evidence_file_id:l.evidenceFileId||null, days: (l.from && l.to) ? (Math.round((new Date(l.to)-new Date(l.from))/86400000)+1) : null });
 
-const rowToOt = r => ({ id:r.id, employeeId:r.employee_id, date:r.date, hourStart:r.hour_start, hourEnd:r.hour_end, reason:r.reason||'', status:r.status, requestedAt:r.requested_at, decidedAt:r.decided_at||null });
-const otToRow = o => ({ id:o.id, employee_id:o.employeeId, date:o.date, hour_start:o.hourStart, hour_end:o.hourEnd, reason:o.reason||null, status:o.status, requested_at:o.requestedAt, decided_at:o.decidedAt||null });
+const rowToOt = r => ({ id:r.id, employeeId:r.employee_id, date:r.date, hourStart:r.hour_start, hourEnd:r.hour_end, reason:r.reason||'', status:r.status, requestedAt:r.requested_at, decidedAt:r.decided_at||null, groupId:r.group_id||null });
+const otToRow = o => ({ id:o.id, employee_id:o.employeeId, date:o.date, hour_start:o.hourStart, hour_end:o.hourEnd, reason:o.reason||null, status:o.status, requested_at:o.requestedAt, decided_at:o.decidedAt||null, group_id:o.groupId||null });
 
 const rowToBranchTransfer = r => ({ id:r.id, employeeId:r.employee_id, branchId:r.branch_id, fromDate:r.from_date, toDate:r.to_date, reason:r.reason||'', status:r.status, requestedAt:r.requested_at, decidedAt:r.decided_at||null });
 const branchTransferToRow = t => ({ id:t.id, employee_id:t.employeeId, branch_id:t.branchId, from_date:t.fromDate, to_date:t.toDate, reason:t.reason||null, status:t.status, requested_at:t.requestedAt, decided_at:t.decidedAt||null });
@@ -1933,9 +1935,20 @@ function renderOtTab(){
 document.getElementById('openOtFormBtn').onclick = ()=>{
   document.getElementById('otFormMsg').textContent='';
   setDateVal('otDate',''); document.getElementById('otHourStart').value=''; document.getElementById('otHourEnd').value=''; document.getElementById('otReason').value='';
+  const emp = currentEmployee();
+  const br = currentBranch(emp);
+  const branchEmps = db.employees.filter(e=>e.active!==false && e.branchId===emp.branchId);
+  document.getElementById('otEmpChecklist').innerHTML = branchEmps.map(e=>`
+    <label style="display:flex;align-items:center;gap:8px;padding:6px 0;font-size:13px;cursor:pointer;">
+      <input type="checkbox" data-otemp="${e.id}" ${e.id===emp.id?'checked':''}> ${e.name}${e.nickname?` (${e.nickname})`:''}
+    </label>`).join('');
   document.getElementById('otOverlay').classList.add('show');
 };
 document.getElementById('closeOtBtn').onclick = ()=> document.getElementById('otOverlay').classList.remove('show');
+function otHoursText(hourStart, hourEnd){
+  const mins = (hourEnd.split(':')[0]*60 + +hourEnd.split(':')[1]) - (hourStart.split(':')[0]*60 + +hourStart.split(':')[1]);
+  return (mins/60).toFixed(1);
+}
 document.getElementById('submitOtBtn').onclick = async ()=>{
   const emp = currentEmployee();
   const date = getDateVal('otDate');
@@ -1943,14 +1956,20 @@ document.getElementById('submitOtBtn').onclick = async ()=>{
   const hourEnd = document.getElementById('otHourEnd').value;
   const reason = document.getElementById('otReason').value.trim();
   const msg = document.getElementById('otFormMsg');
+  const selectedIds = Array.from(document.querySelectorAll('#otEmpChecklist [data-otemp]:checked')).map(cb=>cb.dataset.otemp);
   if(!date || !hourStart || !hourEnd){ msg.className='msg err'; msg.textContent='กรุณากรอกวันที่และเวลาให้ครบ'; return; }
-  const ot = {id:uid(), employeeId:emp.id, date, hourStart, hourEnd, reason, status:'pending', requestedAt:new Date().toISOString()};
-  db.otRequests.push(ot); await saveOtRow(ot);
+  if(!selectedIds.length){ msg.className='msg err'; msg.textContent='กรุณาเลือกพนักงานอย่างน้อย 1 คน'; return; }
+  const groupId = uid();
+  const rows = selectedIds.map(empId => ({id:uid(), employeeId:empId, date, hourStart, hourEnd, reason, status:'pending', requestedAt:new Date().toISOString(), groupId}));
+  db.otRequests.push(...rows);
+  await Promise.all(rows.map(r=>saveOtRow(r)));
   msg.className='msg ok'; msg.textContent='ส่งคำขอ OT เรียบร้อย รออนุมัติจากหัวหน้า/HR';
   renderOtTab();
   const br = currentBranch(emp);
-  if(db.settings.notifyTypes.otSubmit && db.settings.otChatId) await tgSendMessage(db.settings.centralToken, db.settings.otChatId, `<b>${emp.name}</b> ขอทำ OT วันที่ ${date} เวลา ${hourStart}-${hourEnd}\nเหตุผล: ${reason||'-'}`);
-  await pushNotification(emp.id, 'ส่งคำขอ OT แล้ว', `${date} เวลา ${hourStart}-${hourEnd} กำลังรอการอนุมัติ`);
+  const empLines = selectedIds.map((empId,i)=>{ const e = db.employees.find(x=>x.id===empId); return `${i+1}. ${e?.name||'-'}${e?.nickname?` (${e.nickname})`:''}`; }).join('\n');
+  const text = `▶️คำขอรออนุมัติ\nสาขา : ${br?.name||'-'}\nขอทำ OT วันที่ : ${date}\nเวลา : ${hourStart}-${hourEnd}\nรวม : ${otHoursText(hourStart,hourEnd)} ชม.\nเหตุผล : ${reason||'-'}\nพนักงานขอ OT\n${empLines}`;
+  if(db.settings.notifyTypes.otSubmit && db.settings.otChatId) await tgSendMessage(db.settings.centralToken, db.settings.otChatId, text);
+  await Promise.all(selectedIds.map(empId => pushNotification(empId, 'ส่งคำขอ OT แล้ว', `${date} เวลา ${hourStart}-${hourEnd} กำลังรอการอนุมัติ`)));
   setTimeout(()=>{ document.getElementById('otOverlay').classList.remove('show'); }, 900);
 };
 function renderTransferList(){
@@ -1986,6 +2005,25 @@ async function decideOt(id, status){
   const br = db.branches.find(b=>b.id===emp?.branchId);
   if(db.settings.notifyTypes.otDecision && db.settings.otChatId) await tgSendMessage(db.settings.centralToken, db.settings.otChatId, `คำขอ OT ของ <b>${emp?.name}</b> (${ot.date} ${ot.hourStart}-${ot.hourEnd}) ถูก${status==='approved'?'อนุมัติ':'ปฏิเสธ'}แล้ว`);
   await pushNotification(emp.id, status==='approved'?'คำขอ OT ได้รับการอนุมัติ':'คำขอ OT ถูกปฏิเสธ', `${ot.date} เวลา ${ot.hourStart}-${ot.hourEnd}`);
+  renderOtLists();
+}
+async function decideOtGroup(groupId, status){
+  if(!canApproveOt()){ alert('ไม่มีสิทธิ์อนุมัติ OT ต้องเป็นเจ้าของ/HR เท่านั้น'); return; }
+  const items = db.otRequests.filter(o=>(o.groupId||o.id)===groupId && o.status==='pending');
+  if(!items.length) return;
+  const decidedAt = new Date().toISOString();
+  const approverName = session.role==='admin' ? 'เจ้าของ/HR' : (currentApprover()?.name || 'ผู้บริหาร');
+  for(const ot of items){ ot.status = status; ot.decidedAt = decidedAt; await saveOtRow(ot); }
+  const first = items[0];
+  const br = db.branches.find(b=>b.id===db.employees.find(e=>e.id===first.employeeId)?.branchId);
+  const empLines = items.map((o,i)=>{ const e = db.employees.find(x=>x.id===o.employeeId); return `${i+1}. ${e?.name||'-'}${e?.nickname?` (${e.nickname})`:''}`; }).join('\n');
+  if(db.settings.notifyTypes.otDecision && db.settings.otChatId){
+    const text = status==='approved'
+      ? `✅อนุมัติโอที โดย : ${approverName}\nสาขา : ${br?.name||'-'}\nขอทำ OT วันที่ : ${first.date}\nเวลา : ${first.hourStart}-${first.hourEnd}\nรวม : ${otHoursText(first.hourStart,first.hourEnd)} ชม.\nเหตุผล : ${first.reason||'-'}\nพนักงานขอ OT\n${empLines}`
+      : `❌ปฏิเสธคำขอ OT โดย : ${approverName}\nสาขา : ${br?.name||'-'}\nขอทำ OT วันที่ : ${first.date}\nเวลา : ${first.hourStart}-${first.hourEnd}\nพนักงานขอ OT\n${empLines}`;
+    await tgSendMessage(db.settings.centralToken, db.settings.otChatId, text);
+  }
+  await Promise.all(items.map(ot => pushNotification(ot.employeeId, status==='approved'?'คำขอ OT ได้รับการอนุมัติ':'คำขอ OT ถูกปฏิเสธ', `${first.date} เวลา ${first.hourStart}-${first.hourEnd}`)));
   renderOtLists();
 }
 
@@ -2625,16 +2663,20 @@ function renderOtLists(){
   const empIds = getApprovalFilteredEmpIds();
   const pending = db.otRequests.filter(o=>o.status==='pending' && empIds.has(o.employeeId) && inApprovalDateRange(o.date)).sort((a,b)=>new Date(a.requestedAt)-new Date(b.requestedAt));
   const pendEl = document.getElementById('pendingOtList');
-  pendEl.innerHTML = pending.length ? pending.map(o=>{
-    const emp = db.employees.find(e=>e.id===o.employeeId);
-    const br = db.branches.find(b=>b.id===emp?.branchId);
+  const groups = {};
+  pending.forEach(o=>{ const gid = o.groupId || o.id; groups[gid] = groups[gid] || []; groups[gid].push(o); });
+  const groupList = Object.entries(groups);
+  pendEl.innerHTML = groupList.length ? groupList.map(([gid, items])=>{
+    const first = items[0];
+    const br = db.branches.find(b=>b.id===db.employees.find(e=>e.id===first.employeeId)?.branchId);
+    const names = items.map(o=>{ const e = db.employees.find(x=>x.id===o.employeeId); return `${e?.name||'-'}${e?.nickname?` (${e.nickname})`:''}`; }).join(', ');
     return `<div class="listrow" style="flex-direction:column;align-items:stretch;gap:6px;">
-      <div style="display:flex;align-items:center;gap:12px;"><div class="avatar">${emp?.name.trim()[0]||'?'}</div><div class="info"><div class="name">${emp?.name||'-'} (${br?.name||'-'}) · ${fmtDateShort(new Date(o.date))}</div><div class="meta">${o.hourStart}–${o.hourEnd} น. · ${o.reason||'-'}</div></div></div>
-      ${canApproveOt() ? `<div class="actionrow"><button class="btn-mini approve" data-otapprove="${o.id}">อนุมัติ</button><button class="btn-mini reject" data-otreject="${o.id}">ปฏิเสธ</button></div>` : `<div style="font-size:11.5px;color:var(--muted);">ไม่มีสิทธิ์อนุมัติรายการนี้ (ต้องเป็นเจ้าของ/HR เท่านั้น)</div>`}
+      <div style="display:flex;align-items:flex-start;gap:12px;"><div class="avatar">${items.length}</div><div class="info"><div class="name">${br?.name||'-'} · ${fmtDateShort(new Date(first.date))} · ${first.hourStart}–${first.hourEnd} น.</div><div class="meta">${names}</div><div class="meta">${first.reason||'-'}</div></div></div>
+      ${canApproveOt() ? `<div class="actionrow"><button class="btn-mini approve" data-otapprovegroup="${gid}">อนุมัติทั้งหมด</button><button class="btn-mini reject" data-otrejectgroup="${gid}">ปฏิเสธทั้งหมด</button></div>` : `<div style="font-size:11.5px;color:var(--muted);">ไม่มีสิทธิ์อนุมัติรายการนี้ (ต้องเป็นเจ้าของ/HR เท่านั้น)</div>`}
     </div>`;
   }).join('') : '<div class="empty">ไม่มีคำขอ OT ที่รออนุมัติ</div>';
-  pendEl.querySelectorAll('[data-otapprove]').forEach(b=> b.onclick = ()=> decideOt(b.dataset.otapprove,'approved'));
-  pendEl.querySelectorAll('[data-otreject]').forEach(b=> b.onclick = ()=> decideOt(b.dataset.otreject,'rejected'));
+  pendEl.querySelectorAll('[data-otapprovegroup]').forEach(b=> b.onclick = ()=> decideOtGroup(b.dataset.otapprovegroup,'approved'));
+  pendEl.querySelectorAll('[data-otrejectgroup]').forEach(b=> b.onclick = ()=> decideOtGroup(b.dataset.otrejectgroup,'rejected'));
   if(!approvalHistorySearched){
     document.getElementById('allOtList').innerHTML = '<div class="empty">เลือกเงื่อนไข (สาขา/วันที่) แล้วกด "ค้นหาประวัติ" เพื่อแสดงข้อมูล</div>';
     return;
