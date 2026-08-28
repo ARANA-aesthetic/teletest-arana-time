@@ -879,6 +879,10 @@
               <option value="GROOM">ความเรียบร้อย</option>
             </select></div>
           </div>
+          <div id="orphanAutoBox" style="background:var(--pink-pale);border-radius:12px;padding:12px;margin-bottom:12px;">
+            <div style="font-size:12px;color:var(--pink-dark);margin-bottom:8px;" id="orphanAutoText"></div>
+            <button class="btn sm" id="orphanAutoBtn">ผูกคืนอัตโนมัติจากชื่อที่กำกับไว้</button>
+          </div>
           <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:12px;">
             <div style="flex:1;min-width:180px;"><label>ผูกชื่อนี้ให้แถวที่ติ๊ก</label><select id="orphanAssignSel"></select></div>
             <button class="btn sm ghost" id="orphanAssignBtn">ใส่ชื่อให้แถวที่ติ๊ก</button>
@@ -1430,7 +1434,9 @@ const employeeToRow = e => ({ id:e.id, name:e.name, nickname:e.nickname||null, d
 const rowToApprover = r => ({ id:r.id, name:r.name, pin:r.pin||null, role:r.role||'hr' });
 const approverToRow = a => ({ id:a.id, name:a.name, pin:a.pin||null, role:a.role||'hr' });
 
-const rowToLog = r => ({ id:r.id, employeeId:r.employee_id, type:r.type, time:r.time, branchId:r.branch_id, lateMinutes:r.late_minutes||0, sent:r.sent, acPointId:r.ac_point_id||null, cleanPointId:r.clean_point_id||null, leaveConflict:!!r.leave_conflict, corrected:!!r.corrected });
+// employeeName = ชื่อ ณ ตอนบันทึก ฐานข้อมูลเติมให้เองด้วย trigger (ดู sql/keep-employee-name-snapshot.sql)
+// อ่านมาใช้อย่างเดียว ไม่ต้องส่งกลับตอนบันทึก จะได้ไม่เผลอเขียนทับชื่อเดิมด้วยค่าว่าง
+const rowToLog = r => ({ id:r.id, employeeId:r.employee_id, employeeName:r.employee_name||'', type:r.type, time:r.time, branchId:r.branch_id, lateMinutes:r.late_minutes||0, sent:r.sent, acPointId:r.ac_point_id||null, cleanPointId:r.clean_point_id||null, leaveConflict:!!r.leave_conflict, corrected:!!r.corrected });
 const logToRow = l => ({ id:l.id, employee_id:l.employeeId, type:l.type, time:l.time, branch_id:l.branchId||null, late_minutes:l.lateMinutes||0, sent:l.sent, ac_point_id:l.acPointId||null, clean_point_id:l.cleanPointId||null, leave_conflict:!!l.leaveConflict, corrected:!!l.corrected });
 
 const rowToLeave = r => ({ id:r.id, employeeId:r.employee_id, kind:r.kind, from:r.from_date, to:r.to_date, hourStart:r.from_time||null, hourEnd:r.to_time||null, reason:r.reason||'', status:r.status, requestedAt:r.requested_at, decidedAt:r.decided_at||null, evidenceSent:r.evidence_sent??null, evidenceFileId:r.evidence_file_id||null, editRequest:r.edit_request||null });
@@ -4179,9 +4185,30 @@ function renderOrphanList(){
       <b style="width:44px;flex-shrink:0;">${time}</b>
       <span style="width:82px;flex-shrink:0;">${ORPHAN_TYPE_LABELS[l.type]||l.type}</span>
       <span style="width:96px;flex-shrink:0;color:var(--muted);">${br?br.name:'-'}</span>
-      <span style="flex:1;${picked?'color:var(--green);font-weight:600;':'color:var(--muted);'}">${picked || 'ยังไม่ได้เลือกชื่อ'}</span>
+      <span style="flex:1;${picked?'color:var(--green);font-weight:600;':'color:var(--muted);'}">${picked || (l.employeeName ? `${l.employeeName} (ชื่อที่กำกับไว้)` : 'ยังไม่ได้เลือกชื่อ')}</span>
     </label>`;
   }).join('');
+}
+// รายการที่ตัวเชื่อมหลุด "แต่ยังมีชื่อกำกับไว้" — ผูกคืนได้เองทั้งหมดโดยไม่ต้องเทียบ Telegram
+// (ชื่อนี้ฐานข้อมูลเติมให้ตอนบันทึกด้วย trigger ตั้งแต่ 28 ส.ค. 2569 เป็นต้นไป)
+function orphanAutoFixable(){
+  const byName = new Map(db.employees.map(e=>[e.name.trim(), e.id]));
+  return db.logs
+    .filter(l=>!l.employeeId && l.employeeName && byName.has(l.employeeName.trim()))
+    .map(l=>({ id:l.id, empId: byName.get(l.employeeName.trim()) }));
+}
+function renderOrphanAutoBox(){
+  const box = document.getElementById('orphanAutoBox');
+  const txt = document.getElementById('orphanAutoText');
+  const n = orphanAutoFixable().length;
+  const noName = db.logs.filter(l=>!l.employeeId && !l.employeeName).length;
+  if(!n){
+    box.style.display = 'none';
+  } else {
+    box.style.display = '';
+    txt.innerHTML = `พบ <b>${n}</b> รายการที่ตัวเชื่อมหลุดแต่ยังมีชื่อกำกับไว้ ผูกคืนได้ทันทีโดยไม่ต้องเทียบ Telegram`
+      + (noName ? `<br>(อีก ${noName} รายการไม่มีชื่อกำกับ ต้องเลือกชื่อเองด้านล่าง)` : '');
+  }
 }
 function renderOrphanTab(){
   const sel = document.getElementById('orphanAssignSel');
@@ -4191,8 +4218,31 @@ function renderOrphanTab(){
       .map(e=>`<option value="${e.id}">${e.name}${e.nickname?` (${e.nickname})`:''}</option>`).join('') + `</optgroup>`
   ).join('');
   if(!getDateVal('orphanDate')) setDateVal('orphanDate', dateKey(new Date()));
+  renderOrphanAutoBox();
   renderOrphanList();
 }
+document.getElementById('orphanAutoBtn').onclick = async ()=>{
+  const btn = document.getElementById('orphanAutoBtn'), msg = document.getElementById('orphanMsg');
+  const fixes = orphanAutoFixable();
+  if(!fixes.length){ msg.className='msg'; msg.textContent='ไม่มีรายการที่ผูกคืนอัตโนมัติได้'; return; }
+  if(!confirm(`ผูกชื่อคืนให้ ${fixes.length} รายการ ตามชื่อที่ฐานข้อมูลกำกับไว้ตอนบันทึก?`)) return;
+  btn.disabled = true; msg.className='msg';
+  let ok = 0, fail = 0;
+  for(let i=0; i<fixes.length; i++){
+    msg.textContent = `กำลังผูกคืน ${i+1}/${fixes.length}…`;
+    const r = await sbPatchRow('logs', fixes[i].id, { employee_id: fixes[i].empId });
+    if(r.ok){
+      const log = db.logs.find(l=>l.id===fixes[i].id);
+      if(log) log.employeeId = fixes[i].empId;
+      ok++;
+    } else fail++;
+  }
+  await logAudit('repair', 'logs', null, `ผูกคืนอัตโนมัติจากชื่อที่กำกับไว้ ${ok} รายการ`);
+  btn.disabled = false;
+  msg.className = fail ? 'msg err' : 'msg ok';
+  msg.textContent = fail ? `ผูกคืนสำเร็จ ${ok} รายการ ไม่สำเร็จ ${fail} รายการ` : `ผูกคืนสำเร็จ ${ok} รายการ`;
+  renderOrphanAutoBox(); renderOrphanList();
+};
 document.getElementById('orphanType').onchange = renderOrphanList;
 wireDateChange('orphanDate', renderOrphanList);
 document.getElementById('orphanCheckAllBtn').onclick = ()=>{
@@ -4230,7 +4280,7 @@ document.getElementById('orphanSaveBtn').onclick = async ()=>{
   btn.disabled = false;
   msg.className = fail ? 'msg err' : 'msg ok';
   msg.textContent = fail ? `บันทึกสำเร็จ ${ok} รายการ ไม่สำเร็จ ${fail} รายการ` : `บันทึกสำเร็จ ${ok} รายการ`;
-  renderOrphanList();
+  renderOrphanAutoBox(); renderOrphanList();
 };
 
 document.getElementById('changeAdminPassBtn').onclick = async ()=>{
