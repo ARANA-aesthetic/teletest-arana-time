@@ -1434,18 +1434,13 @@ async function sbUpsertRow(table, row, conflictCol='id'){
     return { ok:true };
   }catch(e){ console.error('sbUpsertRow', table, e); return { ok:false, error: e.message }; }
 }
-async function sbReplaceAll(table, rows, conflictCol='id'){
-  try{
-    await fetch(`${SUPABASE_URL}/rest/v1/${table}?id=not.is.null`, { method:'DELETE', headers: sbHeaders() });
-    if(rows.length){
-      await fetch(`${SUPABASE_URL}/rest/v1/${table}?on_conflict=${conflictCol}`, {
-        method:'POST',
-        headers: sbHeaders({ 'Content-Type':'application/json' }),
-        body: JSON.stringify(rows)
-      });
-    }
-  }catch(e){ console.error('sbReplaceAll', table, e); }
-}
+// ★ เคยมีฟังก์ชัน sbReplaceAll() ตรงนี้ — ลบทั้งตารางแล้วเขียนกลับใหม่
+// ถอดออกถาวรเมื่อ 28 ส.ค. 2569 เพราะเป็นต้นเหตุข้อมูลเสียหายจริง: เครื่องที่เปิดหน้าเว็บ
+// เวอร์ชันเก่าค้างไว้เรียกฟังก์ชันนี้ ทำให้ตาราง employees/branches ถูกลบทั้งตารางแล้วเขียนกลับ
+// ผลคือ foreign key แบบ ON DELETE SET NULL ตัดตัวเชื่อมของประวัติทิ้งหมด (logs 1,222 แถว)
+// และ Chat ID ของสาขาหายเป็น NULL เพราะเวอร์ชันเก่าไม่ได้ส่งคอลัมน์เหล่านั้นมาด้วย
+// ห้ามเพิ่มกลับมาไม่ว่ากรณีใด — ถ้าต้องเขียนหลายแถว ให้ใช้ sbUpsertRow() ทีละแถว
+// (ฝั่งฐานข้อมูลมีด่านกันซ้ำอีกชั้นแล้ว ดู sql/self-heal-guards.sql ส่วนที่ 3)
 
 // ---- row <-> app-object mappers (snake_case DB columns <-> camelCase JS objects) ----
 const rowToBranch = r => ({ id:r.id, name:r.name, lat:r.lat, lng:r.lng, radius:r.radius, chatIdCheckinout:r.chat_id_checkinout||r.chat_id||'', chatIdFacility:r.chat_id_facility||r.chat_id||'', chatIdLeaveApproval:r.chat_id_leave_approval||'', weeklyOffDays:r.weekly_off_days||[], acPoints:r.ac_points||[], cleaningPoints:r.cleaning_points||[] });

@@ -144,6 +144,56 @@ where coalesce(chat_id_checkinout,'') <> '' or coalesce(chat_id_facility,'') <> 
 on conflict (branch_id) do nothing;
 
 -- ============================================================
+-- ส่วนที่ 3 — ปฏิเสธคำสั่งลบทั้งตาราง (ตัวการตัวจริง)
+-- ============================================================
+-- จาก Supabase log วันที่ 28 ส.ค. 2569 พบคำสั่งนี้ 2 ครั้ง (10:08:39 และ 10:13:19)
+--   DELETE /rest/v1/branches?id=not.is.null
+--   DELETE /rest/v1/employees?id=not.is.null
+--   POST   /rest/v1/settings, /rest/v1/branches, /rest/v1/employees
+-- ตรงกับฟังก์ชัน sbReplaceAll() ของแอปเวอร์ชันเก่าเป๊ะ (ลบทั้งตารางแล้วเขียนกลับ)
+-- ส่งมาจาก iPhone Safari เครื่องเดียว ที่เปิดหน้าเว็บเวอร์ชันเก่าค้างไว้
+-- (ดูออกจากตอนเปิดแอปมันโหลดแค่ 7 ตาราง ขาด approvers กับ branch_transfers
+--  ซึ่งเป็นตารางที่เพิ่มมาทีหลัง = เป็นไฟล์เวอร์ชันก่อนหน้าที่ค้างใน cache)
+--
+-- ด่านนี้กันที่ฐานข้อมูล จึงกันได้ทุกเครื่อง ทุกเวอร์ชัน แม้แต่เครื่องที่ยังไม่ได้รีเฟรช
+-- ลบพนักงาน/สาขาทีละคนผ่านหน้าเว็บยังทำได้ปกติ (1 แถวต่อ 1 คำสั่ง) ห้ามเฉพาะลบรวดเดียวหลายแถว
+
+create or replace function arana_block_bulk_delete()
+returns trigger
+language plpgsql
+as $$
+declare n integer;
+begin
+  select count(*) into n from arana_deleted_rows;
+  if n > 1 then
+    raise exception
+      'ARANA: ปฏิเสธคำสั่งลบ % แถวพร้อมกันจากตาราง "%" — ลบได้ทีละแถวเท่านั้น '
+      'คำสั่งแบบนี้มาจากแอปเวอร์ชันเก่าที่ค้างในเครื่อง กรุณาปิดแท็บแล้วเปิดหน้าเว็บใหม่',
+      n, tg_table_name;
+  end if;
+  return null;
+end;
+$$;
+
+drop trigger if exists trg_block_bulk_delete on employees;
+create trigger trg_block_bulk_delete
+  after delete on employees
+  referencing old table as arana_deleted_rows
+  for each statement execute function arana_block_bulk_delete();
+
+drop trigger if exists trg_block_bulk_delete on branches;
+create trigger trg_block_bulk_delete
+  after delete on branches
+  referencing old table as arana_deleted_rows
+  for each statement execute function arana_block_bulk_delete();
+
+drop trigger if exists trg_block_bulk_delete on approvers;
+create trigger trg_block_bulk_delete
+  after delete on approvers
+  referencing old table as arana_deleted_rows
+  for each statement execute function arana_block_bulk_delete();
+
+-- ============================================================
 -- ตรวจผลหลังรัน
 -- ============================================================
 select 'logs' as ตาราง, count(*) as ทั้งหมด, count(employee_id) as ผูกพนักงานอยู่, count(employee_name) as มีชื่อกำกับ from logs
