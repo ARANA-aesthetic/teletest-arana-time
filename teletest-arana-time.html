@@ -861,6 +861,35 @@
         </div>
       </section>
       <section>
+        <div class="sectitle">ซ่อมรายการที่ไม่มีชื่อพนักงาน</div>
+        <div class="card">
+          <div style="color:var(--muted);font-size:12px;margin-bottom:12px;">
+            รายการที่ถูกบันทึกไว้แต่ตัวเชื่อมกับพนักงานหลุดไป (เกิดเมื่อพนักงานถูกลบออกจากระบบ)
+            ข้อมูลยังอยู่ครบ แค่ไม่รู้ว่าเป็นของใคร — เทียบเวลากับข้อความในกลุ่ม Telegram
+            แล้วเลือกชื่อกลับเข้าไปได้ที่นี่ ติ๊กหลายแถวพร้อมกันได้ถ้าเป็นคนเดียวกัน
+          </div>
+          <div class="row2" style="margin-bottom:10px;">
+            <div><label>วันที่</label><div id="orphanDate_holder"></div></div>
+            <div><label>ประเภท</label><select id="orphanType">
+              <option value="all">ทุกประเภท</option>
+              <option value="IN">เข้างาน (IN)</option>
+              <option value="OUT">ออกงาน (OUT)</option>
+              <option value="CLEAN">ความสะอาด</option>
+              <option value="AC">ปิดแอร์</option>
+              <option value="GROOM">ความเรียบร้อย</option>
+            </select></div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:12px;">
+            <div style="flex:1;min-width:180px;"><label>ผูกชื่อนี้ให้แถวที่ติ๊ก</label><select id="orphanAssignSel"></select></div>
+            <button class="btn sm ghost" id="orphanAssignBtn">ใส่ชื่อให้แถวที่ติ๊ก</button>
+            <button class="btn sm ghost" id="orphanCheckAllBtn">ติ๊กทั้งหมด</button>
+          </div>
+          <div id="orphanList" style="max-height:380px;overflow:auto;"></div>
+          <button class="btn block" style="margin-top:12px;" id="orphanSaveBtn">บันทึกการผูกชื่อ</button>
+          <div class="msg" id="orphanMsg"></div>
+        </div>
+      </section>
+      <section>
         <div class="sectitle">สาขา</div>
         <div class="card" id="branchEditor" style="margin-bottom:0;"></div>
       </section>
@@ -1279,7 +1308,7 @@ document.addEventListener('click', (e)=>{
     closeCalPopup();
   }
 });
-['overviewFrom','overviewTo','leaveFrom','leaveTo','leaveSingleDate','otDate','newHolidayDate'].forEach(p=>{
+['overviewFrom','overviewTo','leaveFrom','leaveTo','leaveSingleDate','otDate','newHolidayDate','orphanDate'].forEach(p=>{
   const holder = document.getElementById(p+'_holder');
   if(holder) holder.innerHTML = dateSelectHTML(p);
 });
@@ -1489,6 +1518,22 @@ async function sbDeleteRow(table, id, idCol='id'){
     }
     return { ok:true };
   }catch(e){ console.error('sbDeleteRow', table, e); return { ok:false, error: e.message }; }
+}
+// อัปเดตเฉพาะคอลัมน์ที่ส่งไป ไม่แตะค่าอื่นในแถวเดิม (ต่างจาก sbUpsertRow ที่เขียนทั้งแถว)
+async function sbPatchRow(table, id, patch){
+  try{
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?id=eq.${id}`, {
+      method:'PATCH',
+      headers: sbHeaders({ 'Content-Type':'application/json' }),
+      body: JSON.stringify(patch)
+    });
+    if(!res.ok){
+      const errBody = await res.text().catch(()=> '');
+      console.error('sbPatchRow failed', table, res.status, errBody);
+      return { ok:false, error: errBody || `HTTP ${res.status}` };
+    }
+    return { ok:true };
+  }catch(e){ console.error('sbPatchRow', table, e); return { ok:false, error: e.message }; }
 }
 async function deleteEmployeeRow(id){ return await sbDeleteRow('employees', id); }
 async function deleteApproverRow(id){ return await sbDeleteRow('approvers', id); }
@@ -2717,7 +2762,7 @@ function switchATab(tab){
   if(tab==='Leaves'){ renderApprovalBranchFilter(); renderLeaveLists(); renderOtLists(); renderTransferList(); }
   if(tab==='Inspect'){ initInspectTab(); renderInspectTab(); }
   if(tab==='Reports'){ initReportsTab(); renderReportsTab(); }
-  if(tab==='Settings'){ renderDbStatus(); renderAdminEmpList(); renderApproverEditor(); renderBranchEditor(); renderAcPointEditor(); renderCleanPointEditor(); renderHolidayEditor(); renderNotifyTypesEditor(); renderTelegramRoomsEditor(); renderAuditLogViewer(); }
+  if(tab==='Settings'){ renderDbStatus(); renderAdminEmpList(); renderApproverEditor(); renderBranchEditor(); renderAcPointEditor(); renderCleanPointEditor(); renderHolidayEditor(); renderNotifyTypesEditor(); renderTelegramRoomsEditor(); renderAuditLogViewer(); renderOrphanTab(); }
 }
 
 function downloadCSV(filename, rows){
@@ -4107,6 +4152,87 @@ document.getElementById('importAttendanceBtn').onclick = async ()=>{
   msg.innerHTML = `นำเข้าสำเร็จ ${imported} รายการ, ข้าม ${skipped} รายการ` + (errors.length ? `<br>${errors.slice(0,10).join('<br>')}${errors.length>10?'<br>...':''}` : '');
   fileInput.value='';
 };
+// ===== ซ่อมรายการที่ตัวเชื่อมกับพนักงานหลุด (employee_id เป็นค่าว่าง) =====
+// เกิดจาก foreign key แบบ ON DELETE SET NULL: พอพนักงานถูกลบ ประวัติยังอยู่ครบทุกแถว
+// แต่ไม่รู้ว่าเป็นของใคร — หน้านี้ให้ HR เทียบเวลากับข้อความในกลุ่ม Telegram แล้วผูกชื่อกลับ
+const ORPHAN_TYPE_LABELS = {IN:'เข้างาน', OUT:'ออกงาน', AC:'ปิดแอร์', CLEAN:'ความสะอาด', GROOM:'ความเรียบร้อย'};
+const orphanPicks = {};   // logId -> employeeId ที่เลือกไว้ (ยังไม่บันทึก)
+
+function orphanLogsForFilter(){
+  const dateStr = getDateVal('orphanDate') || dateKey(new Date());
+  const type = document.getElementById('orphanType').value;
+  return db.logs
+    .filter(l=>!l.employeeId && dateKey(new Date(l.time))===dateStr && (type==='all' || l.type===type))
+    .sort((a,b)=> new Date(a.time) - new Date(b.time));
+}
+function renderOrphanList(){
+  const box = document.getElementById('orphanList');
+  const rows = orphanLogsForFilter();
+  if(!rows.length){ box.innerHTML = `<div class="empty">ไม่มีรายการที่ต้องซ่อมในวันที่เลือก</div>`; return; }
+  box.innerHTML = rows.map(l=>{
+    const t = new Date(l.time);
+    const time = `${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}`;
+    const br = db.branches.find(b=>b.id===l.branchId);
+    const picked = orphanPicks[l.id] ? (db.employees.find(e=>e.id===orphanPicks[l.id])?.name || '') : '';
+    return `<label style="display:flex;align-items:center;gap:10px;padding:8px 4px;border-bottom:1px solid var(--border);font-size:12.5px;cursor:pointer;">
+      <input type="checkbox" class="orphanck" data-id="${l.id}" style="width:17px;height:17px;flex-shrink:0;">
+      <b style="width:44px;flex-shrink:0;">${time}</b>
+      <span style="width:82px;flex-shrink:0;">${ORPHAN_TYPE_LABELS[l.type]||l.type}</span>
+      <span style="width:96px;flex-shrink:0;color:var(--muted);">${br?br.name:'-'}</span>
+      <span style="flex:1;${picked?'color:var(--green);font-weight:600;':'color:var(--muted);'}">${picked || 'ยังไม่ได้เลือกชื่อ'}</span>
+    </label>`;
+  }).join('');
+}
+function renderOrphanTab(){
+  const sel = document.getElementById('orphanAssignSel');
+  sel.innerHTML = `<option value="">— เลือกพนักงาน —</option>` + db.branches.map(b=>
+    `<optgroup label="${b.name}">` + db.employees.filter(e=>e.branchId===b.id)
+      .sort((a,x)=>a.name.localeCompare(x.name,'th'))
+      .map(e=>`<option value="${e.id}">${e.name}${e.nickname?` (${e.nickname})`:''}</option>`).join('') + `</optgroup>`
+  ).join('');
+  if(!getDateVal('orphanDate')) setDateVal('orphanDate', dateKey(new Date()));
+  renderOrphanList();
+}
+document.getElementById('orphanType').onchange = renderOrphanList;
+wireDateChange('orphanDate', renderOrphanList);
+document.getElementById('orphanCheckAllBtn').onclick = ()=>{
+  const cks = [...document.querySelectorAll('.orphanck')];
+  const turnOn = cks.some(c=>!c.checked);
+  cks.forEach(c=> c.checked = turnOn);
+};
+document.getElementById('orphanAssignBtn').onclick = ()=>{
+  const empId = document.getElementById('orphanAssignSel').value;
+  const msg = document.getElementById('orphanMsg');
+  if(!empId){ msg.className='msg err'; msg.textContent='เลือกชื่อพนักงานก่อน'; return; }
+  const checked = [...document.querySelectorAll('.orphanck')].filter(c=>c.checked);
+  if(!checked.length){ msg.className='msg err'; msg.textContent='ติ๊กแถวที่ต้องการผูกชื่อก่อน'; return; }
+  checked.forEach(c=> orphanPicks[c.dataset.id] = empId);
+  msg.className='msg'; msg.textContent=`ใส่ชื่อไว้ ${checked.length} แถว (ยังไม่บันทึก กด "บันทึกการผูกชื่อ" เพื่อยืนยัน)`;
+  renderOrphanList();
+};
+document.getElementById('orphanSaveBtn').onclick = async ()=>{
+  const btn = document.getElementById('orphanSaveBtn'), msg = document.getElementById('orphanMsg');
+  const ids = Object.keys(orphanPicks);
+  if(!ids.length){ msg.className='msg err'; msg.textContent='ยังไม่ได้เลือกชื่อให้แถวไหนเลย'; return; }
+  btn.disabled = true; msg.className='msg'; msg.textContent='กำลังบันทึก…';
+  let ok = 0, fail = 0;
+  for(const id of ids){
+    // อัปเดตเฉพาะคอลัมน์ employee_id เท่านั้น ไม่แตะค่าอื่นในแถวเดิม
+    const r = await sbPatchRow('logs', id, { employee_id: orphanPicks[id] });
+    if(r.ok){
+      const log = db.logs.find(l=>l.id===id);
+      if(log) log.employeeId = orphanPicks[id];
+      ok++;
+    } else fail++;
+  }
+  await logAudit('repair', 'logs', null, `ผูกชื่อพนักงานกลับให้รายการกำพร้า ${ok} รายการ`);
+  ids.forEach(id=> delete orphanPicks[id]);
+  btn.disabled = false;
+  msg.className = fail ? 'msg err' : 'msg ok';
+  msg.textContent = fail ? `บันทึกสำเร็จ ${ok} รายการ ไม่สำเร็จ ${fail} รายการ` : `บันทึกสำเร็จ ${ok} รายการ`;
+  renderOrphanList();
+};
+
 document.getElementById('changeAdminPassBtn').onclick = async ()=>{
   const val = document.getElementById('newAdminPass').value.trim();
   const msg = document.getElementById('adminPassMsg');
