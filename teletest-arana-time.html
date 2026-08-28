@@ -8,7 +8,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ARANA TIME — ระบบเข้า-ออกงานหลายสาขา</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Prompt:wght@500;600;700&family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Marcellus+SC&family=Prompt:wght@500;600;700&family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
 <style>
   :root{
@@ -25,10 +25,7 @@
   .phonewrap{max-width:460px;margin:0 auto;min-height:100vh;background:var(--bg);position:relative;padding-bottom:78px;}
 
   /* ---------- login ---------- */
-  .loginwrap{padding:56px 22px 24px;}
-  .logo{text-align:center;margin-bottom:26px;}
-  .logo .mark{font-family:'Prompt',sans-serif;font-weight:700;font-size:23px;color:var(--pink-dark);letter-spacing:.5px;}
-  .logo .subm{color:var(--muted);font-size:13px;margin-top:4px;}
+  .loginwrap{padding:0;}
   .rolepick{display:flex;gap:8px;margin-bottom:16px;background:#fff;border:1px solid var(--border);border-radius:14px;padding:5px;}
   .rolebtn{flex:1;padding:11px;border-radius:10px;border:none;background:none;cursor:pointer;font-weight:600;font-size:13.5px;color:var(--muted);}
   .rolebtn.active{background:var(--pink);color:#fff;}
@@ -38,6 +35,50 @@
   .pindots{display:flex;justify-content:center;gap:10px;margin:16px 0;}
   .pindot{width:14px;height:14px;border-radius:50%;border:1.5px solid var(--pink);}
   .pindot.filled{background:var(--pink);}
+
+  /* login: hero ไล่สีชมพูอ่อน + การ์ดลอยทับ */
+  .lg-hero{
+    background:linear-gradient(150deg, #FDE6F0 0%, #F7B8D3 32%, #EC7FB0 64%, #D6488C 100%);
+    padding:52px 24px 60px;text-align:center;color:#fff;border-radius:0 0 38px 38px;
+    position:relative;overflow:hidden;
+  }
+  .lg-hero::before{
+    content:'';position:absolute;inset:0;
+    background:
+      radial-gradient(circle at 88% 10%, rgba(255,250,253,.35) 0%, transparent 42%),
+      radial-gradient(circle at 6% 88%, rgba(0,0,0,.10) 0%, transparent 48%);
+  }
+  .lg-hero::after{
+    content:'';position:absolute;left:0;right:0;bottom:0;height:1px;
+    background:linear-gradient(90deg, transparent, rgba(201,162,75,.55), transparent);
+  }
+  .lg-mark{position:relative;z-index:2;font-family:'Marcellus SC',serif;font-weight:400;font-size:32px;letter-spacing:2.4px;}
+  .lg-mark .lg-dot{color:#C9A24B;}
+  .lg-sub{position:relative;z-index:2;font-size:13px;opacity:.9;margin-top:8px;letter-spacing:.3px;}
+  .lg-body{padding:0 22px 24px;margin-top:-34px;position:relative;z-index:2;}
+  #loginView .card{border-radius:22px;box-shadow:0 18px 40px -26px rgba(214,72,140,.35);}
+  #loginView .pinpad{max-width:270px;margin:14px auto 0;justify-items:center;}
+  #loginView .pinkey{width:100%;aspect-ratio:1;padding:0;display:flex;align-items:center;justify-content:center;text-align:center;font-size:19px;}
+  #loginView .pindot{width:13px;height:13px;}
+
+  @media (min-width:1024px){
+    #loginView{
+      display:grid;grid-template-columns:1fr 1fr;min-height:600px;
+      border-radius:28px;overflow:hidden;margin-top:40px;
+      box-shadow:0 30px 60px -30px rgba(0,0,0,.35);
+    }
+    #loginView .lg-hero{
+      border-radius:0;display:flex;flex-direction:column;justify-content:center;
+      align-items:flex-start;text-align:left;padding:56px 52px;
+    }
+    #loginView .lg-mark{font-size:36px;}
+    #loginView .lg-sub{font-size:14px;}
+    #loginView .lg-body{
+      background:var(--card);margin-top:0;padding:56px 60px;
+      display:flex;flex-direction:column;justify-content:center;
+    }
+    #loginView .lg-body > *{max-width:360px;width:100%;margin-left:auto;margin-right:auto;}
+  }
 
   /* ---------- shared ui ---------- */
   .card{background:var(--card);border-radius:18px;border:1px solid var(--border);padding:18px;box-shadow:0 6px 18px -12px #00000022;}
@@ -445,7 +486,11 @@
 
 <!-- ============ LOGIN ============ -->
 <div id="loginView" class="loginwrap">
-  <div class="logo"><div class="mark">ARANA TIME</div><div class="subm">ระบบเข้า-ออกงานหลายสาขา</div></div>
+  <div class="lg-hero">
+    <div class="lg-mark">ARANA<span class="lg-dot"> · </span>TIME</div>
+    <div class="lg-sub">ระบบเข้า-ออกงานหลายสาขา</div>
+  </div>
+  <div class="lg-body">
   <div class="rolepick">
     <button class="rolebtn active" id="roleEmpBtn">พนักงาน</button>
     <button class="rolebtn" id="roleApproverBtn">ผู้บริหาร</button>
@@ -489,6 +534,7 @@
     <button class="btn block" style="margin-top:14px;" id="adminLoginBtn">เข้าสู่ระบบ</button>
     <div class="msg err" id="adminLoginMsg"></div>
     <div class="hint" style="margin-top:10px;">รหัสผ่านเริ่มต้น: <b>admin1234</b> — เปลี่ยนได้ในหน้าตั้งค่าหลังเข้าสู่ระบบ ใช้สำหรับตั้งค่าครั้งแรกเท่านั้น หลังจากนั้นแนะนำให้สร้างบัญชี HR แล้วใช้ชื่อ+PIN แทน</div>
+  </div>
   </div>
 </div>
 
