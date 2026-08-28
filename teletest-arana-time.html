@@ -883,6 +883,14 @@
             <div style="font-size:12px;color:var(--pink-dark);margin-bottom:8px;" id="orphanAutoText"></div>
             <button class="btn sm" id="orphanAutoBtn">ผูกคืนอัตโนมัติจากชื่อที่กำกับไว้</button>
           </div>
+          <div style="border:1px solid var(--border);border-radius:12px;padding:11px 13px;margin-bottom:12px;font-size:12px;line-height:1.7;">
+            <div style="font-weight:600;color:var(--pink-dark);margin-bottom:6px;">ใครยังไม่ถูกจับคู่ในวันนี้</div>
+            <div id="orphanWho"></div>
+            <div style="color:var(--muted);margin-top:6px;font-size:11.5px;">
+              รายการที่ไม่มีข้อความใน Telegram (⚠) ให้ดูจากรายชื่อนี้ — คนที่ยังไม่มีข้อมูลเลยคือเจ้าของรายการที่เหลือ
+              (ไม่นับคนที่ลาอนุมัติแล้วในวันนั้น) รายชื่อจะอัปเดตตามที่เลือกไปแล้วทันที
+            </div>
+          </div>
           <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:12px;">
             <div style="flex:1;min-width:180px;"><label>ผูกชื่อนี้ให้แถวที่ติ๊ก</label><select id="orphanAssignSel"></select></div>
             <button class="btn sm ghost" id="orphanAssignBtn">ใส่ชื่อให้แถวที่ติ๊ก</button>
@@ -4171,23 +4179,89 @@ function orphanLogsForFilter(){
     .filter(l=>!l.employeeId && dateKey(new Date(l.time))===dateStr && (type==='all' || l.type===type))
     .sort((a,b)=> new Date(a.time) - new Date(b.time));
 }
+// จับรายการที่ทำติดกันรวดเดียวให้เป็น "ชุด" เดียวกัน — คนทำความสะอาด/ปิดแอร์/ความเรียบร้อย
+// มักกดรัวหลายจุดติดกันในสาขาเดียว ถ้ารายการไหนส่ง Telegram ไม่สำเร็จ ก็ยังเดาได้จากเพื่อนในชุดเดียวกัน
+// ส่วนเข้างาน/ออกงานไม่จับกลุ่ม เพราะเป็นของใครของมัน คนละคนก็สแกนไล่ๆ กันได้
+const ORPHAN_BURST_TYPES = ['CLEAN','AC','GROOM'];
+const ORPHAN_BURST_GAP_MS = 8*60*1000;
+function orphanGroups(rows){
+  const groups = [];
+  rows.forEach(l=>{
+    const last = groups[groups.length-1];
+    const canJoin = last && ORPHAN_BURST_TYPES.includes(l.type)
+      && ORPHAN_BURST_TYPES.includes(last.logs[last.logs.length-1].type)
+      && last.branchId === l.branchId
+      && (new Date(l.time) - new Date(last.logs[last.logs.length-1].time)) <= ORPHAN_BURST_GAP_MS;
+    if(canJoin) last.logs.push(l);
+    else groups.push({ branchId: l.branchId, logs: [l] });
+  });
+  return groups;
+}
+function orphanHM(t){ const d = new Date(t); return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; }
 function renderOrphanList(){
   const box = document.getElementById('orphanList');
   const rows = orphanLogsForFilter();
   if(!rows.length){ box.innerHTML = `<div class="empty">ไม่มีรายการที่ต้องซ่อมในวันที่เลือก</div>`; return; }
-  box.innerHTML = rows.map(l=>{
-    const t = new Date(l.time);
-    const time = `${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}`;
-    const br = db.branches.find(b=>b.id===l.branchId);
-    const picked = orphanPicks[l.id] ? (db.employees.find(e=>e.id===orphanPicks[l.id])?.name || '') : '';
-    return `<label style="display:flex;align-items:center;gap:10px;padding:8px 4px;border-bottom:1px solid var(--border);font-size:12.5px;cursor:pointer;">
-      <input type="checkbox" class="orphanck" data-id="${l.id}" style="width:17px;height:17px;flex-shrink:0;">
-      <b style="width:44px;flex-shrink:0;">${time}</b>
-      <span style="width:82px;flex-shrink:0;">${ORPHAN_TYPE_LABELS[l.type]||l.type}</span>
-      <span style="width:96px;flex-shrink:0;color:var(--muted);">${br?br.name:'-'}</span>
-      <span style="flex:1;${picked?'color:var(--green);font-weight:600;':'color:var(--muted);'}">${picked || (l.employeeName ? `${l.employeeName} (ชื่อที่กำกับไว้)` : 'ยังไม่ได้เลือกชื่อ')}</span>
-    </label>`;
+  box.innerHTML = orphanGroups(rows).map((g, gi)=>{
+    const br = db.branches.find(b=>b.id===g.branchId);
+    const sentN = g.logs.filter(l=>l.sent===true).length;
+    const head = g.logs.length===1 ? '' :
+      `<div style="display:flex;align-items:center;gap:8px;padding:8px 4px 6px;font-size:11.5px;color:var(--pink-dark);background:#FFFBFD;border-bottom:1px solid var(--border);">
+        <b>${br?br.name:'-'} · ${orphanHM(g.logs[0].time)}–${orphanHM(g.logs[g.logs.length-1].time)}</b>
+        <span style="color:var(--muted);">ทำติดกัน ${g.logs.length} รายการ · หาใน Telegram ได้ ${sentN}</span>
+        <button type="button" class="btn sm ghost orphangrp" data-gi="${gi}" style="margin-left:auto;padding:3px 9px;font-size:11px;">ติ๊กทั้งชุด</button>
+      </div>`;
+    return head + g.logs.map(l=>{
+      const picked = orphanPicks[l.id] ? (db.employees.find(e=>e.id===orphanPicks[l.id])?.name || '') : '';
+      // ✉ = ข้อความอยู่ในกลุ่ม Telegram หาชื่อได้ / ⚠ = ส่งไม่สำเร็จ ต้องเดาจากชุดเดียวกันหรือคนที่เหลือ
+      const tag = l.sent===true
+        ? `<span title="ส่งเข้ากลุ่ม Telegram แล้ว" style="color:var(--green);">✉</span>`
+        : `<span title="ไม่ได้ส่งเข้ากลุ่ม Telegram — หาข้อความเทียบไม่ได้" style="color:var(--amber);">⚠</span>`;
+      return `<label style="display:flex;align-items:center;gap:10px;padding:8px 4px;border-bottom:1px solid var(--border);font-size:12.5px;cursor:pointer;${g.logs.length>1?'padding-left:14px;':''}">
+        <input type="checkbox" class="orphanck" data-id="${l.id}" data-gi="${gi}" style="width:17px;height:17px;flex-shrink:0;">
+        <span style="width:14px;flex-shrink:0;text-align:center;">${tag}</span>
+        <b style="width:44px;flex-shrink:0;">${orphanHM(l.time)}</b>
+        <span style="width:82px;flex-shrink:0;">${ORPHAN_TYPE_LABELS[l.type]||l.type}</span>
+        <span style="width:96px;flex-shrink:0;color:var(--muted);">${br?br.name:'-'}</span>
+        <span style="flex:1;${picked?'color:var(--green);font-weight:600;':'color:var(--muted);'}">${picked || (l.employeeName ? `${l.employeeName} (ชื่อที่กำกับไว้)` : 'ยังไม่ได้เลือกชื่อ')}</span>
+      </label>`;
+    }).join('');
   }).join('');
+  box.querySelectorAll('.orphangrp').forEach(b=>{
+    b.onclick = (ev)=>{
+      ev.preventDefault();
+      const cks = [...box.querySelectorAll(`.orphanck[data-gi="${b.dataset.gi}"]`)];
+      const turnOn = cks.some(c=>!c.checked);
+      cks.forEach(c=> c.checked = turnOn);
+    };
+  });
+}
+
+// ใครในสาขานั้น "ยังไม่มีข้อมูลเลย" ในวันที่เลือก — ตัวช่วยสำคัญสำหรับรายการที่ไม่มีข้อความใน Telegram
+// เพราะถ้ารู้แล้วว่าใครถูกจับคู่ไปแล้วบ้าง คนที่เหลือก็คือเจ้าของรายการที่ยังไม่มีชื่อ
+function renderOrphanWhoBox(){
+  const el = document.getElementById('orphanWho');
+  const dateStr = getDateVal('orphanDate') || dateKey(new Date());
+  const d = new Date(dateStr+'T00:00:00');
+  const dayLogs = db.logs.filter(l=>dateKey(new Date(l.time))===dateStr);
+  const claimed = new Set();
+  dayLogs.forEach(l=>{ if(l.employeeId) claimed.add(l.employeeId); });
+  Object.values(orphanPicks).forEach(id=> claimed.add(id));
+  const parts = db.branches.map(br=>{
+    const emps = db.employees.filter(e=>e.branchId===br.id && e.active!==false && hasStartedBy(e, d));
+    const missing = emps.filter(e=>{
+      if(claimed.has(e.id)) return false;
+      const onLeave = db.leaves.some(l=>l.employeeId===e.id && l.status==='approved'
+        && new Date(l.from+'T00:00:00')<=d && d<=new Date(l.to+'T00:00:00'));
+      return !onLeave;
+    });
+    const offToday = (br.weeklyOffDays||[]).includes(d.getDay());
+    if(!missing.length) return `<div style="margin-bottom:4px;"><b>${br.name}</b> <span style="color:var(--green);">จับคู่ครบแล้ว</span></div>`;
+    return `<div style="margin-bottom:4px;"><b>${br.name}</b>${offToday?' <span style="color:var(--muted);">(วันหยุดสาขา)</span>':''}
+      <span style="color:var(--muted);">ยังไม่มีข้อมูล ${missing.length} คน:</span>
+      ${missing.map(e=>e.nickname||e.name).join(', ')}</div>`;
+  });
+  el.innerHTML = parts.join('');
 }
 // รายการที่ตัวเชื่อมหลุด "แต่ยังมีชื่อกำกับไว้" — ผูกคืนได้เองทั้งหมดโดยไม่ต้องเทียบ Telegram
 // (ชื่อนี้ฐานข้อมูลเติมให้ตอนบันทึกด้วย trigger ตั้งแต่ 28 ส.ค. 2569 เป็นต้นไป)
@@ -4219,6 +4293,7 @@ function renderOrphanTab(){
   ).join('');
   if(!getDateVal('orphanDate')) setDateVal('orphanDate', dateKey(new Date()));
   renderOrphanAutoBox();
+  renderOrphanWhoBox();
   renderOrphanList();
 }
 document.getElementById('orphanAutoBtn').onclick = async ()=>{
@@ -4241,10 +4316,11 @@ document.getElementById('orphanAutoBtn').onclick = async ()=>{
   btn.disabled = false;
   msg.className = fail ? 'msg err' : 'msg ok';
   msg.textContent = fail ? `ผูกคืนสำเร็จ ${ok} รายการ ไม่สำเร็จ ${fail} รายการ` : `ผูกคืนสำเร็จ ${ok} รายการ`;
-  renderOrphanAutoBox(); renderOrphanList();
+  renderOrphanAutoBox(); renderOrphanWhoBox(); renderOrphanList();
 };
+function refreshOrphanViews(){ renderOrphanAutoBox(); renderOrphanWhoBox(); renderOrphanList(); }
 document.getElementById('orphanType').onchange = renderOrphanList;
-wireDateChange('orphanDate', renderOrphanList);
+wireDateChange('orphanDate', refreshOrphanViews);
 document.getElementById('orphanCheckAllBtn').onclick = ()=>{
   const cks = [...document.querySelectorAll('.orphanck')];
   const turnOn = cks.some(c=>!c.checked);
@@ -4258,7 +4334,7 @@ document.getElementById('orphanAssignBtn').onclick = ()=>{
   if(!checked.length){ msg.className='msg err'; msg.textContent='ติ๊กแถวที่ต้องการผูกชื่อก่อน'; return; }
   checked.forEach(c=> orphanPicks[c.dataset.id] = empId);
   msg.className='msg'; msg.textContent=`ใส่ชื่อไว้ ${checked.length} แถว (ยังไม่บันทึก กด "บันทึกการผูกชื่อ" เพื่อยืนยัน)`;
-  renderOrphanList();
+  renderOrphanWhoBox(); renderOrphanList();
 };
 document.getElementById('orphanSaveBtn').onclick = async ()=>{
   const btn = document.getElementById('orphanSaveBtn'), msg = document.getElementById('orphanMsg');
@@ -4280,7 +4356,7 @@ document.getElementById('orphanSaveBtn').onclick = async ()=>{
   btn.disabled = false;
   msg.className = fail ? 'msg err' : 'msg ok';
   msg.textContent = fail ? `บันทึกสำเร็จ ${ok} รายการ ไม่สำเร็จ ${fail} รายการ` : `บันทึกสำเร็จ ${ok} รายการ`;
-  renderOrphanAutoBox(); renderOrphanList();
+  renderOrphanAutoBox(); renderOrphanWhoBox(); renderOrphanList();
 };
 
 document.getElementById('changeAdminPassBtn').onclick = async ()=>{
