@@ -55,6 +55,7 @@
   .lg-mark{position:relative;z-index:2;font-family:'Marcellus SC',serif;font-weight:400;font-size:32px;letter-spacing:2.4px;}
   .lg-mark .lg-dot{color:#C9A24B;}
   .lg-sub{position:relative;z-index:2;font-size:13px;opacity:.9;margin-top:8px;letter-spacing:.3px;}
+  .lg-heroinfo{display:none;}
   .lg-body{padding:0 22px 24px;margin-top:-34px;position:relative;z-index:2;}
   #loginView .card{border-radius:22px;box-shadow:0 18px 40px -26px rgba(214,72,140,.35);}
   #loginView .pinpad{max-width:270px;margin:14px auto 0;justify-items:center;}
@@ -73,6 +74,9 @@
     }
     #loginView .lg-mark{font-size:36px;}
     #loginView .lg-sub{font-size:14px;}
+    #loginView .lg-heroinfo{display:block;position:relative;z-index:2;margin-top:36px;max-width:380px;}
+    #loginView .lg-heroinfo h2{font-family:'Prompt',sans-serif;font-size:22px;line-height:1.4;margin:0 0 12px;text-wrap:balance;}
+    #loginView .lg-heroinfo p{font-size:13.5px;line-height:1.75;opacity:.92;margin:0;}
     #loginView .lg-body{
       background:var(--card);margin-top:0;padding:56px 60px;
       display:flex;flex-direction:column;justify-content:center;
@@ -489,6 +493,10 @@
   <div class="lg-hero">
     <div class="lg-mark">ARANA<span class="lg-dot"> · </span>TIME</div>
     <div class="lg-sub">ระบบเข้า-ออกงานหลายสาขา</div>
+    <div class="lg-heroinfo">
+      <h2>บันทึกเวลาทำงาน ดูแลทีมทุกสาขา ในที่เดียว</h2>
+      <p>เช็กอิน-เช็กเอาท์ด้วยใบหน้า ยื่นใบลา ขอ OT และดูสรุปผลงานของทุกสาขาได้ในที่เดียว</p>
+    </div>
   </div>
   <div class="lg-body">
   <div class="rolepick">
