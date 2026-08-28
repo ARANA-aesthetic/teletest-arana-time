@@ -293,6 +293,32 @@
     .menu-grid{grid-template-columns:repeat(6,1fr);}
   }
 
+  /* ---------- ตั้งค่า: จัดกลุ่มหัวข้อเป็นหมวดพับ/กางได้ (setgroup) ---------- */
+  .setjumpbar{display:flex;gap:6px;overflow-x:auto;padding-bottom:10px;margin-bottom:2px;scrollbar-width:none;}
+  .setjumpbar::-webkit-scrollbar{display:none;}
+  .setjumpchip{
+    flex-shrink:0;font-family:'Prompt',sans-serif;font-weight:600;font-size:12px;
+    padding:8px 14px;border-radius:99px;background:#fff;border:1px solid var(--border);
+    color:var(--muted);white-space:nowrap;cursor:pointer;
+  }
+  .setjumpchip.active{background:var(--pink);color:#fff;border-color:var(--pink);}
+  .setgroup{margin-bottom:10px;border-radius:18px;background:#fff;border:1px solid var(--border);overflow:hidden;}
+  .setgrouphead{display:flex;align-items:center;gap:11px;padding:14px 16px;cursor:pointer;}
+  .setgroupicon{width:34px;height:34px;border-radius:10px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:var(--pink-pale);color:var(--pink-dark);}
+  .setgroupicon svg{width:17px;height:17px;}
+  .setgroupmeta{flex:1;min-width:0;}
+  .setgroupmeta .gt{font-family:'Prompt',sans-serif;font-weight:600;font-size:14px;color:var(--text);}
+  .setgroupmeta .gs{font-size:11px;color:var(--muted);margin-top:1px;}
+  .setgroupflag{width:7px;height:7px;border-radius:50%;flex-shrink:0;margin-right:2px;display:none;}
+  .setgroupflag.show{display:block;}
+  .setgroupflag.warn{background:var(--amber);}
+  .setgroupflag.err{background:var(--red);}
+  .setchev{color:var(--muted);flex-shrink:0;font-size:14px;transition:transform .15s;}
+  .setgroup.open .setchev{transform:rotate(180deg);}
+  .setgroupbody{display:none;padding:0 16px 4px;border-top:1px solid var(--border);}
+  .setgroup.open .setgroupbody{display:block;}
+  .setgroupbody > section:last-child{margin-bottom:0;}
+
   /* ---------- โหมดคอมพิวเตอร์ เฉพาะหน้าผู้ดูแล/ผู้บริหาร (body.deskmode) ----------
      HR ใช้หน้านี้ดูข้อมูลทำสรุปรายงานบนคอม จึงกางเต็มจอ ย้ายเมนูล่างไปเป็นแถบข้าง
      แล้วจัดตัวกรองไว้คอลัมน์ซ้าย เนื้อหา/ตารางอยู่คอลัมน์ขวา ดูเทียบกันได้ในจอเดียว
@@ -381,12 +407,19 @@
     body.deskmode #atabReports .segbtn{flex:0 0 auto;padding:9px 20px;}
 
     /* แท็บที่ไม่มีตัวกรองข้าง ให้กว้างเต็มแต่ไม่ยืดจนอ่านยาก */
-    body.deskmode #atabEmployees,
-    body.deskmode #atabSettings{max-width:1180px;}
+    body.deskmode #atabEmployees{max-width:1180px;}
+
+    /* หน้าตั้งค่า: แถบหมวดกลายเป็นแถบข้างซ้ายแบบตรึงไว้ (ใช้ trick เดียวกับ atabLeaves/atabInspect) */
     body.deskmode #atabSettings{
-      display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
-      gap:0 24px;align-items:start;max-width:none;
+      display:grid;grid-template-columns:210px minmax(0,1fr);
+      gap:0 28px;align-items:start;max-width:1180px;
     }
+    body.deskmode #atabSettings .setjumpbar{
+      grid-column:1;grid-row:1 / span 99;position:sticky;top:22px;
+      flex-direction:column;align-items:stretch;overflow:visible;padding-bottom:0;
+    }
+    body.deskmode #atabSettings .setjumpchip{justify-content:flex-start;padding:10px 14px;}
+    body.deskmode #atabSettings .setgroup{grid-column:2;}
 
     /* การ์ดสรุปรายพนักงาน + รายชื่อ วางเป็นกริดหลายคอลัมน์ */
     body.deskmode #empSummaryList{
@@ -831,156 +864,217 @@
 
     <!-- Settings -->
     <div id="atabSettings" class="hidden">
-      <section>
-        <div class="card" id="dbStatusCard" style="display:flex;align-items:center;gap:10px;"></div>
-      </section>
-      <section>
-        <div class="sectitle">จัดการพนักงาน</div>
-        <button class="btn block" style="margin-bottom:16px;" id="addEmpAdminBtn">+ เพิ่มพนักงาน</button>
-        <div class="branchselect" style="margin-bottom:12px;"><select id="manageEmpBranchFilter"></select></div>
-        <div class="card" id="adminEmpList" style="padding:0 16px;"></div>
-      </section>
-      <section>
-        <div class="sectitle">จัดการบัญชีผู้บริหาร</div>
-        <div class="card" id="approverEditor"></div>
-      </section>
-      <section>
-        <div class="sectitle">ประวัติการแก้ไข/ลบ (Audit Log)</div>
-        <div class="card" id="auditLogViewer" style="padding:0 16px;"></div>
-      </section>
-      <section>
-        <div class="sectitle">นำเข้าข้อมูลเก่า (ประวัติเข้า-ออกงาน)</div>
-        <div class="card">
-          <div style="color:var(--muted);font-size:12px;margin-bottom:10px;">
-            อัปโหลดไฟล์ CSV รูปแบบคอลัมน์: <b>วันที่, ชื่อพนักงาน(ต้องตรงกับชื่อในระบบเป๊ะๆ), ประเภท(IN หรือ OUT), เวลา, สายกี่นาที</b><br>
-            ตัวอย่างแถว: <code>2026-01-05,ทิพาศรี สุขประเสริฐ,IN,09:05,5</code>
-          </div>
-          <input type="file" id="importAttendanceFile" accept=".csv">
-          <button class="btn sm" style="margin-top:10px;" id="importAttendanceBtn">นำเข้าข้อมูล</button>
-          <div class="msg" id="importAttendanceMsg"></div>
+      <div class="setjumpbar">
+        <button class="setjumpchip active" onclick="jumpToSetGroup('overview')" type="button">ภาพรวม</button>
+        <button class="setjumpchip" onclick="jumpToSetGroup('people')" type="button">คนและสิทธิ์</button>
+        <button class="setjumpchip" onclick="jumpToSetGroup('branch')" type="button">สาขา &amp; จุดตรวจ</button>
+        <button class="setjumpchip" onclick="jumpToSetGroup('notify')" type="button">แจ้งเตือน</button>
+        <button class="setjumpchip" onclick="jumpToSetGroup('data')" type="button">ข้อมูล &amp; สำรอง</button>
+      </div>
+
+      <div class="setgroup open" data-setgroup="overview">
+        <div class="setgrouphead" onclick="toggleSetGroup('overview')">
+          <div class="setgroupicon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 2"/></svg></div>
+          <div class="setgroupmeta"><div class="gt">ภาพรวมระบบ</div><div class="gs">สถานะการเชื่อมต่อ · สำรองข้อมูลไป Google Sheets</div></div>
+          <div class="setgroupflag" id="setflag-overview"></div>
+          <div class="setchev">⌄</div>
         </div>
-      </section>
-      <section>
-        <div class="sectitle">ซ่อมรายการที่ไม่มีชื่อพนักงาน</div>
-        <div class="card">
-          <div style="color:var(--muted);font-size:12px;margin-bottom:12px;">
-            รายการที่ถูกบันทึกไว้แต่ตัวเชื่อมกับพนักงานหลุดไป (เกิดเมื่อพนักงานถูกลบออกจากระบบ)
-            ข้อมูลยังอยู่ครบ แค่ไม่รู้ว่าเป็นของใคร — เทียบเวลากับข้อความในกลุ่ม Telegram
-            แล้วเลือกชื่อกลับเข้าไปได้ที่นี่ ติ๊กหลายแถวพร้อมกันได้ถ้าเป็นคนเดียวกัน
-          </div>
-          <div class="row2" style="margin-bottom:10px;">
-            <div><label>วันที่</label><div id="orphanDate_holder"></div></div>
-            <div><label>ประเภท</label><select id="orphanType">
-              <option value="all">ทุกประเภท</option>
-              <option value="IN">เข้างาน (IN)</option>
-              <option value="OUT">ออกงาน (OUT)</option>
-              <option value="CLEAN">ความสะอาด</option>
-              <option value="AC">ปิดแอร์</option>
-              <option value="GROOM">ความเรียบร้อย</option>
-            </select></div>
-          </div>
-          <div id="orphanAutoBox" style="background:var(--pink-pale);border-radius:12px;padding:12px;margin-bottom:12px;">
-            <div style="font-size:12px;color:var(--pink-dark);margin-bottom:8px;" id="orphanAutoText"></div>
-            <button class="btn sm" id="orphanAutoBtn">ผูกคืนอัตโนมัติจากชื่อที่กำกับไว้</button>
-          </div>
-          <div style="border:1px solid var(--border);border-radius:12px;padding:11px 13px;margin-bottom:12px;font-size:12px;line-height:1.7;">
-            <div style="font-weight:600;color:var(--pink-dark);margin-bottom:6px;">ใครยังไม่ถูกจับคู่ในวันนี้</div>
-            <div id="orphanWho"></div>
-            <div style="color:var(--muted);margin-top:6px;font-size:11.5px;">
-              รายการที่ไม่มีข้อความใน Telegram (⚠) ให้ดูจากรายชื่อนี้ — คนที่ยังไม่มีข้อมูลเลยคือเจ้าของรายการที่เหลือ
-              (ไม่นับคนที่ลาอนุมัติแล้วในวันนั้น) รายชื่อจะอัปเดตตามที่เลือกไปแล้วทันที
+        <div class="setgroupbody">
+          <section>
+            <div class="card" id="dbStatusCard" style="display:flex;align-items:center;gap:10px;"></div>
+          </section>
+          <section>
+            <div class="sectitle">Backup ข้อมูลไป Google Sheets</div>
+            <div class="card">
+              <div style="color:var(--muted);font-size:12px;margin-bottom:10px;">ระบบจะส่งข้อมูลขาดลา/มาสาย/OT ที่อนุมัติแล้ว/เวลาเข้า-ออกงาน ไปสำรองไว้ที่ Google Sheets อัตโนมัติทุก 15 นาที (เฉพาะรายการใหม่ที่ยังไม่เคยส่ง)</div>
+              <label>Google Apps Script Web App URL</label>
+              <input type="text" id="gsheetUrl" placeholder="https://script.google.com/macros/s/xxxxx/exec">
+              <label>รหัสลับ (ต้องตรงกับที่ตั้งในสคริปต์)</label>
+              <input type="password" id="gsheetSecret">
+              <button class="btn sm" style="margin-top:10px;" id="saveGsheetBtn">บันทึก</button>
+              <div class="modalfoot"><button class="btn ghost sm" id="syncGsheetBtn">Sync ตอนนี้</button></div>
+              <div style="color:var(--muted);font-size:11.5px;margin-top:6px;" id="gsheetLastSync"></div>
+              <div class="msg" id="gsheetMsg"></div>
             </div>
-          </div>
-          <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:12px;">
-            <div style="flex:1;min-width:180px;"><label>ผูกชื่อนี้ให้แถวที่ติ๊ก</label><select id="orphanAssignSel"></select></div>
-            <button class="btn sm ghost" id="orphanAssignBtn">ใส่ชื่อให้แถวที่ติ๊ก</button>
-            <button class="btn sm ghost" id="orphanCheckAllBtn">ติ๊กทั้งหมด</button>
-          </div>
-          <div id="orphanList" style="max-height:380px;overflow:auto;"></div>
-          <button class="btn block" style="margin-top:12px;" id="orphanSaveBtn">บันทึกการผูกชื่อ</button>
-          <div class="msg" id="orphanMsg"></div>
+          </section>
         </div>
-      </section>
-      <section>
-        <div class="sectitle">สาขา</div>
-        <div class="card" id="branchEditor" style="margin-bottom:0;"></div>
-      </section>
-      <section>
-        <div class="sectitle">จุดปิดแอร์ต่อสาขา</div>
-        <div class="card" id="acPointEditor"></div>
-      </section>
-      <section>
-        <div class="sectitle">จุดตรวจความสะอาดต่อสาขา</div>
-        <div class="card" id="cleanPointEditor"></div>
-      </section>
-      <section>
-        <div class="sectitle">วันหยุดบริษัท</div>
-        <div class="card" id="holidayEditor"></div>
-      </section>
-      <section>
-        <div class="sectitle">เกณฑ์สาย / ขาด</div>
-        <div class="card">
-          <label>มาสาย = เลยเวลาเข้างานเกินกี่นาที</label>
-          <input type="number" id="graceMinutesInput" min="0">
-          <button class="btn sm" style="margin-top:10px;" id="saveRulesBtn">บันทึกเกณฑ์</button>
+      </div>
+
+      <div class="setgroup" data-setgroup="people">
+        <div class="setgrouphead" onclick="toggleSetGroup('people')">
+          <div class="setgroupicon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg></div>
+          <div class="setgroupmeta"><div class="gt">คนและสิทธิ์</div><div class="gs">พนักงาน · ผู้บริหาร · Audit Log · รหัสผ่าน</div></div>
+          <div class="setchev">⌄</div>
         </div>
-      </section>
-      <section>
-        <div class="sectitle">Telegram Bot Token (ใช้ร่วมกันทุกกลุ่ม)</div>
-        <div class="card">
-          <label>Bot Token</label>
-          <input type="password" id="centralToken">
-          <label>Chat ID กลุ่มขอลา (ยื่นใบลารออนุมัติ)</label>
-          <input type="text" id="centralChat">
-          <label>Chat ID กลุ่มขอ OT (คำขอ OT + ผลอนุมัติ OT)</label>
-          <input type="text" id="otChat">
-          <div class="modalfoot"><button class="btn ghost sm" id="testCentralTgBtn">ทดสอบส่งข้อความ</button></div>
-          <div class="msg" id="centralTgMsg"></div>
-          <button class="btn sm" style="margin-top:10px;" id="saveCentralBtn">บันทึก</button>
+        <div class="setgroupbody">
+          <section>
+            <div class="sectitle">จัดการพนักงาน</div>
+            <button class="btn block" style="margin-bottom:16px;" id="addEmpAdminBtn">+ เพิ่มพนักงาน</button>
+            <div class="branchselect" style="margin-bottom:12px;"><select id="manageEmpBranchFilter"></select></div>
+            <div class="card" id="adminEmpList" style="padding:0 16px;"></div>
+          </section>
+          <section>
+            <div class="sectitle">จัดการบัญชีผู้บริหาร</div>
+            <div class="card" id="approverEditor"></div>
+          </section>
+          <section>
+            <div class="sectitle">ประวัติการแก้ไข/ลบ (Audit Log)</div>
+            <div class="card" id="auditLogViewer" style="padding:0 16px;"></div>
+          </section>
+          <section>
+            <div class="sectitle">รหัสผ่านเจ้าของ/HR</div>
+            <div class="card">
+              <label>รหัสผ่านใหม่</label>
+              <input type="password" id="newAdminPass">
+              <button class="btn sm" style="margin-top:10px;" id="changeAdminPassBtn">เปลี่ยนรหัสผ่าน</button>
+              <div class="msg" id="adminPassMsg"></div>
+            </div>
+          </section>
         </div>
-      </section>
-      <section>
-        <div class="sectitle">ห้อง Telegram เพิ่มเติม (สำรองไว้ใช้ในอนาคต)</div>
-        <div class="card" id="telegramRoomsEditor"></div>
-      </section>
-      <section>
-        <div class="sectitle">ทดสอบระบบแจ้งเตือนอัตโนมัติ</div>
-        <div class="card">
-          <div style="color:var(--muted);font-size:12px;margin-bottom:10px;">กดเพื่อสั่งให้ทำงานทันที ไม่ต้องรอถึงเวลาจริง — ใช้เช็กว่าระบบตั้งไว้ถูกต้อง</div>
-          <button class="btn ghost sm block" id="testDailyLeaveBtn" style="margin-bottom:8px;">ทดสอบสรุปวันลา (ปกติ 10:30 น.)</button>
-          <button class="btn ghost sm block" id="testAcReminderBtn" style="margin-bottom:8px;">ทดสอบเตือนปิดแอร์ (ปกติ 23:00 น.)</button>
-          <button class="btn ghost sm block" id="testFacilityReminderBtn">ทดสอบเตือนความสะอาด/ความเรียบร้อย (ปกติ 11:30 น.)</button>
-          <div class="msg" id="scheduledTestMsg"></div>
+      </div>
+
+      <div class="setgroup" data-setgroup="branch">
+        <div class="setgrouphead" onclick="toggleSetGroup('branch')">
+          <div class="setgroupicon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21V9l9-6 9 6v12"/><path d="M9 21v-6h6v6"/></svg></div>
+          <div class="setgroupmeta"><div class="gt">สาขา &amp; จุดตรวจ</div><div class="gs">สาขา · จุดปิดแอร์ · จุดความสะอาด · วันหยุด · เกณฑ์สาย</div></div>
+          <div class="setchev">⌄</div>
         </div>
-      </section>
-      <section>
-        <div class="sectitle">Backup ข้อมูลไป Google Sheets</div>
-        <div class="card">
-          <div style="color:var(--muted);font-size:12px;margin-bottom:10px;">ระบบจะส่งข้อมูลขาดลา/มาสาย/OT ที่อนุมัติแล้ว/เวลาเข้า-ออกงาน ไปสำรองไว้ที่ Google Sheets อัตโนมัติทุก 15 นาที (เฉพาะรายการใหม่ที่ยังไม่เคยส่ง)</div>
-          <label>Google Apps Script Web App URL</label>
-          <input type="text" id="gsheetUrl" placeholder="https://script.google.com/macros/s/xxxxx/exec">
-          <label>รหัสลับ (ต้องตรงกับที่ตั้งในสคริปต์)</label>
-          <input type="password" id="gsheetSecret">
-          <button class="btn sm" style="margin-top:10px;" id="saveGsheetBtn">บันทึก</button>
-          <div class="modalfoot"><button class="btn ghost sm" id="syncGsheetBtn">Sync ตอนนี้</button></div>
-          <div style="color:var(--muted);font-size:11.5px;margin-top:6px;" id="gsheetLastSync"></div>
-          <div class="msg" id="gsheetMsg"></div>
+        <div class="setgroupbody">
+          <section>
+            <div class="sectitle">สาขา</div>
+            <div class="card" id="branchEditor" style="margin-bottom:0;"></div>
+          </section>
+          <section>
+            <div class="sectitle">จุดปิดแอร์ต่อสาขา</div>
+            <div class="card" id="acPointEditor"></div>
+          </section>
+          <section>
+            <div class="sectitle">จุดตรวจความสะอาดต่อสาขา</div>
+            <div class="card" id="cleanPointEditor"></div>
+          </section>
+          <section>
+            <div class="sectitle">วันหยุดบริษัท</div>
+            <div class="card" id="holidayEditor"></div>
+          </section>
+          <section>
+            <div class="sectitle">เกณฑ์สาย / ขาด</div>
+            <div class="card">
+              <label>มาสาย = เลยเวลาเข้างานเกินกี่นาที</label>
+              <input type="number" id="graceMinutesInput" min="0">
+              <button class="btn sm" style="margin-top:10px;" id="saveRulesBtn">บันทึกเกณฑ์</button>
+            </div>
+          </section>
         </div>
-      </section>
-      <section>
-        <div class="sectitle">การแจ้งเตือน (Telegram)</div>
-        <div class="card" id="notifyTypesEditor"></div>
-      </section>
-      <section>
-        <div class="sectitle">รหัสผ่านเจ้าของ/HR</div>
-        <div class="card">
-          <label>รหัสผ่านใหม่</label>
-          <input type="password" id="newAdminPass">
-          <button class="btn sm" style="margin-top:10px;" id="changeAdminPassBtn">เปลี่ยนรหัสผ่าน</button>
-          <div class="msg" id="adminPassMsg"></div>
+      </div>
+
+      <div class="setgroup" data-setgroup="notify">
+        <div class="setgrouphead" onclick="toggleSetGroup('notify')">
+          <div class="setgroupicon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-4-1L3 20l1.2-5.5A8.5 8.5 0 1 1 21 11.5z"/></svg></div>
+          <div class="setgroupmeta"><div class="gt">การแจ้งเตือน Telegram</div><div class="gs">Bot Token · Chat ID · ห้องเพิ่มเติม · ทดสอบระบบ</div></div>
+          <div class="setgroupflag" id="setflag-notify"></div>
+          <div class="setchev">⌄</div>
         </div>
-      </section>
-      <div style="text-align:center;font-size:10.5px;color:var(--muted);font-weight:300;margin-top:6px;">แก้ไขเมื่อวันที่ 20/08/2026</div>
+        <div class="setgroupbody">
+          <section>
+            <div class="sectitle">Telegram Bot Token (ใช้ร่วมกันทุกกลุ่ม)</div>
+            <div class="card">
+              <label>Bot Token</label>
+              <input type="password" id="centralToken">
+              <label>Chat ID กลุ่มขอลา (ยื่นใบลารออนุมัติ)</label>
+              <input type="text" id="centralChat">
+              <label>Chat ID กลุ่มขอ OT (คำขอ OT + ผลอนุมัติ OT)</label>
+              <input type="text" id="otChat">
+              <div class="modalfoot"><button class="btn ghost sm" id="testCentralTgBtn">ทดสอบส่งข้อความ</button></div>
+              <div class="msg" id="centralTgMsg"></div>
+              <button class="btn sm" style="margin-top:10px;" id="saveCentralBtn">บันทึก</button>
+            </div>
+          </section>
+          <section>
+            <div class="sectitle">ห้อง Telegram เพิ่มเติม (สำรองไว้ใช้ในอนาคต)</div>
+            <div class="card" id="telegramRoomsEditor"></div>
+          </section>
+          <section>
+            <div class="sectitle">ทดสอบระบบแจ้งเตือนอัตโนมัติ</div>
+            <div class="card">
+              <div style="color:var(--muted);font-size:12px;margin-bottom:10px;">กดเพื่อสั่งให้ทำงานทันที ไม่ต้องรอถึงเวลาจริง — ใช้เช็กว่าระบบตั้งไว้ถูกต้อง</div>
+              <button class="btn ghost sm block" id="testDailyLeaveBtn" style="margin-bottom:8px;">ทดสอบสรุปวันลา (ปกติ 10:30 น.)</button>
+              <button class="btn ghost sm block" id="testAcReminderBtn" style="margin-bottom:8px;">ทดสอบเตือนปิดแอร์ (ปกติ 23:00 น.)</button>
+              <button class="btn ghost sm block" id="testFacilityReminderBtn">ทดสอบเตือนความสะอาด/ความเรียบร้อย (ปกติ 11:30 น.)</button>
+              <div class="msg" id="scheduledTestMsg"></div>
+            </div>
+          </section>
+          <section>
+            <div class="sectitle">การแจ้งเตือน (Telegram)</div>
+            <div class="card" id="notifyTypesEditor"></div>
+          </section>
+        </div>
+      </div>
+
+      <div class="setgroup" data-setgroup="data">
+        <div class="setgrouphead" onclick="toggleSetGroup('data')">
+          <div class="setgroupicon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16"/></svg></div>
+          <div class="setgroupmeta"><div class="gt">ข้อมูล &amp; ซ่อมแซม</div><div class="gs">นำเข้า CSV · ซ่อมรายการที่ไม่มีชื่อพนักงาน</div></div>
+          <div class="setgroupflag" id="setflag-data"></div>
+          <div class="setchev">⌄</div>
+        </div>
+        <div class="setgroupbody">
+          <section>
+            <div class="sectitle">นำเข้าข้อมูลเก่า (ประวัติเข้า-ออกงาน)</div>
+            <div class="card">
+              <div style="color:var(--muted);font-size:12px;margin-bottom:10px;">
+                อัปโหลดไฟล์ CSV รูปแบบคอลัมน์: <b>วันที่, ชื่อพนักงาน(ต้องตรงกับชื่อในระบบเป๊ะๆ), ประเภท(IN หรือ OUT), เวลา, สายกี่นาที</b><br>
+                ตัวอย่างแถว: <code>2026-01-05,ทิพาศรี สุขประเสริฐ,IN,09:05,5</code>
+              </div>
+              <input type="file" id="importAttendanceFile" accept=".csv">
+              <button class="btn sm" style="margin-top:10px;" id="importAttendanceBtn">นำเข้าข้อมูล</button>
+              <div class="msg" id="importAttendanceMsg"></div>
+            </div>
+          </section>
+          <section>
+            <div class="sectitle">ซ่อมรายการที่ไม่มีชื่อพนักงาน</div>
+            <div class="card">
+              <div style="color:var(--muted);font-size:12px;margin-bottom:12px;">
+                รายการที่ถูกบันทึกไว้แต่ตัวเชื่อมกับพนักงานหลุดไป (เกิดเมื่อพนักงานถูกลบออกจากระบบ)
+                ข้อมูลยังอยู่ครบ แค่ไม่รู้ว่าเป็นของใคร — เทียบเวลากับข้อความในกลุ่ม Telegram
+                แล้วเลือกชื่อกลับเข้าไปได้ที่นี่ ติ๊กหลายแถวพร้อมกันได้ถ้าเป็นคนเดียวกัน
+              </div>
+              <div class="row2" style="margin-bottom:10px;">
+                <div><label>วันที่</label><div id="orphanDate_holder"></div></div>
+                <div><label>ประเภท</label><select id="orphanType">
+                  <option value="all">ทุกประเภท</option>
+                  <option value="IN">เข้างาน (IN)</option>
+                  <option value="OUT">ออกงาน (OUT)</option>
+                  <option value="CLEAN">ความสะอาด</option>
+                  <option value="AC">ปิดแอร์</option>
+                  <option value="GROOM">ความเรียบร้อย</option>
+                </select></div>
+              </div>
+              <div id="orphanAutoBox" style="background:var(--pink-pale);border-radius:12px;padding:12px;margin-bottom:12px;">
+                <div style="font-size:12px;color:var(--pink-dark);margin-bottom:8px;" id="orphanAutoText"></div>
+                <button class="btn sm" id="orphanAutoBtn">ผูกคืนอัตโนมัติจากชื่อที่กำกับไว้</button>
+              </div>
+              <div style="border:1px solid var(--border);border-radius:12px;padding:11px 13px;margin-bottom:12px;font-size:12px;line-height:1.7;">
+                <div style="font-weight:600;color:var(--pink-dark);margin-bottom:6px;">ใครยังไม่ถูกจับคู่ในวันนี้</div>
+                <div id="orphanWho"></div>
+                <div style="color:var(--muted);margin-top:6px;font-size:11.5px;">
+                  รายการที่ไม่มีข้อความใน Telegram (⚠) ให้ดูจากรายชื่อนี้ — คนที่ยังไม่มีข้อมูลเลยคือเจ้าของรายการที่เหลือ
+                  (ไม่นับคนที่ลาอนุมัติแล้วในวันนั้น) รายชื่อจะอัปเดตตามที่เลือกไปแล้วทันที
+                </div>
+              </div>
+              <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:12px;">
+                <div style="flex:1;min-width:180px;"><label>ผูกชื่อนี้ให้แถวที่ติ๊ก</label><select id="orphanAssignSel"></select></div>
+                <button class="btn sm ghost" id="orphanAssignBtn">ใส่ชื่อให้แถวที่ติ๊ก</button>
+                <button class="btn sm ghost" id="orphanCheckAllBtn">ติ๊กทั้งหมด</button>
+              </div>
+              <div id="orphanList" style="max-height:380px;overflow:auto;"></div>
+              <button class="btn block" style="margin-top:12px;" id="orphanSaveBtn">บันทึกการผูกชื่อ</button>
+              <div class="msg" id="orphanMsg"></div>
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <div style="text-align:center;font-size:10.5px;color:var(--muted);font-weight:300;margin-top:6px;">แก้ไขเมื่อวันที่ 29/08/2026</div>
     </div>
 
   </div>
@@ -2799,7 +2893,31 @@ function switchATab(tab){
   if(tab==='Leaves'){ renderApprovalBranchFilter(); renderLeaveLists(); renderOtLists(); renderTransferList(); }
   if(tab==='Inspect'){ initInspectTab(); renderInspectTab(); }
   if(tab==='Reports'){ initReportsTab(); renderReportsTab(); }
-  if(tab==='Settings'){ renderDbStatus(); renderAdminEmpList(); renderApproverEditor(); renderBranchEditor(); renderAcPointEditor(); renderCleanPointEditor(); renderHolidayEditor(); renderNotifyTypesEditor(); renderTelegramRoomsEditor(); renderAuditLogViewer(); renderOrphanTab(); }
+  if(tab==='Settings'){ renderDbStatus(); renderAdminEmpList(); renderApproverEditor(); renderBranchEditor(); renderAcPointEditor(); renderCleanPointEditor(); renderHolidayEditor(); renderNotifyTypesEditor(); renderTelegramRoomsEditor(); renderAuditLogViewer(); renderOrphanTab(); updateSettingsFlags(); }
+}
+
+function toggleSetGroup(name){
+  const g = document.querySelector(`.setgroup[data-setgroup="${name}"]`);
+  if(g) g.classList.toggle('open');
+}
+function jumpToSetGroup(name){
+  document.querySelectorAll('.setjumpchip').forEach(c=>c.classList.remove('active'));
+  const chip = [...document.querySelectorAll('.setjumpchip')].find(c=>c.getAttribute('onclick')?.includes(`'${name}'`));
+  if(chip) chip.classList.add('active');
+  const g = document.querySelector(`.setgroup[data-setgroup="${name}"]`);
+  if(g){ g.classList.add('open'); g.scrollIntoView({behavior:'smooth', block:'start'}); }
+}
+function updateSettingsFlags(){
+  const notifyFlag = document.getElementById('setflag-notify');
+  if(notifyFlag){
+    const missing = db.branches.filter(b=>!b.chatIdCheckinout || !b.chatIdFacility).length;
+    notifyFlag.className = 'setgroupflag' + (missing ? ' show warn' : '');
+  }
+  const dataFlag = document.getElementById('setflag-data');
+  if(dataFlag){
+    const orphanCount = db.logs.filter(l=>!l.employeeId).length;
+    dataFlag.className = 'setgroupflag' + (orphanCount ? ' show err' : '');
+  }
 }
 
 function downloadCSV(filename, rows){
