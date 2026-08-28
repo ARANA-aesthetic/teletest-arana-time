@@ -1387,22 +1387,37 @@ function sbHeaders(extra){
 }
 // PostgREST ตอบกลับสูงสุด 1000 แถวต่อ 1 request ต้องไล่ดึงทีละหน้าด้วย header Range
 // ไม่งั้นตาราง logs ที่มีเป็นหมื่นแถวจะถูกตัดเหลือ 1000 แถวเงียบๆ (รายงานย้อนหลังจะขาดข้อมูล)
+// ตารางไหนอ่านไม่สำเร็จจะถูกจดไว้ที่นี่ — สำคัญมาก เพราะถ้าอ่านไม่ได้แล้ว db จะตกไปใช้ค่า
+// ตั้งต้นจาก defaultDB() (สาขา b1/b2/b3/hq ที่ Chat ID ว่าง) ถ้าเผลอกดบันทึกตอนนั้น
+// ค่าตั้งต้นจะทับข้อมูลจริงทั้งหมด จึงต้องล็อกปุ่มบันทึกไว้จนกว่าจะโหลดใหม่ได้ครบ
+let sbLoadFailed = [];
 async function sbSelectAll(table){
   const PAGE = 1000;
   let out = [], from = 0;
+  const markFailed = ()=>{ if(!sbLoadFailed.includes(table)) sbLoadFailed.push(table); };
   try{
     for(;;){
       const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?select=*`, {
         headers: { ...sbHeaders(), 'Range-Unit':'items', 'Range':`${from}-${from+PAGE-1}` }
       });
-      if(!res.ok) return from===0 ? [] : out;
+      if(!res.ok){ markFailed(); return from===0 ? [] : out; }
       const chunk = await res.json();
       out = out.concat(chunk);
       if(chunk.length < PAGE) return out;
       from += PAGE;
       if(from > 200000) return out;
     }
-  }catch(e){ console.error('sbSelectAll', table, e); return out; }
+  }catch(e){ console.error('sbSelectAll', table, e); markFailed(); return out; }
+}
+// เรียกก่อนทุกจุดที่จะเขียนทับข้อมูลตั้งค่า (สาขา/ตั้งค่าระบบ) — คืน true = ห้ามบันทึก
+function blockSaveIfLoadFailed(msgEl){
+  if(!sbLoadFailed.length) return false;
+  if(msgEl){
+    msgEl.className = 'msg err';
+    msgEl.textContent = `โหลดข้อมูลจากฐานข้อมูลไม่ครบ (${sbLoadFailed.join(', ')}) ยังบันทึกไม่ได้ `
+      + 'เพราะอาจเขียนค่าตั้งต้นทับข้อมูลจริง กรุณารีเฟรชหน้าจนโหลดครบก่อน';
+  }
+  return true;
 }
 async function sbUpsertRow(table, row, conflictCol='id'){
   try{
@@ -1463,6 +1478,7 @@ const rowToSettings = r => ({ centralToken:r.central_token||'', centralChatId:r.
 const settingsToRow = s => ({ id:1, central_token:s.centralToken||'', central_chat_id:s.centralChatId||'', ot_chat_id:s.otChatId||'', grace_minutes:s.graceMinutes??15, admin_password:s.adminPassword||'admin1234', holidays:s.holidays||[], notify_types:s.notifyTypes||{}, telegram_rooms:s.telegramRooms||[], gsheet_webapp_url:s.gsheetWebappUrl||'', gsheet_secret:s.gsheetSecret||'' });
 
 async function loadDB(){
+  sbLoadFailed = [];
   const [branchRows, empRows, approverRows, logRows, leaveRows, otRows, transferRows, notiRows, settingsRows] = await Promise.all([
     sbSelectAll('branches'), sbSelectAll('employees'), sbSelectAll('approvers'), sbSelectAll('logs'),
     sbSelectAll('leaves'), sbSelectAll('ot_requests'), sbSelectAll('branch_transfers'), sbSelectAll('notifications'), sbSelectAll('settings')
@@ -1505,7 +1521,11 @@ async function logAudit(action, targetType, targetId, details){
 }
 async function saveEmployeeRow(row){ return await sbUpsertRow('employees', employeeToRow(row)); }
 async function saveApproverRow(row){ return await sbUpsertRow('approvers', approverToRow(row)); }
-async function saveBranchRow(row){ return await sbUpsertRow('branches', branchToRow(row)); }
+async function saveBranchRow(row){
+  // ห้ามเขียนทับสาขาถ้าโหลดข้อมูลมาไม่ครบ — ตอนนั้น db.branches อาจเป็นค่าตั้งต้นที่ Chat ID ว่าง
+  if(sbLoadFailed.length) return { ok:false, error:`โหลดข้อมูลไม่ครบ (${sbLoadFailed.join(', ')}) ยังบันทึกไม่ได้` };
+  return await sbUpsertRow('branches', branchToRow(row));
+}
 
 async function sbCallFunction(fnName){
   try{
@@ -1555,8 +1575,16 @@ async function deleteBranchRow(id){ return await sbDeleteRow('branches', id); }
 
 function renderDbStatus(){
   const el = document.getElementById('dbStatusCard'); if(!el) return;
-  el.innerHTML = `<div class="ic" style="background:#DCFCE7;color:var(--green);">✓</div>
-    <div class="info"><div class="name" style="color:var(--green);">เชื่อมต่อ Supabase แล้ว</div></div>`;
+  const failed = sbLoadFailed.length;
+  const noChat = db.branches.filter(b=>!b.chatIdCheckinout || !b.chatIdFacility).length;
+  el.style.flexDirection = 'column'; el.style.alignItems = 'stretch';
+  const line = (bg, color, icon, text) =>
+    `<div style="display:flex;align-items:center;gap:10px;"><div class="ic" style="background:${bg};color:${color};flex-shrink:0;">${icon}</div>
+     <div class="info"><div class="name" style="color:${color};">${text}</div></div></div>`;
+  el.innerHTML = (failed
+      ? line('#FEE2E2','var(--red)','!', `โหลดข้อมูลไม่ครบ: ${sbLoadFailed.join(', ')} — ปุ่มบันทึกถูกล็อกไว้ กรุณารีเฟรชหน้า`)
+      : line('#DCFCE7','var(--green)','✓','เชื่อมต่อ Supabase แล้ว'))
+    + (noChat ? line('#FEF2F2','#B91C1C','⚠', `${noChat} สาขายังไม่ได้ตั้ง Chat ID — ไม่มีแจ้งเตือนเข้ากลุ่ม (ดูหัวข้อ "สาขา")`) : '');
 }
 
 function haversine(lat1,lng1,lat2,lng2){
@@ -3832,9 +3860,20 @@ function renderApproverEditor(){
   };
 }
 
+// เตือนทันทีถ้าสาขาไหนไม่มี Chat ID — ไม่มี Chat ID = ระบบข้ามการส่งเงียบๆ (ดู gatedTelegramPhoto)
+// เคยเกิดแล้วว่าค่าหายไปโดยไม่มีใครรู้ตัวหลายวัน กว่าจะรู้ก็ตอนไล่หาข้อความย้อนหลังไม่เจอ
+function branchChatWarningHTML(){
+  const bad = db.branches.filter(b=>!b.chatIdCheckinout || !b.chatIdFacility);
+  if(!bad.length) return '';
+  return `<div style="background:#FEF2F2;border:1px solid #FCA5A5;border-radius:12px;padding:11px 13px;margin-bottom:12px;font-size:12px;line-height:1.65;color:#991B1B;">
+    <b>⚠ ยังไม่ได้ตั้ง Chat ID — จะไม่มีแจ้งเตือนเข้ากลุ่มเลย</b><br>
+    ${bad.map(b=>`${b.name}: ${[!b.chatIdCheckinout?'กลุ่มเข้า-ออกงาน':'', !b.chatIdFacility?'กลุ่มความสะอาด/แอร์':''].filter(Boolean).join(' และ ')}`).join('<br>')}
+    <br><span style="color:#7F1D1D;">การสแกนจะยังบันทึกลงระบบตามปกติ แต่จะไม่มีข้อความส่งเข้ากลุ่ม</span>
+  </div>`;
+}
 function renderBranchEditor(){
   const el = document.getElementById('branchEditor');
-  el.innerHTML = db.branches.map(b=>`
+  el.innerHTML = branchChatWarningHTML() + db.branches.map(b=>`
     <div style="padding:12px 0;border-bottom:1px solid var(--border);">
       <div style="display:flex;align-items:center;gap:8px;">
         <label style="margin-top:0;flex:1;">ชื่อสาขา</label>
@@ -3910,6 +3949,7 @@ function renderBranchEditor(){
     renderBranchEditor(); renderBranchFilter(); renderAcPointEditor(); renderCleanPointEditor(); updateAdminHeaderMeta();
   };
   document.getElementById('saveBranchesBtn').onclick = async ()=>{
+    if(blockSaveIfLoadFailed(document.getElementById('branchMsg'))) return;
     el.querySelectorAll('input[data-f]').forEach(inp=>{
       const b = db.branches.find(x=>x.id===inp.dataset.id); const f = inp.dataset.f;
       b[f] = (f==='lat'||f==='lng') ? (inp.value?parseFloat(inp.value):null) : (f==='radius'?parseInt(inp.value||100):inp.value);
