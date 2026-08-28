@@ -203,7 +203,12 @@
   .branchselect::after{content:'';position:absolute;right:14px;top:50%;width:8px;height:8px;border-right:2px solid var(--pink-dark);border-bottom:2px solid var(--pink-dark);transform:translateY(-65%) rotate(45deg);pointer-events:none;}
   /* ---------- reports ---------- */
   .monthnav{display:flex;align-items:center;gap:10px;margin-bottom:14px;}
-  .monthnav .ibtn{width:36px;height:36px;flex-shrink:0;font-size:18px;line-height:1;}
+  /* .ibtn ตัวหลักออกแบบไว้ใช้บนแถบสีชมพูด้านบน (ตัวอักษรสีขาว) พอเอามาวางบนพื้นขาว
+     ในหน้ารายงาน ลูกศรเลยกลายเป็นขาวบนขาว มองไม่เห็น ต้องกำหนดสีใหม่ตรงนี้ */
+  .monthnav .ibtn{width:36px;height:36px;flex-shrink:0;font-size:20px;line-height:1;
+    background:#fff;border:1px solid var(--border);color:var(--pink-dark);font-weight:700;
+    display:flex;align-items:center;justify-content:center;}
+  .monthnav .ibtn:hover{background:var(--pink-pale);border-color:var(--pink);}
   .monthlabel{flex:1;text-align:center;font-family:'Prompt',sans-serif;font-weight:600;font-size:15px;color:var(--pink-dark);}
   .segbar{display:flex;gap:6px;background:var(--pink-pale);padding:4px;border-radius:12px;}
   .segbtn{flex:1;border:none;background:transparent;padding:8px 4px;border-radius:9px;font-family:'Sarabun',sans-serif;font-size:12.5px;font-weight:600;color:var(--pink-dark);cursor:pointer;}
@@ -228,6 +233,11 @@
   .rpttable .brrow td,.rpttable.rpt-view-leave .brrow td{background:#FFFBFD;text-align:left;font-weight:600;color:var(--pink-dark);padding-left:7px;}
   .rpttable .weekend{background:#FAFAFA;}
   .rpttable .totcol{background:#FFF9FC;font-weight:600;}
+  /* ข้อมูลถูกโหลดตอนเข้าระบบครั้งเดียว ถ้าเปิดหน้าค้างไว้ทั้งวันจะไม่เห็นการสแกนที่เกิดหลังจากนั้น
+     จึงมีปุ่มดึงข้อมูลล่าสุดไว้ตรงหัวตาราง กดแล้วอ่านใหม่จากฐานข้อมูลทันที */
+  .rpthead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;}
+  .rpthead .sectitle{flex:1;min-width:150px;}
+  #reportRefreshMsg{font-size:11.5px;color:var(--muted);}
   .rptlegend{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;}
   .rptlegend span{font-size:11px;padding:3px 8px;border-radius:20px;border:1px solid var(--border);color:var(--muted);}
   .settingsrow{display:flex;align-items:center;gap:12px;padding:14px 0;border-bottom:1px solid var(--border);}
@@ -799,7 +809,11 @@
         </div>
       </section>
       <section>
-        <div class="sectitle" id="reportTitle">ตารางขาด-ลา รายวัน</div>
+        <div class="rpthead">
+          <div class="sectitle" id="reportTitle" style="margin-bottom:0;">ตารางขาด-ลา รายวัน</div>
+          <button class="btn sm ghost" id="reportRefreshBtn">↻ โหลดข้อมูลล่าสุด</button>
+          <span id="reportRefreshMsg"></span>
+        </div>
         <div class="card" style="padding:0;overflow:hidden;">
           <div class="rptscroll"><table class="rpttable" id="reportTable"></table></div>
         </div>
@@ -3098,6 +3112,17 @@ function initReportsTab(){
     document.querySelectorAll('#reportViewBar .segbtn').forEach(b=>{
       b.onclick = ()=>{ reportView = b.dataset.rview; renderReportsTab(); };
     });
+    document.getElementById('reportRefreshBtn').onclick = async ()=>{
+      const btn = document.getElementById('reportRefreshBtn'), msg = document.getElementById('reportRefreshMsg');
+      btn.disabled = true; msg.textContent = 'กำลังดึงข้อมูล…';
+      try{
+        await loadDB();
+        renderReportsTab();
+        const t = new Date();
+        msg.textContent = `อัปเดตล่าสุด ${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')} น. · ${db.logs.length} รายการ`;
+      }catch(e){ msg.textContent = 'ดึงข้อมูลไม่สำเร็จ ลองใหม่อีกครั้ง'; }
+      btn.disabled = false;
+    };
   }
   sel.innerHTML = `<option value="all">ทุกสาขา</option>` + db.branches.map(b=>`<option value="${b.id}">${b.name}</option>`).join('');
   sel.value = sel.dataset.current || 'all';
