@@ -60,7 +60,20 @@
   .lg-body{padding:0 22px 24px;margin-top:-34px;position:relative;z-index:2;}
   #loginView .card{border-radius:22px;box-shadow:0 18px 40px -26px rgba(214,72,140,.35);}
   #loginView .pinpad{max-width:270px;margin:14px auto 0;justify-items:center;}
-  #loginView .pinkey{width:100%;aspect-ratio:1;padding:0;display:flex;align-items:center;justify-content:center;text-align:center;font-size:19px;}
+  #loginView .pinkey{
+    width:100%;aspect-ratio:1;padding:0;border-radius:16px;
+    display:flex;align-items:center;justify-content:center;text-align:center;
+    font-family:'Prompt',sans-serif;font-size:19px;font-weight:600;
+    background:var(--bg);border:1px solid var(--border);color:var(--text);
+    transition:transform .08s,background .15s,border-color .15s;
+  }
+  #loginView .pinkey:active{background:var(--pink-pale);border-color:var(--pink);transform:scale(.94);}
+  #loginView .pinpad button:nth-child(10),
+  #loginView .pinpad button:nth-child(12){
+    background:none;border:none;color:var(--pink-dark);font-size:15px;font-weight:600;
+  }
+  #loginView .pinpad button:nth-child(10):active,
+  #loginView .pinpad button:nth-child(12):active{background:var(--pink-pale);}
   #loginView .pindot{width:13px;height:13px;}
   #loginView .pickrow{display:flex;align-items:center;gap:11px;padding:10px 12px;}
   #loginView .lg-avatar{width:34px;height:34px;border-radius:50%;flex-shrink:0;background:linear-gradient(135deg,var(--pink-dark),var(--pink));color:#fff;display:flex;align-items:center;justify-content:center;font-family:'Prompt',sans-serif;font-weight:700;font-size:13px;}
