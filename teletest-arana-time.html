@@ -209,12 +209,23 @@
   .segbtn{flex:1;border:none;background:transparent;padding:8px 4px;border-radius:9px;font-family:'Sarabun',sans-serif;font-size:12.5px;font-weight:600;color:var(--pink-dark);cursor:pointer;}
   .segbtn.active{background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.08);}
   .rptscroll{overflow-x:auto;-webkit-overflow-scrolling:touch;}
-  .rpttable{border-collapse:collapse;font-size:11.5px;white-space:nowrap;font-variant-numeric:tabular-nums;}
-  .rpttable th,.rpttable td{border:1px solid var(--border);padding:5px 7px;text-align:center;}
+  /* table-layout:fixed + colgroup = ทุกช่องหลังคอลัมน์ชื่อกว้างเท่ากันเป๊ะทุกคอลัมน์
+     (ถ้าปล่อยให้เบราว์เซอร์คำนวณเอง ช่องที่มีข้อความยาวเช่น Sick/N จะกว้างกว่าช่องที่ว่าง) */
+  .rpttable{border-collapse:collapse;font-size:11.5px;white-space:nowrap;font-variant-numeric:tabular-nums;table-layout:fixed;min-width:max-content;}
+  .rpttable th,.rpttable td{border:1px solid var(--border);padding:5px 7px;text-align:center;overflow:hidden;text-overflow:ellipsis;}
+  .rpttable col.c-name{width:118px;}
+  .rpttable col.c-cell{width:38px;}
+  /* ตารางขาด-ลามีรหัสยาวสุดคือ Leave/N (~45px) จึงบีบระยะขอบซ้าย-ขวาลง
+     เพื่อให้ทั้ง 31 วันยังกว้างเท่ากันได้โดยตารางไม่บานเกินไป */
+  .rpttable.rpt-view-leave col.c-cell{width:48px;}
+  .rpttable.rpt-view-leave th:not(.namecol),
+  .rpttable.rpt-view-leave td:not(.namecol){padding-left:1px;padding-right:1px;}
+  .rpttable.rpt-summary col.c-cell{width:84px;}
+  .rpttable.rpt-summary thead th{white-space:normal;line-height:1.25;}
   .rpttable thead th{background:var(--pink-pale);color:var(--pink-dark);font-weight:600;position:sticky;top:0;}
-  .rpttable .namecol{position:sticky;left:0;background:#fff;text-align:left;min-width:118px;max-width:118px;overflow:hidden;text-overflow:ellipsis;z-index:1;}
+  .rpttable .namecol{position:sticky;left:0;background:#fff;text-align:left;z-index:1;}
   .rpttable thead .namecol{background:var(--pink-pale);z-index:2;}
-  .rpttable .brrow td{background:#FFFBFD;text-align:left;font-weight:600;color:var(--pink-dark);}
+  .rpttable .brrow td,.rpttable.rpt-view-leave .brrow td{background:#FFFBFD;text-align:left;font-weight:600;color:var(--pink-dark);padding-left:7px;}
   .rpttable .weekend{background:#FAFAFA;}
   .rpttable .totcol{background:#FFF9FC;font-weight:600;}
   .rptlegend{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;}
@@ -380,11 +391,9 @@
     body.deskmode .rpttable{font-size:12px;width:100%;}
     body.deskmode .rpttable th,
     body.deskmode .rpttable td{padding:7px 4px;}
-    body.deskmode .rpttable .namecol{min-width:172px;max-width:172px;padding-left:10px;padding-right:10px;}
+    body.deskmode .rpttable col.c-name{width:172px;}
+    body.deskmode .rpttable .namecol{padding-left:10px;padding-right:10px;}
     body.deskmode .segbtn{font-size:13.5px;}
-    /* ตารางสรุปเดือนมีชื่อคอลัมน์ยาว ให้หัวตารางขึ้นบรรทัดใหม่ได้ จะได้ไม่ดันตารางกว้างเกินจอ
-       (ใช้เฉพาะตารางสรุป ตารางรายวันหัวเป็นเลขวันที่อยู่แล้ว ต้องแคบที่สุดเท่าที่ทำได้) */
-    body.deskmode .rpttable.rpt-summary thead th{white-space:normal;line-height:1.25;}
   }
 </style>
 </head>
@@ -3184,13 +3193,19 @@ function renderReportsTab(){
   const rpt = buildMonthReport();
   const table = document.getElementById('reportTable');
   if(!rpt.groups.length){ table.innerHTML = `<tbody><tr><td style="border:none;"><div class="empty">ไม่มีพนักงานในสาขาที่เลือก</div></td></tr></tbody>`; return; }
-  table.className = reportView==='summary' ? 'rpttable rpt-summary' : 'rpttable rpt-daily';
+  table.className = (reportView==='summary' ? 'rpttable rpt-summary' : 'rpttable rpt-daily') + ` rpt-view-${reportView}`;
   table.innerHTML = reportView==='summary' ? summaryTableHTML(rpt) : dailyTableHTML(rpt, reportView);
+}
+
+// กำหนดความกว้างคอลัมน์ผ่าน <colgroup> คู่กับ table-layout:fixed
+// ช่องแรกเป็นชื่อพนักงาน ที่เหลือ (รวมช่องรวมท้ายตาราง) กว้างเท่ากันหมด
+function rptColgroup(cellCount){
+  return `<colgroup><col class="c-name">${'<col class="c-cell">'.repeat(cellCount)}</colgroup>`;
 }
 
 function dailyTableHTML(rpt, view){
   const totLabel = view==='leave' ? 'ขาด/ลา' : view==='late' ? 'รวมนาที' : 'รวม ชม.';
-  let html = `<thead><tr><th class="namecol">ชื่อพนักงาน</th>`;
+  let html = rptColgroup(rpt.days.length + 1) + `<thead><tr><th class="namecol">ชื่อพนักงาน</th>`;
   rpt.days.forEach(d=>{ const wk = d.getDay()===0||d.getDay()===6; html += `<th class="${wk?'weekend':''}">${d.getDate()}</th>`; });
   html += `<th class="totcol">${totLabel}</th></tr></thead><tbody>`;
   const span = rpt.days.length + 2;
@@ -3223,10 +3238,10 @@ function dailyTableHTML(rpt, view){
 
 function summaryTableHTML(rpt){
   const kindCols = RPT_SUMMARY_KINDS;
-  let html = `<thead><tr><th class="namecol">ชื่อพนักงาน</th><th>มาทำงาน</th><th>เทรนงาน</th><th>สาย (ครั้ง)</th><th>รวมนาทีสาย</th><th>ขาดงาน</th>`;
+  let html = rptColgroup(5 + kindCols.length + 3) + `<thead><tr><th class="namecol">ชื่อพนักงาน</th><th>มาทำงาน</th><th>เทรนงาน</th><th>สาย (ครั้ง)</th><th>รวมนาทีสาย</th><th>ขาดงาน</th>`;
   kindCols.forEach(k=>{ html += `<th>${leaveLabel(k)}</th>`; });
   html += `<th>ลาชม. ป่วย<br><span style="font-weight:400;font-size:10px;">ไม่หักเงิน</span></th><th>ลาชม. กิจ<br><span style="font-weight:400;font-size:10px;">หักเงิน</span></th><th class="totcol">OT (ชม.)</th></tr></thead><tbody>`;
-  const span = 7 + kindCols.length + 3;
+  const span = 6 + kindCols.length + 3;
   rpt.groups.forEach(g=>{
     html += `<tr class="brrow"><td colspan="${span}">${g.branch.name}</td></tr>`;
     g.rows.forEach(r=>{
