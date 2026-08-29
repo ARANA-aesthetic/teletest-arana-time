@@ -104,14 +104,31 @@ function getOrCreateSheet(ss, key) {
 
 // rows ที่ส่งมาจาก Supabase เป็น array ของ array (ลำดับค่าตรงกับ headers อยู่แล้ว)
 // เพื่อลดความซับซ้อนฝั่ง Postgres ไม่ต้องส่งเป็น object คีย์ชื่อคอลัมน์
+//
+// ★ กันข้อมูลซ้ำ (dedupe) ★ ทุกชีท คอลัมน์รองสุดท้าย (index = width-2) คือ leave_id/log_id/ot_id
+// เสมอ — ใช้เป็น unique key เช็คก่อนว่าเคยบันทึกแถวนี้ไปแล้วหรือยัง ถ้าเคยแล้วข้ามไปเลย ไม่ต่อท้ายซ้ำ
+// เป็นการ์ดชั้นสุดท้ายกันข้อมูลซ้ำในชีท ไม่ว่าฝั่ง Postgres จะส่ง batch เดิมมาซ้ำด้วยสาเหตุอะไรก็ตาม
+// (เน็ตหลุดกลางทางแล้ว retry, กด sync ซ้อนกันถี่ๆ, cron ทับ manual trigger ฯลฯ)
 function appendRows(sheet, rows, key) {
   const width = SHEET_SCHEMAS[key].headers.length;
-  const startRow = sheet.getLastRow() + 1;
-  const values = rows.map(r => {
+  const idCol = width - 2; // 0-based index ของคอลัมน์ id (ดูคอมเมนต์ด้านบน)
+  const lastRow = sheet.getLastRow();
+  const existingIds = new Set();
+  if (lastRow > 1) {
+    const idValues = sheet.getRange(2, idCol + 1, lastRow - 1, 1).getValues();
+    idValues.forEach(function (r) { if (r[0]) existingIds.add(String(r[0])); });
+  }
+  const values = [];
+  rows.forEach(function (r) {
+    const id = String(r[idCol] || '');
+    if (id && existingIds.has(id)) return; // ข้ามแถวที่มี id นี้อยู่ในชีทแล้ว
+    if (id) existingIds.add(id);
     const row = r.slice(0, width);
     while (row.length < width) row.push('');
-    return row;
+    values.push(row);
   });
+  if (!values.length) return;
+  const startRow = sheet.getLastRow() + 1;
   sheet.getRange(startRow, 1, values.length, width).setValues(values);
 }
 
