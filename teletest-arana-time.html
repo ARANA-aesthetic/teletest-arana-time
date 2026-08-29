@@ -647,10 +647,6 @@
         </div>
       </section>
       <section>
-        <div class="sectitle">สิทธิ์วันลาคงเหลือปีนี้</div>
-        <div class="statgrid" id="leaveBalanceGrid" style="grid-template-columns:repeat(2,1fr);"></div>
-      </section>
-      <section>
         <div class="sectitle">ประวัติล่าสุด<button class="btn ghost sm" style="margin-left:auto;" id="exportMyLogBtn">Report</button></div>
         <div class="card" id="myLogList" style="padding:0 16px;"></div>
       </section>
@@ -1947,24 +1943,26 @@ function summaryForRange(empId, fromStr, toStr){
     if(inLog){ if(inLog.lateMinutes>0) late++; else onTime++; }
     else { absent++; }
   }
-  // ลาเป็นชั่วโมงนับเป็น "ชม." แยกจากลาเต็มวันด้านบน รวมจากใบลาที่วันที่เริ่มลาอยู่ในช่วงที่ดู
-  const hourKind = { hourly_sick:0, hourly_personal:0 };
+  // ลาเป็นชั่วโมงนับทั้งจำนวนครั้งและรวมชั่วโมง แยกจากลาเต็มวันด้านบน รวมจากใบลาที่วันที่เริ่มลาอยู่ในช่วงที่ดู
+  const hourKind = { hourly_sick:{count:0,hours:0}, hourly_personal:{count:0,hours:0} };
   db.leaves.filter(l=>l.employeeId===empId && l.status==='approved' && HOURLY_KINDS.includes(l.kind) && l.from>=fromStr && l.from<=toStr)
-    .forEach(l=>{ hourKind[l.kind] = (hourKind[l.kind]||0) + leaveHoursNum(l); });
+    .forEach(l=>{ hourKind[l.kind].count++; hourKind[l.kind].hours += leaveHoursNum(l); });
   return {onTime, late, absent, leaveDays, byKind, hourKind};
 }
 // ลำดับ+label กล่องสรุปวันลาที่หน้าแรกพนักงาน (ลาคลอดไว้ท้ายสุดเพราะเกิดน้อยที่สุด)
+// type:'day' = นับวันเต็มวัน, 'hour' = โชว์จำนวนครั้ง+รวมชั่วโมงในการ์ดเดียวกัน,
+// 'quota' = โชว์ใช้ไปแล้ว/สิทธิ์ทั้งหมด (x/x) แทนตัวเลขเดี่ยว (รวมสิทธิ์คงเหลือไว้ในช่องเดียวกัน ไม่ต้องมีกล่องแยก)
 const HOME_LEAVE_BOX_ORDER = [
-  {key:'sick_nocert', label:'ลาป่วย (ไม่มีใบรับรองแพทย์)', unit:'day'},
-  {key:'sick_cert', label:'ลาป่วย (มีใบรับรองแพทย์)', unit:'day'},
-  {key:'personal_deduct', label:'ลากิจ (หักเงิน)', unit:'day'},
-  {key:'personal_nodeduct', label:'ลากิจ (ไม่หักเงิน)', unit:'day'},
-  {key:'traditional', label:'ลาประเพณี', unit:'day'},
-  {key:'vacation', label:'ลาพักร้อน', unit:'day'},
-  {key:'hourly_personal', label:'ลาเป็นชั่วโมง (กิจ)', unit:'hour'},
-  {key:'hourly_sick', label:'ลาเป็นชั่วโมง (ป่วย)', unit:'hour'},
-  {key:'absent', label:'ขาดงาน', unit:'day', color:'color:var(--red);'},
-  {key:'maternity', label:'ลาคลอด', unit:'day'},
+  {key:'sick_nocert', label:'ลาป่วย (ไม่มีใบรับรองแพทย์)', type:'day'},
+  {key:'sick_cert', label:'ลาป่วย (มีใบรับรองแพทย์)', type:'day'},
+  {key:'personal_deduct', label:'ลากิจ (หักเงิน)', type:'day'},
+  {key:'personal_nodeduct', label:'ลากิจ (ไม่หักเงิน)', type:'day'},
+  {key:'traditional', label:'ลาประเพณี', type:'quota'},
+  {key:'vacation', label:'ลาพักร้อน', type:'quota'},
+  {key:'hourly_personal', label:'ลาเป็นชั่วโมง (กิจ)', type:'hour'},
+  {key:'hourly_sick', label:'ลาเป็นชั่วโมง (ป่วย)', type:'hour'},
+  {key:'absent', label:'ขาดงาน', type:'day', color:'color:var(--red);'},
+  {key:'maternity', label:'ลาคลอด', type:'day'},
 ];
 function syncEmpFilterUI(){
   ['home','leave','ot'].forEach(scope=>{
@@ -2313,10 +2311,23 @@ function renderEmployeeHome(){
   document.getElementById('mOnTime').textContent = m.onTime;
   document.getElementById('mLate').textContent = m.late;
   document.getElementById('mLeaveByKind').innerHTML = HOME_LEAVE_BOX_ORDER.map(b=>{
-    const isHour = b.unit==='hour';
-    const val = b.key==='absent' ? m.absent : isHour ? (m.hourKind[b.key]||0) : (m.byKind[b.key]||0);
     const color = b.color || RPT_KIND_COLOR[b.key] || 'color:var(--muted);';
-    return `<div class="stat"><div class="t">${b.label}</div><div class="num" style="${color}">${val}</div><div class="lbl">${isHour?'ชม.':'วัน'}</div></div>`;
+    if(b.type==='hour'){
+      const hk = m.hourKind[b.key] || {count:0, hours:0};
+      return `<div class="stat"><div class="t">${b.label}</div><div class="num" style="${color}">${hk.count}</div><div class="lbl">ครั้ง · รวม ${hk.hours} ชม.</div></div>`;
+    }
+    if(b.type==='quota'){
+      const isVac = b.key==='vacation';
+      const total = isVac ? VACATION_DAYS_PER_YEAR : traditionalLeaveQuotaForEmployee(emp);
+      const monthsNeeded = isVac ? 12 : 1;
+      const eligible = monthsSince(emp.startDate) >= monthsNeeded;
+      const used = usedLeaveDaysThisYear(emp.id, b.key);
+      const num = eligible ? `${used}/${total}` : '-';
+      const lbl = eligible ? 'วัน' : `อายุงานยังไม่ครบ ${monthsNeeded===12?'1 ปี':'1 เดือน'}`;
+      return `<div class="stat"><div class="t">${b.label}</div><div class="num" style="${color}">${num}</div><div class="lbl">${lbl}</div></div>`;
+    }
+    const val = b.key==='absent' ? m.absent : (m.byKind[b.key]||0);
+    return `<div class="stat"><div class="t">${b.label}</div><div class="num" style="${color}">${val}</div><div class="lbl">วัน</div></div>`;
   }).join('');
   const typeLabels = {IN:'เช็กอิน', OUT:'เช็กเอาท์', AC:'แจ้งปิดแอร์', CLEAN:'ตรวจความสะอาด', GROOM:'ความเรียบร้อยประจำวัน'};
   const myLogs = db.logs.filter(l=>l.employeeId===emp.id).sort((a,b)=>new Date(b.time)-new Date(a.time)).slice(0,15);
@@ -2335,7 +2346,6 @@ function renderEmployeeHome(){
     if(log) resendCheckinPhotoInput(log);
   });
   renderUnsentPhotoBanner();
-  renderLeaveBalanceGrid();
 
   const br = currentBranch(emp);
   document.getElementById('qaGroom').classList.toggle('hidden', (emp.department||'').trim() !== 'หน้าร้าน');
@@ -3254,15 +3264,6 @@ function traditionalLeaveRemaining(emp){
   if(monthsSince(emp.startDate) < 1) return null;
   return Math.max(0, traditionalLeaveQuotaForEmployee(emp) - usedLeaveDaysThisYear(emp.id, 'traditional'));
 }
-function renderLeaveBalanceGrid(){
-  const emp = currentEmployee(); if(!emp) return;
-  const grid = document.getElementById('leaveBalanceGrid'); if(!grid) return;
-  const vac = vacationDaysRemaining(emp);
-  const trad = traditionalLeaveRemaining(emp);
-  grid.innerHTML = `
-    <div class="stat"><div class="t">ลาพักร้อนคงเหลือ</div><div class="num" style="color:var(--blue);">${vac===null?'-':vac}</div><div class="lbl">${vac===null?'อายุงานยังไม่ครบ 1 ปี':'วัน'}</div></div>
-    <div class="stat"><div class="t">สิทธิ์ลาประเพณีคงเหลือ</div><div class="num" style="color:#7C3AED;">${trad===null?'-':trad}</div><div class="lbl">${trad===null?'อายุงานยังไม่ครบ 1 เดือน':'วัน'}</div></div>`;
-}
 function renderOverviewStats(){
   const emps = filteredEmployees();
   const fromStr = getDateVal('overviewFrom') || dateKey(new Date());
@@ -3644,7 +3645,7 @@ function buildMonthReport(){
         return cell;
       });
       // ลาเป็นชั่วโมงต้องแยก ป่วย/กิจ เพราะมีผลต่างกันกับเงินเดือน (ป่วยไม่หัก กิจหัก)
-      const s = { present:0, training:0, lateCount:0, lateMinutes:0, absent:0, otHours:0, hourSick:0, hourPersonal:0, byKind:{} };
+      const s = { present:0, training:0, lateCount:0, lateMinutes:0, absent:0, otHours:0, hourSick:0, hourPersonal:0, hourSickCount:0, hourPersonalCount:0, byKind:{} };
       cells.forEach(c=>{
         if(c.na) return;
         s.otHours += c.ot;
@@ -3652,8 +3653,8 @@ function buildMonthReport(){
         if(c.training){ s.training++; return; }
         if(c.leaveKind){
           if(HOURLY_KINDS.includes(c.leaveKind)){
-            if(c.leaveKind==='hourly_sick') s.hourSick += c.leaveHours||0;
-            else s.hourPersonal += c.leaveHours||0;
+            if(c.leaveKind==='hourly_sick'){ s.hourSick += c.leaveHours||0; s.hourSickCount++; }
+            else { s.hourPersonal += c.leaveHours||0; s.hourPersonalCount++; }
             s.present++;
           }
           else s.byKind[c.leaveKind] = (s.byKind[c.leaveKind]||0) + 1;
@@ -3731,10 +3732,10 @@ function dailyTableHTML(rpt, view){
 
 function summaryTableHTML(rpt){
   const kindCols = RPT_SUMMARY_KINDS;
-  let html = rptColgroup(5 + kindCols.length + 3) + `<thead><tr><th class="namecol">ชื่อพนักงาน</th><th>มาทำงาน</th><th>เทรนงาน</th><th>สาย (ครั้ง)</th><th>รวมนาทีสาย</th><th>ขาดงาน</th>`;
+  let html = rptColgroup(5 + kindCols.length + 5) + `<thead><tr><th class="namecol">ชื่อพนักงาน</th><th>มาทำงาน</th><th>เทรนงาน</th><th>สาย (ครั้ง)</th><th>รวมนาทีสาย</th><th>ขาดงาน</th>`;
   kindCols.forEach(k=>{ html += `<th>${leaveLabel(k)}</th>`; });
-  html += `<th>ลาชม. ป่วย<br><span style="font-weight:400;font-size:10px;">ไม่หักเงิน</span></th><th>ลาชม. กิจ<br><span style="font-weight:400;font-size:10px;">หักเงิน</span></th><th class="totcol">OT (ชม.)</th></tr></thead><tbody>`;
-  const span = 6 + kindCols.length + 3;
+  html += `<th>ลาเป็นชม. (ป่วย) ครั้ง</th><th>ลาชม. ป่วย<br><span style="font-weight:400;font-size:10px;">ไม่หักเงิน</span></th><th>ลาเป็นชม. (กิจ) ครั้ง</th><th>ลาชม. กิจ<br><span style="font-weight:400;font-size:10px;">หักเงิน</span></th><th class="totcol">OT (ชม.)</th></tr></thead><tbody>`;
+  const span = 6 + kindCols.length + 5;
   rpt.groups.forEach(g=>{
     html += `<tr class="brrow"><td colspan="${span}">${g.branch.name}</td></tr>`;
     g.rows.forEach(r=>{
@@ -3745,7 +3746,9 @@ function summaryTableHTML(rpt){
         + `<td style="${s.lateMinutes?'color:var(--amber);font-weight:600;':''}">${s.lateMinutes||''}</td>`
         + `<td style="${s.absent?'color:var(--red);font-weight:600;':''}">${s.absent||''}</td>`;
       kindCols.forEach(k=>{ html += `<td>${s.byKind[k]||''}</td>`; });
-      html += `<td>${s.hourSick||''}</td><td style="${s.hourPersonal?'color:var(--amber);font-weight:600;':''}">${s.hourPersonal||''}</td><td class="totcol">${s.otHours||''}</td></tr>`;
+      html += `<td>${s.hourSickCount||''}</td><td>${s.hourSick||''}</td>`
+        + `<td style="${s.hourPersonalCount?'color:var(--amber);font-weight:600;':''}">${s.hourPersonalCount||''}</td><td style="${s.hourPersonal?'color:var(--amber);font-weight:600;':''}">${s.hourPersonal||''}</td>`
+        + `<td class="totcol">${s.otHours||''}</td></tr>`;
     });
   });
   return html + `</tbody>`;
@@ -3766,9 +3769,11 @@ function reportSheetPayload(rpt){
     mk(`รายงาน OT ${tag}`, ['สาขา','ชื่อพนักงาน','ชื่อเล่น',...dayHeaders,'รวม ชม.'],
       r=>[r.br, r.emp.name, r.emp.nickname||'', ...r.cells.map(c=>c.ot||''), r.summary.otHours]),
     mk(`สรุปเดือน ${tag}`,
-      ['สาขา','ชื่อพนักงาน','ชื่อเล่น','มาทำงาน','เทรนงาน','สาย (ครั้ง)','รวมนาทีสาย','ขาดงาน', ...RPT_SUMMARY_KINDS.map(leaveLabel), 'ลาชั่วโมง ป่วย (ชม.) ไม่หักเงิน','ลาชั่วโมง กิจ (ชม.) หักเงิน','OT (ชม.)'],
+      ['สาขา','ชื่อพนักงาน','ชื่อเล่น','มาทำงาน','เทรนงาน','สาย (ครั้ง)','รวมนาทีสาย','ขาดงาน', ...RPT_SUMMARY_KINDS.map(leaveLabel),
+       'ลาเป็นชม. (ป่วย) ครั้ง','ลาชั่วโมง ป่วย (ชม.) ไม่หักเงิน','ลาเป็นชม. (กิจ) ครั้ง','ลาชั่วโมง กิจ (ชม.) หักเงิน','OT (ชม.)'],
       r=>[r.br, r.emp.name, r.emp.nickname||'', r.summary.present, r.summary.training, r.summary.lateCount, r.summary.lateMinutes, r.summary.absent,
-          ...RPT_SUMMARY_KINDS.map(k=>r.summary.byKind[k]||0), r.summary.hourSick, r.summary.hourPersonal, r.summary.otHours])
+          ...RPT_SUMMARY_KINDS.map(k=>r.summary.byKind[k]||0),
+          r.summary.hourSickCount, r.summary.hourSick, r.summary.hourPersonalCount, r.summary.hourPersonal, r.summary.otHours])
   ];
 }
 
