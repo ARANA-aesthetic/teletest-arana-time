@@ -629,6 +629,10 @@
         </div>
       </section>
       <section>
+        <div class="sectitle">สิทธิ์วันลาคงเหลือปีนี้</div>
+        <div class="statgrid" id="leaveBalanceGrid" style="grid-template-columns:repeat(2,1fr);"></div>
+      </section>
+      <section>
         <div class="sectitle">สรุปภาพรวม</div>
         <select id="empFilterPreset_home" style="margin-bottom:10px;">
           <option value="month">เดือนนี้</option>
@@ -2305,6 +2309,7 @@ function renderEmployeeHome(){
     if(log) resendCheckinPhotoInput(log);
   });
   renderUnsentPhotoBanner();
+  renderLeaveBalanceGrid();
 
   const br = currentBranch(emp);
   document.getElementById('qaGroom').classList.toggle('hidden', (emp.department||'').trim() !== 'หน้าร้าน');
@@ -3179,6 +3184,44 @@ function leaveAbbrev(kind){
   return map[kind] || kind;
 }
 function hasStartedBy(emp, date){ return !emp.startDate || new Date(emp.startDate+'T00:00:00') <= date; }
+
+// ===== สิทธิ์วันลาคงเหลือ (ลาพักร้อน / ลาประเพณี) — แสดงหน้าแรกพนักงาน =====
+const VACATION_DAYS_PER_YEAR = 6; // คงที่ทุกคน ให้เต็มสิทธิ์ทันทีที่อายุงานครบ 1 ปี ไม่ทบปี รีเซ็ต 1 ม.ค.
+function monthsSince(dateStr){
+  if(!dateStr) return -1;
+  const start = new Date(dateStr+'T00:00:00'), now = new Date();
+  return (now.getFullYear()-start.getFullYear())*12 + (now.getMonth()-start.getMonth()) - (now.getDate()<start.getDate()?1:0);
+}
+function usedLeaveDaysThisYear(empId, kind){
+  const y = new Date().getFullYear();
+  return db.leaves
+    .filter(l=>l.employeeId===empId && l.status==='approved' && l.kind===kind && new Date(l.from+'T00:00:00').getFullYear()===y)
+    .reduce((sum,l)=> sum + daysBetweenInclusive(l.from, l.to), 0);
+}
+// ยอดวันลาพักร้อนคงเหลือ — null = ยังไม่ครบ 1 ปี (ไม่มีสิทธิ์)
+function vacationDaysRemaining(emp){
+  if(monthsSince(emp.startDate) < 12) return null;
+  return Math.max(0, VACATION_DAYS_PER_YEAR - usedLeaveDaysThisYear(emp.id, 'vacation'));
+}
+// โควต้าลาประเพณีทั้งปี = จำนวนวันหยุดประเพณีปีนี้ที่แอดมินตั้งเป็น "ยืดหยุ่น" (ไม่รวมวันที่ร้านปิดตายตัว)
+function traditionalLeaveQuota(){
+  const y = new Date().getFullYear();
+  return db.settings.holidays.filter(h=> h.flexible && new Date(h.date+'T00:00:00').getFullYear()===y).length;
+}
+// ยอดสิทธิ์ลาประเพณีคงเหลือ — null = ยังไม่ครบ 1 เดือน (ไม่มีสิทธิ์)
+function traditionalLeaveRemaining(emp){
+  if(monthsSince(emp.startDate) < 1) return null;
+  return Math.max(0, traditionalLeaveQuota() - usedLeaveDaysThisYear(emp.id, 'traditional'));
+}
+function renderLeaveBalanceGrid(){
+  const emp = currentEmployee(); if(!emp) return;
+  const grid = document.getElementById('leaveBalanceGrid'); if(!grid) return;
+  const vac = vacationDaysRemaining(emp);
+  const trad = traditionalLeaveRemaining(emp);
+  grid.innerHTML = `
+    <div class="stat"><div class="t">ลาพักร้อนคงเหลือ</div><div class="num" style="color:var(--blue);">${vac===null?'-':vac}</div><div class="lbl">${vac===null?'อายุงานยังไม่ครบ 1 ปี':'วัน'}</div></div>
+    <div class="stat"><div class="t">สิทธิ์ลาประเพณีคงเหลือ</div><div class="num" style="color:#7C3AED;">${trad===null?'-':trad}</div><div class="lbl">${trad===null?'อายุงานยังไม่ครบ 1 เดือน':'วัน'}</div></div>`;
+}
 function renderOverviewStats(){
   const emps = filteredEmployees();
   const fromStr = getDateVal('overviewFrom') || dateKey(new Date());
@@ -4391,27 +4434,68 @@ function renderCleanPointEditor(){
   });
 }
 
+// วันหยุดประเพณีที่ประกาศตายตัว (ร้านปิดทำการ) ไม่นับเป็นโควต้าลาประเพณีที่ให้เก็บไปหยุดวันอื่นได้
+// ส่วนที่เหลือ (ยืดหยุ่น) นับรวมเป็นโควต้าให้พนักงานยื่นลาประเพณีเองได้ ดูฟังก์ชัน traditionalLeaveQuota()
+const TRADITIONAL_HOLIDAYS_2026 = [
+  {date:'2026-01-01', name:'วันขึ้นปีใหม่ (ร้านปิดทำการ)', flexible:false},
+  {date:'2026-03-03', name:'วันมาฆบูชา', flexible:true},
+  {date:'2026-04-14', name:'วันสงกรานต์ (ร้านปิดทำการ)', flexible:false},
+  {date:'2026-04-15', name:'วันสงกรานต์ (ร้านปิดทำการ)', flexible:false},
+  {date:'2026-05-01', name:'วันแรงงาน', flexible:true},
+  {date:'2026-06-03', name:'วันเฉลิมพระชนมพรรษาสมเด็จพระนางเจ้าสุทิดา', flexible:true},
+  {date:'2026-07-28', name:'วันเฉลิมพระชนมพรรษาพระบาทสมเด็จพระเจ้าอยู่หัว', flexible:true},
+  {date:'2026-08-12', name:'วันแม่แห่งชาติ', flexible:true},
+  {date:'2026-10-13', name:'ชดเชยวันคล้ายวันสวรรคต ร.9', flexible:true},
+  {date:'2026-10-23', name:'วันปิยมหาราช', flexible:true},
+  {date:'2026-12-29', name:'วันสิ้นปี (ร้านปิดทำการ)', flexible:false},
+  {date:'2026-12-30', name:'วันสิ้นปี (ร้านปิดทำการ)', flexible:false},
+  {date:'2026-12-31', name:'วันสิ้นปี (ร้านปิดทำการ)', flexible:false},
+];
 function renderHolidayEditor(){
   const el = document.getElementById('holidayEditor');
   const sorted = db.settings.holidays.slice().sort((a,b)=> a.date.localeCompare(b.date));
   el.innerHTML = `
+    <div style="color:var(--muted);font-size:11.5px;margin-bottom:10px;">
+      "ยืดหยุ่น" = นับรวมเป็นโควต้าลาประเพณีให้พนักงานยื่นลาไปหยุดวันอื่นเองได้ (ปีนี้มีโควต้า <b id="tradQuotaNum">0</b> วัน) ·
+      "ตายตัว" = ร้านปิดทำการวันนั้นจริง ไม่นับโควต้า
+    </div>
     <div id="holidayList">${sorted.length ? sorted.map(h=>`
-      <div class="settingsrow"><div class="info"><div class="name">${new Date(h.date).toLocaleDateString('th-TH',{day:'numeric',month:'long',year:'numeric'})}</div><div class="meta">${h.name}</div></div><button class="btn ghost sm" data-rmholiday="${h.id}">ลบ</button></div>
+      <div class="settingsrow"><div class="info"><div class="name">${new Date(h.date+'T00:00:00').toLocaleDateString('th-TH',{day:'numeric',month:'long',year:'numeric'})}</div><div class="meta">${h.name}</div></div>
+        <button class="btn ${h.flexible?'ghost':'gray'} sm" data-toggleflex="${h.id}" style="margin-right:6px;white-space:nowrap;">${h.flexible?'ยืดหยุ่น':'ตายตัว'}</button>
+        <button class="btn ghost sm" data-rmholiday="${h.id}">ลบ</button></div>
     `).join('') : '<div class="empty">ยังไม่มีวันหยุดบริษัท</div>'}</div>
     <div class="row2" style="margin-top:12px;">
       <div id="newHolidayDate_holder"></div>
       <input type="text" id="newHolidayName" placeholder="ชื่อวันหยุด">
     </div>
-    <button class="btn sm" style="margin-top:8px;" id="addHolidayBtn">เพิ่มวันหยุด</button>`;
+    <label style="display:flex;align-items:center;gap:8px;margin:10px 0 0;"><input type="checkbox" id="newHolidayFlex" style="width:auto;"> นับเป็นโควต้าลาประเพณี (ยืดหยุ่น)</label>
+    <button class="btn sm" style="margin-top:10px;" id="addHolidayBtn">เพิ่มวันหยุด</button>
+    <button class="btn ghost sm" style="margin-top:10px;margin-left:8px;" id="seedHoliday2026Btn">เพิ่มวันหยุดประเพณีปี 2569 ทั้งหมด (13 วัน)</button>`;
+  document.getElementById('tradQuotaNum').textContent = traditionalLeaveQuota();
   document.getElementById('newHolidayDate_holder').innerHTML = dateSelectHTML('newHolidayDate');
   el.querySelectorAll('[data-rmholiday]').forEach(btn=>{
     btn.onclick = async ()=>{ db.settings.holidays = db.settings.holidays.filter(h=>h.id!==btn.dataset.rmholiday); await saveDB(); renderHolidayEditor(); };
   });
+  el.querySelectorAll('[data-toggleflex]').forEach(btn=>{
+    btn.onclick = async ()=>{
+      const h = db.settings.holidays.find(x=>x.id===btn.dataset.toggleflex);
+      if(h){ h.flexible = !h.flexible; await saveDB(); renderHolidayEditor(); }
+    };
+  });
   document.getElementById('addHolidayBtn').onclick = async ()=>{
     const date = getDateVal('newHolidayDate');
     const name = document.getElementById('newHolidayName').value.trim();
+    const flexible = document.getElementById('newHolidayFlex').checked;
     if(!date || !name) return;
-    db.settings.holidays.push({id:uid(), date, name});
+    db.settings.holidays.push({id:uid(), date, name, flexible});
+    await saveDB(); renderHolidayEditor();
+  };
+  document.getElementById('seedHoliday2026Btn').onclick = async ()=>{
+    const existing = new Set(db.settings.holidays.map(h=>h.date));
+    const toAdd = TRADITIONAL_HOLIDAYS_2026.filter(h=>!existing.has(h.date));
+    if(!toAdd.length){ alert('มีวันหยุดปี 2569 ครบทั้ง 13 วันอยู่แล้ว'); return; }
+    if(!confirm(`จะเพิ่มวันหยุด ${toAdd.length} วัน ตามประกาศปี 2569 (ข้ามวันที่มีอยู่แล้ว) ยืนยันหรือไม่?`)) return;
+    toAdd.forEach(h=> db.settings.holidays.push({id:uid(), date:h.date, name:h.name, flexible:h.flexible}));
     await saveDB(); renderHolidayEditor();
   };
 }
