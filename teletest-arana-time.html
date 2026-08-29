@@ -991,6 +991,18 @@
           </section>
           <section>
             <div class="sectitle">ประวัติการแก้ไข/ลบ (Audit Log)</div>
+            <label style="margin-top:0;">ช่วงวันที่ดูข้อมูล</label>
+            <select id="auditLogPreset" style="margin-bottom:10px;">
+              <option value="today">วันนี้</option>
+              <option value="week">สัปดาห์นี้</option>
+              <option value="month">เดือนนี้</option>
+              <option value="all">ทั้งหมด</option>
+              <option value="custom">เลือกช่วงเวลา</option>
+            </select>
+            <div class="row2 hidden" id="auditLogCustomRow">
+              <div><div id="auditLogFrom_holder"></div></div>
+              <div><div id="auditLogTo_holder"></div></div>
+            </div>
             <div class="card" id="auditLogViewer" style="padding:0 16px;"></div>
           </section>
           <section>
@@ -2979,7 +2991,7 @@ function switchATab(tab){
   if(tab==='Leaves'){ renderApprovalBranchFilter(); renderLeaveLists(); renderOtLists(); renderTransferList(); }
   if(tab==='Inspect'){ initInspectTab(); renderInspectTab(); }
   if(tab==='Reports'){ initReportsTab(); renderReportsTab(); }
-  if(tab==='Settings'){ renderDbStatus(); renderAdminEmpList(); renderApproverEditor(); renderBranchEditor(); renderAcPointEditor(); renderCleanPointEditor(); renderHolidayEditor(); renderNotifyTypesEditor(); renderTelegramRoomsEditor(); renderAuditLogViewer(); renderOrphanTab(); updateSettingsFlags(); }
+  if(tab==='Settings'){ renderDbStatus(); renderAdminEmpList(); renderApproverEditor(); renderBranchEditor(); renderAcPointEditor(); renderCleanPointEditor(); renderHolidayEditor(); renderNotifyTypesEditor(); renderTelegramRoomsEditor(); renderAuditLogFilter(); renderOrphanTab(); updateSettingsFlags(); }
 }
 
 function toggleSetGroup(name){
@@ -3985,23 +3997,32 @@ document.getElementById('editEmpFaceBtn').onclick = ()=>{
   openCamera('enroll', e, null, null, true);
 };
 
-async function fetchRecentAuditLog(limit){
+async function fetchAuditLogInRange(fromStr, toStr){
   try{
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/audit_log?select=*&order=created_at.desc&limit=${limit||50}`, { headers: sbHeaders() });
+    let url = `${SUPABASE_URL}/rest/v1/audit_log?select=*&order=created_at.desc&limit=500`;
+    if(fromStr) url += `&created_at=gte.${new Date(fromStr+'T00:00:00').toISOString()}`;
+    if(toStr) url += `&created_at=lt.${new Date(toStr+'T23:59:59.999').toISOString()}`;
+    const res = await fetch(url, { headers: sbHeaders() });
     if(!res.ok) return [];
     return await res.json();
   }catch(e){ return []; }
 }
+function renderAuditLogFilter(){
+  const sel = document.getElementById('auditLogPreset'); if(!sel) return;
+  wireDatePreset('auditLog', renderAuditLogViewer);
+  if(!sel.dataset.wired2){ sel.dataset.wired2 = '1'; setDatePreset('auditLog', 'today', renderAuditLogViewer); }
+  else { renderAuditLogViewer(); }
+}
 async function renderAuditLogViewer(){
   const el = document.getElementById('auditLogViewer'); if(!el) return;
   el.innerHTML = '<div class="empty">กำลังโหลด…</div>';
-  const rows = await fetchRecentAuditLog(50);
+  const rows = await fetchAuditLogInRange(getDateVal('auditLogFrom'), getDateVal('auditLogTo'));
   el.innerHTML = rows.length ? rows.map(r=>`
     <div class="listrow"><div class="info">
       <div class="name">${r.actor_name||'-'} — ${r.action||'-'}</div>
       <div class="meta">${r.details||'-'}</div>
       <div class="meta">${new Date(r.created_at).toLocaleString('th-TH')}</div>
-    </div></div>`).join('') : '<div class="empty">ยังไม่มีประวัติการแก้ไข/ลบ</div>';
+    </div></div>`).join('') : '<div class="empty">ไม่มีประวัติการแก้ไข/ลบในช่วงที่เลือก</div>';
 }
 function renderApproverEditor(){
   const el = document.getElementById('approverEditor'); if(!el) return;
