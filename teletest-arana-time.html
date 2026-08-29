@@ -506,7 +506,9 @@
 
     /* ตารางรายงาน: ใช้พื้นที่จอเต็ม ตรึงหัวตาราง เลื่อนดูได้ในกรอบ */
     body.deskmode .rptscroll{max-height:calc(100vh - 230px);overflow:auto;}
-    body.deskmode .rpttable{font-size:12px;width:100%;}
+    body.deskmode .rptscroll{overflow-x:hidden;}
+    body.deskmode .rpttable{font-size:12px;width:100%;min-width:0;}
+    body.deskmode .rpttable col.c-cell{width:auto;}
     body.deskmode .rpttable th,
     body.deskmode .rpttable td{padding:7px 4px;}
     body.deskmode .rpttable col.c-name{width:172px;}
@@ -3453,14 +3455,22 @@ const THAI_MONTHS = ['มกราคม','กุมภาพันธ์','ม�
 // เพื่อให้คนที่คุ้นกับตารางเดิมอ่านได้ทันทีโดยไม่ต้องเรียนรู้รหัสใหม่
 const RPT_CODE_ABSENT = 'AWOL';   // ขาดงาน
 const RPT_CODE_OFF = 'OFF';       // วันหยุด
-const RPT_CODE_WORK = '0';        // มาทำงานปกติ
+const RPT_CODE_WORK = '1';        // มาทำงานปกติ
+// สีต่อประเภทการลา ให้กวาดตามองแล้วแยกสถานะออกจากกันได้ทันทีโดยไม่ต้องอ่านตัวหนังสือ
+const RPT_KIND_COLOR = {
+  sick_cert:'color:#2563EB;font-weight:600;', sick_nocert:'color:#2563EB;font-weight:600;',
+  personal_nodeduct:'color:var(--amber);font-weight:600;', personal_deduct:'color:var(--amber);font-weight:600;',
+  traditional:'color:#7C3AED;font-weight:600;', vacation:'color:#7C3AED;font-weight:600;',
+  maternity:'color:var(--pink-dark);font-weight:600;',
+  hourly_sick:'color:#0D9488;font-weight:600;', hourly_personal:'color:#0D9488;font-weight:600;'
+};
 const RPT_LEGEND = [
-  ['Sick/Y','ลาป่วย (มีใบรับรองแพทย์)'], ['Sick/N','ลาป่วย (ไม่มีใบรับรองแพทย์)'],
-  ['Leave/Y','ลากิจ (มีเอกสาร)'], ['Leave/N','ลากิจ (หักเงิน)'],
-  ['Holiday','ลาประเพณี'], ['VAC','ลาพักร้อน'], ['MAT','ลาคลอด'],
-  ['Hour-S','ลาเป็นชั่วโมง (ป่วย)'], ['Hour-L','ลาเป็นชั่วโมง (กิจ)'],
+  ['Sick/Y','ลาป่วย (มีใบรับรองแพทย์)','color:#2563EB;'], ['Sick/N','ลาป่วย (ไม่มีใบรับรองแพทย์)','color:#2563EB;'],
+  ['Leave/Y','ลากิจ (มีเอกสาร)','color:var(--amber);'], ['Leave/N','ลากิจ (หักเงิน)','color:var(--amber);'],
+  ['Holiday','ลาประเพณี','color:#7C3AED;'], ['VAC','ลาพักร้อน','color:#7C3AED;'], ['MAT','ลาคลอด','color:var(--pink-dark);'],
+  ['Hour-S','ลาเป็นชั่วโมง (ป่วย)','color:#0D9488;'], ['Hour-L','ลาเป็นชั่วโมง (กิจ)','color:#0D9488;'],
   ['AWOL','ขาดงาน','color:var(--red);'], ['OFF','วันหยุด','color:#9CA3AF;'],
-  ['0','มาทำงานปกติ'], ['0','ช่วงเทรนงาน','color:var(--blue);']
+  ['1','มาทำงานปกติ'], ['1','ช่วงเทรนงาน','color:var(--blue);']
 ];
 let reportCursor = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 let reportView = 'leave';
@@ -3609,10 +3619,12 @@ function dailyTableHTML(rpt, view){
           if(c.training) color='color:var(--blue);font-weight:700;';
           else if(c.code===RPT_CODE_ABSENT) color='color:var(--red);font-weight:600;';
           else if(c.code===RPT_CODE_OFF) color='color:#D1D5DB;';
-          else if(c.code===RPT_CODE_WORK) color='color:var(--muted);';
-          else if(c.code) color='color:var(--pink-dark);font-weight:600;';
+          else if(c.code===RPT_CODE_WORK) color='color:var(--text);';
+          else if(c.leaveKind) color = RPT_KIND_COLOR[c.leaveKind] || 'color:var(--pink-dark);font-weight:600;';
         }
-        else if(view==='late'){ if(c.late>0){ txt = c.late; color='color:var(--amber);font-weight:600;'; } }
+        else if(view==='late'){
+          if(c.code===RPT_CODE_WORK){ txt = c.late; color = c.late>0 ? 'color:var(--amber);font-weight:600;' : 'color:var(--text);'; }
+        }
         else { if(c.ot>0){ txt = c.ot; color='color:var(--green);font-weight:600;'; } }
         html += `<td class="${wk?'weekend':''}" style="${color}">${txt}</td>`;
       });
