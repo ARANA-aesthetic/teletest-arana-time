@@ -2686,17 +2686,17 @@ function renderAcTab(){
     </div>`;
   }).join('') : '<div class="empty">HR ยังไม่ได้ตั้งจุดปิดแอร์ของสาขานี้</div>';
   document.querySelectorAll('[data-acpoint]').forEach(btn=>{
-    btn.onclick = ()=>{ acPointFileTarget = btn.dataset.acpoint; acPointIsCorrection = btn.dataset.accorrect==='1'; document.getElementById('acPhotoInput').click(); };
+    btn.onclick = ()=>{
+      acPointFileTarget = btn.dataset.acpoint; acPointIsCorrection = btn.dataset.accorrect==='1';
+      const point = (currentBranch(currentEmployee())?.acPoints||[]).find(p=>p.id===acPointFileTarget);
+      openSimplePhotoCamera('environment', `ถ่ายรูปยืนยันปิดแอร์<br><b>${point?.name||'-'}</b>`, handleAcPhoto);
+    };
   });
 }
 let acPointFileTarget = null;
 let acPointIsCorrection = false;
-const acInput = document.createElement('input');
-acInput.type='file'; acInput.accept='image/*'; acInput.capture='environment'; acInput.id='acPhotoInput'; acInput.style.display='none';
-document.body.appendChild(acInput);
-acInput.addEventListener('change', async (e)=>{
-  const file = e.target.files[0]; e.target.value='';
-  if(!file || !acPointFileTarget) return;
+async function handleAcPhoto(blob){
+  if(!blob || !acPointFileTarget) return;
   const emp = currentEmployee(); const br = currentBranch(emp);
   const point = (br.acPoints||[]).find(p=>p.id===acPointFileTarget);
   const now = new Date();
@@ -2716,11 +2716,11 @@ acInput.addEventListener('change', async (e)=>{
     db.logs.unshift(logEntry); await saveLogRow(logEntry);
   }
   renderAcTab(); renderEmployeeHome();
-  const anyOk = await gatedTelegramPhoto('ac', br?.chatIdFacility, file, caption);
+  const anyOk = await gatedTelegramPhoto('ac', br?.chatIdFacility, blob, caption);
   logEntry.sent = anyOk; await saveLogRow(logEntry);
   await pushNotification(emp.id, isCorrection?'แก้ไขรูปปิดแอร์แล้ว':'แจ้งปิดแอร์สำเร็จ', `${point?.name||'-'} ${isCorrection?'อัปเดตรูปเรียบร้อย':'ปิดแอร์เรียบร้อย'}`);
   renderAcTab(); renderEmployeeHome();
-});
+}
 
 // -- Cleaning tab (mirrors AC) --
 function renderCleanTab(){
@@ -2739,17 +2739,17 @@ function renderCleanTab(){
     </div>`;
   }).join('') : '<div class="empty">HR ยังไม่ได้ตั้งจุดตรวจความสะอาดของสาขานี้</div>';
   document.querySelectorAll('[data-cleanpoint]').forEach(btn=>{
-    btn.onclick = ()=>{ cleanPointFileTarget = btn.dataset.cleanpoint; cleanPointIsCorrection = btn.dataset.cleancorrect==='1'; document.getElementById('cleanPhotoInput').click(); };
+    btn.onclick = ()=>{
+      cleanPointFileTarget = btn.dataset.cleanpoint; cleanPointIsCorrection = btn.dataset.cleancorrect==='1';
+      const point = (currentBranch(currentEmployee())?.cleaningPoints||[]).find(p=>p.id===cleanPointFileTarget);
+      openSimplePhotoCamera('environment', `ถ่ายรูปยืนยันตรวจความสะอาด<br><b>${point?.name||'-'}</b>`, handleCleanPhoto);
+    };
   });
 }
 let cleanPointFileTarget = null;
 let cleanPointIsCorrection = false;
-const cleanInput = document.createElement('input');
-cleanInput.type='file'; cleanInput.accept='image/*'; cleanInput.capture='environment'; cleanInput.id='cleanPhotoInput'; cleanInput.style.display='none';
-document.body.appendChild(cleanInput);
-cleanInput.addEventListener('change', async (e)=>{
-  const file = e.target.files[0]; e.target.value='';
-  if(!file || !cleanPointFileTarget) return;
+async function handleCleanPhoto(blob){
+  if(!blob || !cleanPointFileTarget) return;
   const emp = currentEmployee(); const br = currentBranch(emp);
   const point = (br.cleaningPoints||[]).find(p=>p.id===cleanPointFileTarget);
   const now = new Date();
@@ -2769,31 +2769,29 @@ cleanInput.addEventListener('change', async (e)=>{
     db.logs.unshift(logEntry); await saveLogRow(logEntry);
   }
   renderCleanTab(); renderEmployeeHome();
-  const anyOk = await gatedTelegramPhoto('clean', br?.chatIdFacility, file, caption);
+  const anyOk = await gatedTelegramPhoto('clean', br?.chatIdFacility, blob, caption);
   logEntry.sent = anyOk; await saveLogRow(logEntry);
   await pushNotification(emp.id, isCorrection?'แก้ไขรูปความสะอาดแล้ว':'ส่งตรวจความสะอาดสำเร็จ', `${point?.name||'-'} ${isCorrection?'อัปเดตรูปเรียบร้อย':'ตรวจความสะอาดเรียบร้อย'}`);
   renderCleanTab(); renderEmployeeHome();
-});
+}
 
 // -- Grooming (ความเรียบร้อยพนักงาน) --
-const groomInput = document.createElement('input');
-groomInput.type='file'; groomInput.accept='image/*'; groomInput.capture='user'; groomInput.id='groomPhotoInput'; groomInput.style.display='none';
-document.body.appendChild(groomInput);
-function submitGrooming(){ groomInput.click(); }
-groomInput.addEventListener('change', async (e)=>{
-  const file = e.target.files[0]; e.target.value='';
-  if(!file) return;
+function submitGrooming(){
+  openSimplePhotoCamera('user', 'ถ่ายรูปยืนยันความเรียบร้อยประจำวัน', handleGroomPhoto);
+}
+async function handleGroomPhoto(blob){
+  if(!blob) return;
   const emp = currentEmployee(); const br = currentBranch(emp);
   const now = new Date();
   const caption = `✅${notifyName(emp)}\nส่งรูปความเรียบร้อย ${br?.name||'-'}\nเวลา ${fmtTime(now)} น.`;
   const logEntry = {id:uid(), employeeId:emp.id, type:'GROOM', time:now.toISOString(), branchId:br?.id, lateMinutes:0, sent:null};
   db.logs.unshift(logEntry); await saveLogRow(logEntry);
   renderEmployeeHome();
-  const anyOk = await gatedTelegramPhoto('groom', br?.chatIdFacility, file, caption);
+  const anyOk = await gatedTelegramPhoto('groom', br?.chatIdFacility, blob, caption);
   logEntry.sent = anyOk; await saveLogRow(logEntry);
   await pushNotification(emp.id, 'ส่งรูปความเรียบร้อยสำเร็จ', 'บันทึกความเรียบร้อยประจำวันเรียบร้อย');
   renderEmployeeHome();
-});
+}
 
 // -- OT tab --
 function otStatusLabel(s){ return s==='pending'?'รออนุมัติ':s==='approved'?'อนุมัติแล้ว':'ปฏิเสธ'; }
@@ -4914,8 +4912,50 @@ function closeCamera(){
   if(scanLoopId) cancelAnimationFrame(scanLoopId); scanLoopId=null; scanBusy=false;
   if(camStream){ camStream.getTracks().forEach(t=>t.stop()); camStream=null; }
   document.getElementById('camWrap').classList.remove('show');
+  document.getElementById('camVideo').style.transform = '';
 }
 document.getElementById('camClose').onclick = closeCamera;
+
+// ===== กล้องถ่ายรูปทั่วไป (ปิดแอร์/ความสะอาด/ความเรียบร้อย) — ไม่ใช่สแกนใบหน้า =====
+// ใช้ getUserMedia บังคับถ่ายสดผ่านกล้องเท่านั้น (ไม่ใช่ <input type=file capture> ที่บางเบราว์เซอร์
+// โดยเฉพาะ iOS Safari ยังเปิดให้เลือกรูปจากคลังภาพเดิมได้อยู่ ทำให้พนักงานส่งรูปเก่าซ้ำได้)
+// ใช้ camStream ตัวเดียวกับ openCamera() เพื่อให้ปุ่ม X (camClose) ปิดกล้องได้ถูกต้องไม่ว่าจะอยู่โหมดไหน
+async function openSimplePhotoCamera(facingMode, promptHTML, onCapture){
+  document.getElementById('camWrap').classList.add('show');
+  document.getElementById('camStatusText').innerHTML = 'กำลังเปิดกล้อง…';
+  document.getElementById('camRing').className = 'camring';
+  const video = document.getElementById('camVideo');
+  video.style.transform = facingMode==='environment' ? 'none' : '';
+  const foot = document.getElementById('camFoot'); foot.innerHTML = '';
+  try{
+    camStream = await navigator.mediaDevices.getUserMedia({video:{facingMode}});
+    video.srcObject = camStream; await video.play();
+    document.getElementById('camStatusText').innerHTML = promptHTML;
+    const capBtn = document.createElement('button'); capBtn.className='btn'; capBtn.textContent='ถ่ายภาพ';
+    capBtn.onclick = async ()=>{
+      capBtn.disabled = true; capBtn.textContent = 'กำลังถ่าย…';
+      const blob = await grabSimplePhotoBlob(facingMode!=='environment');
+      closeCamera();
+      onCapture(blob);
+    };
+    const cancelBtn = document.createElement('button'); cancelBtn.className='btn gray'; cancelBtn.textContent='ยกเลิก';
+    cancelBtn.onclick = closeCamera;
+    foot.appendChild(capBtn); foot.appendChild(cancelBtn);
+  }catch(e){
+    document.getElementById('camStatusText').textContent = 'เปิดกล้องไม่สำเร็จ กรุณาอนุญาตการใช้กล้อง';
+  }
+}
+function grabSimplePhotoBlob(mirror){
+  return new Promise(resolve=>{
+    const video = document.getElementById('camVideo');
+    const canvas = document.getElementById('hiddenCanvas');
+    canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    if(mirror){ ctx.translate(canvas.width,0); ctx.scale(-1,1); }
+    ctx.drawImage(video,0,0,canvas.width,canvas.height);
+    canvas.toBlob(b=>resolve(b), 'image/jpeg', 0.85);
+  });
+}
 
 async function runScanLoop(emp, pos, distance){
   const video = document.getElementById('camVideo');
