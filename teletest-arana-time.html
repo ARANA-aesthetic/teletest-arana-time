@@ -3203,15 +3203,30 @@ function vacationDaysRemaining(emp){
   if(monthsSince(emp.startDate) < 12) return null;
   return Math.max(0, VACATION_DAYS_PER_YEAR - usedLeaveDaysThisYear(emp.id, 'vacation'));
 }
-// โควต้าลาประเพณีทั้งปี = จำนวนวันหยุดประเพณีปีนี้ที่แอดมินตั้งเป็น "ยืดหยุ่น" (ไม่รวมวันที่ร้านปิดตายตัว)
+// โควต้าลาประเพณีทั้งปี (รวมทุกคน ไม่ผูกกับวันเริ่มงาน) = จำนวนวันหยุดประเพณีปีนี้ที่แอดมินตั้งเป็น
+// "ยืดหยุ่น" (ไม่รวมวันที่ร้านปิดตายตัว) — ใช้โชว์ตัวเลขอ้างอิงรวมในหน้าตั้งค่าเท่านั้น
 function traditionalLeaveQuota(){
   const y = new Date().getFullYear();
   return db.settings.holidays.filter(h=> h.flexible && new Date(h.date+'T00:00:00').getFullYear()===y).length;
 }
+// โควต้าลาประเพณีของพนักงานคนหนึ่ง — นับเฉพาะวันหยุดยืดหยุ่นที่ตกอยู่ตั้งแต่วันเริ่มงานเป็นต้นไป
+// (วันหยุดที่ผ่านไปก่อนเข้างานไม่นับให้ แม้จะยังไม่ครบ 1 เดือนตอนวันหยุดนั้นผ่านไปก็ยังสะสมให้ไว้
+// รอวันที่อายุงานครบ 1 เดือนแล้วค่อยมาขอใช้สิทธิ์ย้อนหลังได้ — เกทมีแค่ "ใช้ได้เมื่อไหร่" ไม่ใช่ "สะสมได้เมื่อไหร่")
+function traditionalLeaveQuotaForEmployee(emp){
+  const y = new Date().getFullYear();
+  const start = emp.startDate ? new Date(emp.startDate+'T00:00:00') : null;
+  return db.settings.holidays.filter(h=>{
+    if(!h.flexible) return false;
+    const hd = new Date(h.date+'T00:00:00');
+    if(hd.getFullYear()!==y) return false;
+    if(start && hd < start) return false;
+    return true;
+  }).length;
+}
 // ยอดสิทธิ์ลาประเพณีคงเหลือ — null = ยังไม่ครบ 1 เดือน (ไม่มีสิทธิ์)
 function traditionalLeaveRemaining(emp){
   if(monthsSince(emp.startDate) < 1) return null;
-  return Math.max(0, traditionalLeaveQuota() - usedLeaveDaysThisYear(emp.id, 'traditional'));
+  return Math.max(0, traditionalLeaveQuotaForEmployee(emp) - usedLeaveDaysThisYear(emp.id, 'traditional'));
 }
 function renderLeaveBalanceGrid(){
   const emp = currentEmployee(); if(!emp) return;
