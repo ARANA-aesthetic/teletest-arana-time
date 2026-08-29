@@ -23,6 +23,9 @@
   .hidden{display:none !important;}
 
   .phonewrap{max-width:460px;margin:0 auto;min-height:100vh;background:var(--bg);position:relative;padding-bottom:78px;}
+  /* หน้า login ไม่มีเมนูล่าง และการ์ดลอยสูงไม่เท่า 100vh เสมอไป การบังคับ min-height เต็มจอ
+     เลยเหลือพื้นที่ว่างเป็นกล่องสีตัดกับพื้นหลังด้านล่างการ์ด — ปล่อยให้สูงเท่าเนื้อหาจริงแทน */
+  body.onlogin .phonewrap{min-height:0;background:transparent;padding-bottom:0;box-shadow:none;}
 
   /* ---------- login ---------- */
   .loginwrap{padding:0;}
@@ -1994,6 +1997,7 @@ function showView(view){
   // เฉพาะหน้าผู้ดูแล/ผู้บริหารเท่านั้นที่ขยายเต็มจอบนคอมพิวเตอร์ (HR ใช้ทำรายงาน)
   // หน้าพนักงานคงรูปแบบมือถือไว้เหมือนเดิม เพราะใช้สแกนหน้าเข้างานบนมือถือจริง
   document.body.classList.toggle('deskmode', view==='admin');
+  document.body.classList.toggle('onlogin', view==='login');
 }
 
 // ================= LOGIN =================
