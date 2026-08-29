@@ -643,7 +643,6 @@
         <div class="statgrid">
           <div class="stat"><div class="t">ตรงเวลา</div><div class="num" style="color:var(--green);" id="mOnTime">0</div><div class="lbl">วัน</div></div>
           <div class="stat"><div class="t">มาสาย</div><div class="num" style="color:var(--amber);" id="mLate">0</div><div class="lbl">วัน</div></div>
-          <div class="stat"><div class="t">ขาด</div><div class="num" style="color:var(--red);" id="mAbsent">0</div><div class="lbl">วัน</div></div>
           <div id="mLeaveByKind" style="display:contents;"></div>
         </div>
       </section>
@@ -1924,19 +1923,9 @@ function getEmpFilterRange(){
   const y=now.getFullYear(), m=now.getMonth();
   return {from: dateKey(new Date(y,m,1)), to: dateKey(new Date(y,m+1,0))};
 }
-// จัดกลุ่มประเภทลาให้พนักงานดูเองในหน้าแรก แบบกว้างๆ พอเห็นภาพว่าป่วยบ่อยหรือธุระเยอะ
-// (ไม่แยกย่อยลาป่วยมี/ไม่มีใบรับรองแพทย์ หรือลากิจหัก/ไม่หักเงิน แบบตารางรายงานของแอดมิน)
-// ไม่รวมลาเป็นชั่วโมง (hourly_sick/hourly_personal) เพราะหน่วยเป็นชั่วโมงไม่ใช่วัน นับรวมในนี้ไม่ได้
-const LEAVE_GROUP_OF = {
-  sick_cert:'sick', sick_nocert:'sick', sick:'sick',
-  personal_nodeduct:'personal', personal_deduct:'personal', personal:'personal',
-  traditional:'traditional', vacation:'vacation', maternity:'maternity'
-};
-const LEAVE_GROUP_LABELS = { sick:'ลาป่วย', personal:'ลากิจ', traditional:'ลาประเพณี', vacation:'ลาพักร้อน', maternity:'ลาคลอด' };
-const LEAVE_GROUP_COLORS = { sick:'var(--red);', personal:'var(--amber);', traditional:'#7C3AED;', vacation:'var(--blue);', maternity:'var(--pink-dark);' };
 function summaryForRange(empId, fromStr, toStr){
   let onTime=0, late=0, absent=0, leaveDays=0;
-  const byKind = { sick:0, personal:0, traditional:0, vacation:0, maternity:0 };
+  const byKind = {}; // นับเป็น "วัน" ต่อประเภทลาแบบเต็มวัน (ไม่รวมลาเป็นชั่วโมง — ดู hourKind ด้านล่าง)
   const emp = db.employees.find(e=>e.id===empId);
   const today = new Date();
   let start = new Date(fromStr+'T00:00:00');
@@ -1952,15 +1941,31 @@ function summaryForRange(empId, fromStr, toStr){
     const leave = db.leaves.find(l => l.employeeId===empId && l.status==='approved' && new Date(l.from+'T00:00:00') <= d && d <= new Date(l.to+'T00:00:00'));
     if(leave){
       leaveDays++;
-      const group = LEAVE_GROUP_OF[leave.kind];
-      if(group) byKind[group]++;
+      if(!HOURLY_KINDS.includes(leave.kind)) byKind[leave.kind] = (byKind[leave.kind]||0) + 1;
       continue;
     }
     if(inLog){ if(inLog.lateMinutes>0) late++; else onTime++; }
     else { absent++; }
   }
-  return {onTime, late, absent, leaveDays, byKind};
+  // ลาเป็นชั่วโมงนับเป็น "ชม." แยกจากลาเต็มวันด้านบน รวมจากใบลาที่วันที่เริ่มลาอยู่ในช่วงที่ดู
+  const hourKind = { hourly_sick:0, hourly_personal:0 };
+  db.leaves.filter(l=>l.employeeId===empId && l.status==='approved' && HOURLY_KINDS.includes(l.kind) && l.from>=fromStr && l.from<=toStr)
+    .forEach(l=>{ hourKind[l.kind] = (hourKind[l.kind]||0) + leaveHoursNum(l); });
+  return {onTime, late, absent, leaveDays, byKind, hourKind};
 }
+// ลำดับ+label กล่องสรุปวันลาที่หน้าแรกพนักงาน (ลาคลอดไว้ท้ายสุดเพราะเกิดน้อยที่สุด)
+const HOME_LEAVE_BOX_ORDER = [
+  {key:'sick_nocert', label:'ลาป่วย (ไม่มีใบรับรองแพทย์)', unit:'day'},
+  {key:'sick_cert', label:'ลาป่วย (มีใบรับรองแพทย์)', unit:'day'},
+  {key:'personal_deduct', label:'ลากิจ (หักเงิน)', unit:'day'},
+  {key:'personal_nodeduct', label:'ลากิจ (ไม่หักเงิน)', unit:'day'},
+  {key:'traditional', label:'ลาประเพณี', unit:'day'},
+  {key:'vacation', label:'ลาพักร้อน', unit:'day'},
+  {key:'hourly_personal', label:'ลาเป็นชั่วโมง (กิจ)', unit:'hour'},
+  {key:'hourly_sick', label:'ลาเป็นชั่วโมง (ป่วย)', unit:'hour'},
+  {key:'absent', label:'ขาดงาน', unit:'day', color:'color:var(--red);'},
+  {key:'maternity', label:'ลาคลอด', unit:'day'},
+];
 function syncEmpFilterUI(){
   ['home','leave','ot'].forEach(scope=>{
     const sel = document.getElementById(`empFilterPreset_${scope}`);
@@ -2307,10 +2312,12 @@ function renderEmployeeHome(){
   const m = summaryForRange(emp.id, range.from, range.to);
   document.getElementById('mOnTime').textContent = m.onTime;
   document.getElementById('mLate').textContent = m.late;
-  document.getElementById('mAbsent').textContent = m.absent;
-  document.getElementById('mLeaveByKind').innerHTML = Object.keys(LEAVE_GROUP_LABELS).map(k=>
-    `<div class="stat"><div class="t">${LEAVE_GROUP_LABELS[k]}</div><div class="num" style="color:${LEAVE_GROUP_COLORS[k]}">${m.byKind[k]||0}</div><div class="lbl">วัน</div></div>`
-  ).join('');
+  document.getElementById('mLeaveByKind').innerHTML = HOME_LEAVE_BOX_ORDER.map(b=>{
+    const isHour = b.unit==='hour';
+    const val = b.key==='absent' ? m.absent : isHour ? (m.hourKind[b.key]||0) : (m.byKind[b.key]||0);
+    const color = b.color || RPT_KIND_COLOR[b.key] || 'color:var(--muted);';
+    return `<div class="stat"><div class="t">${b.label}</div><div class="num" style="${color}">${val}</div><div class="lbl">${isHour?'ชม.':'วัน'}</div></div>`;
+  }).join('');
   const typeLabels = {IN:'เช็กอิน', OUT:'เช็กเอาท์', AC:'แจ้งปิดแอร์', CLEAN:'ตรวจความสะอาด', GROOM:'ความเรียบร้อยประจำวัน'};
   const myLogs = db.logs.filter(l=>l.employeeId===emp.id).sort((a,b)=>new Date(b.time)-new Date(a.time)).slice(0,15);
   document.getElementById('myLogList').innerHTML = myLogs.length ? myLogs.map(l=>{
