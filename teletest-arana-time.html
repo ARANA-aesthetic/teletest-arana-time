@@ -2392,7 +2392,7 @@ checkinResendInput.addEventListener('change', async (e)=>{
   const logEntry = checkinResendTarget; checkinResendTarget = null;
   const emp = db.employees.find(x=>x.id===logEntry.employeeId);
   const br = db.branches.find(x=>x.id===logEntry.branchId);
-  const caption = `✅${notifyName(emp)}\n${logEntry.type==='IN'?'เข้างาน':'ออกงาน'} เวลา ${fmtTime(new Date(logEntry.time))} น.${logEntry.lateMinutes>0?`\nสาย ${logEntry.lateMinutes} นาที`:''}\n(ส่งซ้ำ)`;
+  const caption = `✅${notifyName(emp)}\n${logEntry.type==='IN'?'เข้างาน':'ออกงาน'} เวลา ${fmtTime(new Date(logEntry.time))} น.${logEntry.lateMinutes>0?`\nสาย ${logEntry.lateMinutes} นาที`:''}\nส่งอีกครั้ง(ไม่สำเร็จ)`;
   const anyOk = await gatedTelegramPhoto(logEntry.type==='IN'?'checkin':'checkout', br?.chatIdCheckinout, file, caption);
   logEntry.sent = anyOk; await saveLogRow(logEntry);
   renderEmployeeHome();
