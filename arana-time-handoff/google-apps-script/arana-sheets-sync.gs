@@ -132,6 +132,40 @@ function appendRows(sheet, rows, key) {
   sheet.getRange(startRow, 1, values.length, width).setValues(values);
 }
 
+// ★★★ ยูทิลิตี้ล้างข้อมูลซ้ำที่มีอยู่แล้วในชีท — รันเองครั้งเดียวจาก Apps Script editor เท่านั้น ★★★
+// (ไม่ถูกเรียกจาก doPost/doGet ไม่กระทบการ sync อัตโนมัติเลย)
+//
+// วิธีรัน: เปิดโปรเจกต์นี้ที่ script.google.com → เลือกฟังก์ชัน dedupeAllSheets จาก dropdown
+// ด้านบน (ข้าง Debug/Run) → กด Run (▶) → อนุญาตสิทธิ์ถ้าถาม → เช็ค Execution log ว่าลบไปกี่แถว
+//
+// ลอจิก: ไล่ทีละแท็บ (ขาดลา/มาสาย/OT/Log In-Out) เก็บแถวแรกสุดที่เจอ id (leave_id/log_id/ot_id)
+// นั้นไว้ ถ้าเจอ id ซ้ำในแถวถัดๆ ไปให้ลบทิ้ง — ไม่แตะแถวที่ id ว่าง (กันเผลอลบข้อมูลเก่าก่อนมีระบบนี้)
+function dedupeAllSheets() {
+  const ss = SpreadsheetApp.openById(TARGET_SPREADSHEET_ID);
+  const results = {};
+  for (const key of Object.keys(SHEET_SCHEMAS)) {
+    const schema = SHEET_SCHEMAS[key];
+    const sheet = ss.getSheetByName(schema.name);
+    if (!sheet) { results[schema.name] = 'ไม่พบแท็บนี้'; continue; }
+    const idCol = schema.headers.length - 2;
+    const lastRow = sheet.getLastRow();
+    if (lastRow <= 1) { results[schema.name] = 0; continue; }
+    const idValues = sheet.getRange(2, idCol + 1, lastRow - 1, 1).getValues();
+    const seen = new Set();
+    const rowsToDelete = [];
+    idValues.forEach(function (r, i) {
+      const id = String(r[0] || '');
+      if (!id) return; // แถวไม่มี id (ข้อมูลเก่าก่อนมีระบบนี้) ไม่แตะ
+      if (seen.has(id)) { rowsToDelete.push(2 + i); } else { seen.add(id); }
+    });
+    // ลบจากแถวล่างขึ้นบน กันเลขแถวเลื่อนระหว่างลบ
+    rowsToDelete.sort(function (a, b) { return b - a; }).forEach(function (r) { sheet.deleteRow(r); });
+    results[schema.name] = rowsToDelete.length;
+  }
+  Logger.log(JSON.stringify(results, null, 2));
+  return results;
+}
+
 // เขียนรายงานสรุปรายเดือน 1 แท็บ — เขียนทับข้อมูลเดิมของแท็บนั้นทั้งหมด
 //
 // ★ ความปลอดภัย: จะเขียนทับได้เฉพาะแท็บที่สคริปต์นี้สร้างเองเท่านั้น (ดูจากหมายเหตุกำกับที่
