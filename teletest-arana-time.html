@@ -827,7 +827,7 @@
         </div>
       </section>
       <section>
-        <div class="sectitle">สรุปรายพนักงาน (เดือนนี้)</div>
+        <div class="sectitle">สรุปรายพนักงาน</div>
         <div id="empSummaryList"></div>
       </section>
     </div>
@@ -1920,7 +1920,7 @@ function getEmpFilterRange(){
   return {from: dateKey(new Date(y,m,1)), to: dateKey(new Date(y,m+1,0))};
 }
 function summaryForRange(empId, fromStr, toStr){
-  let onTime=0, late=0, absent=0, leaveDays=0;
+  let onTime=0, late=0, lateMinutes=0, absent=0, leaveDays=0;
   const byKind = {}; // นับเป็น "วัน" ต่อประเภทลาแบบเต็มวัน (ไม่รวมลาเป็นชั่วโมง — ดู hourKind ด้านล่าง)
   const emp = db.employees.find(e=>e.id===empId);
   const today = new Date();
@@ -1940,14 +1940,14 @@ function summaryForRange(empId, fromStr, toStr){
       if(!HOURLY_KINDS.includes(leave.kind)) byKind[leave.kind] = (byKind[leave.kind]||0) + 1;
       continue;
     }
-    if(inLog){ if(inLog.lateMinutes>0) late++; else onTime++; }
+    if(inLog){ if(inLog.lateMinutes>0){ late++; lateMinutes += inLog.lateMinutes; } else onTime++; }
     else { absent++; }
   }
   // ลาเป็นชั่วโมงนับทั้งจำนวนครั้งและรวมชั่วโมง แยกจากลาเต็มวันด้านบน รวมจากใบลาที่วันที่เริ่มลาอยู่ในช่วงที่ดู
   const hourKind = { hourly_sick:{count:0,hours:0}, hourly_personal:{count:0,hours:0} };
   db.leaves.filter(l=>l.employeeId===empId && l.status==='approved' && HOURLY_KINDS.includes(l.kind) && l.from>=fromStr && l.from<=toStr)
     .forEach(l=>{ hourKind[l.kind].count++; hourKind[l.kind].hours += leaveHoursNum(l); });
-  return {onTime, late, absent, leaveDays, byKind, hourKind};
+  return {onTime, late, lateMinutes, absent, leaveDays, byKind, hourKind};
 }
 // ลำดับ+label กล่องสรุปวันลาที่หน้าแรกพนักงาน (ลาคลอดไว้ท้ายสุดเพราะเกิดน้อยที่สุด)
 // type:'day' = นับวันเต็มวัน, 'hour' = โชว์จำนวนครั้ง+รวมชั่วโมงในการ์ดเดียวกัน,
@@ -3110,8 +3110,12 @@ async function submitNewPin(){
 }
 
 // ================= ADMIN VIEW =================
-function applyOverviewPreset(){ applyDatePreset('overview', renderOverviewStats); }
-wireDatePreset('overview', renderOverviewStats);
+function applyOverviewPreset(){ applyDatePreset('overview', ()=>{ renderOverviewStats(); renderEmpSummary(); }); }
+wireDatePreset('overview', ()=>{ renderOverviewStats(); renderEmpSummary(); });
+function getOverviewRange(){
+  const today = dateKey(new Date());
+  return { from: getDateVal('overviewFrom') || today, to: getDateVal('overviewTo') || today };
+}
 function enterAdminView(){
   showView('admin');
   document.getElementById('graceMinutesInput').value = db.settings.graceMinutes;
@@ -3450,11 +3454,12 @@ document.getElementById('exportLeaveMatrixBtn').onclick = ()=>{
 function renderEmpSummary(){
   const emps = filteredEmployees();
   const el = document.getElementById('empSummaryList');
+  const range = getOverviewRange();
   el.innerHTML = emps.length ? emps.map(e=>{
-    const m = monthlySummary(e.id);
+    const m = summaryForRange(e.id, range.from, range.to);
     const br = db.branches.find(b=>b.id===e.branchId);
     return `<div class="miniempcard"><div class="avatar">${e.name.trim()[0]||'?'}</div>
-      <div class="info"><div class="name">${e.name}</div><div class="stats"><span>${br?.name||'-'}</span><span>ตรงเวลา <b style="color:var(--green);">${m.onTime}</b></span><span>สาย <b style="color:var(--amber);">${m.late}</b></span><span>ขาด <b style="color:var(--red);">${m.absent}</b></span></div></div>
+      <div class="info"><div class="name">${e.name}</div><div class="stats"><span>${br?.name||'-'}</span><span>ตรงเวลา <b style="color:var(--green);">${m.onTime}</b></span><span>สาย <b style="color:var(--amber);">${m.late}</b>${m.lateMinutes>0?` (${m.lateMinutes} นาที)`:''}</span><span>ขาด <b style="color:var(--red);">${m.absent}</b></span></div></div>
     </div>`;
   }).join('') : '<div class="empty">ไม่มีพนักงานในสาขานี้</div>';
 }
