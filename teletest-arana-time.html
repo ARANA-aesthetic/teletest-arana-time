@@ -1020,6 +1020,19 @@
             <div class="card" id="approverEditor"></div>
           </section>
           <section>
+            <div class="sectitle">บริษัทในเครือ (สำหรับออกเอกสาร เช่น ใบเตือน)</div>
+            <div class="card" id="companyList" style="margin-bottom:10px;"></div>
+            <div class="card">
+              <label style="margin-top:0;">ชื่อบริษัท</label>
+              <input type="text" id="newCompanyName" placeholder="เช่น บริษัท เอรานา เอสเธติค จำกัด">
+              <label>โลโก้บริษัท (PNG/JPG)</label>
+              <input type="file" id="newCompanyLogo" accept="image/*">
+              <img id="newCompanyLogoPreview" class="hidden" style="max-height:60px;margin-top:8px;display:block;">
+              <button class="btn sm" style="margin-top:10px;" id="addCompanyBtn">+ เพิ่มบริษัท</button>
+              <div class="msg" id="companyMsg"></div>
+            </div>
+          </section>
+          <section>
             <div class="sectitle">ประวัติการแก้ไข/ลบ (Audit Log)</div>
             <label style="margin-top:0;">ช่วงวันที่ดูข้อมูล</label>
             <select id="auditLogPreset" style="margin-bottom:10px;">
@@ -1256,25 +1269,20 @@
     <label>พนักงาน</label>
     <select id="warningEmpSelect"></select>
 
+    <label>บริษัทที่ออกเอกสาร</label>
+    <select id="warningCompanySelect"></select>
+
     <label>เรื่อง</label>
     <input type="text" id="warningSubject" placeholder="เช่น เตือนความประพฤติกรณีไม่ปฏิบัติหน้าที่...">
 
     <label>วันที่ออกหนังสือเตือน</label>
     <div id="warningDate_holder"></div>
 
-    <label>รายละเอียดเกี่ยวกับเหตุการณ์</label>
-    <textarea id="warningDetails" placeholder="วัน เวลา สถานที่ เรื่องราว พยานหลักฐาน และอื่นๆ"></textarea>
+    <label>รายละเอียดเกี่ยวกับเหตุการณ์ (เนื้อเรื่องทั้งหมด — ย่อหน้าปิดท้ายมาตรฐานระบบจะใส่ให้เอง)</label>
+    <textarea id="warningDetails" placeholder="วัน เวลา สถานที่ เรื่องราว พยานหลักฐาน และอื่นๆ — เว้นบรรทัดว่างเพื่อขึ้นย่อหน้าใหม่ได้" style="min-height:140px;"></textarea>
 
-    <label>ระดับโทษ</label>
-    <select id="warningPunishment">
-      <option value="verbal">เตือนด้วยวาจาโดยบันทึกเป็นลายลักษณ์อักษรไว้เป็นหลักฐาน</option>
-      <option value="written1">เตือนด้วยลายลักษณ์อักษรครั้งที่ 1</option>
-      <option value="written2">เตือนด้วยลายลักษณ์อักษรครั้งที่ 2</option>
-      <option value="written3">เตือนด้วยลายลักษณ์อักษรครั้งที่ 3</option>
-      <option value="commission50">หักเงินค่าคอมมิชชั่น 50%</option>
-      <option value="suspend">พักงานโดยไม่รับค่าจ้าง</option>
-      <option value="terminate">เลิกจ้าง</option>
-    </select>
+    <label>ระดับโทษ (เลือกได้มากกว่า 1 ข้อ)</label>
+    <div id="warningPunishmentChecks" style="display:flex;flex-direction:column;gap:8px;background:#FAF6F8;border:1px solid var(--border);border-radius:10px;padding:10px 12px;"></div>
 
     <label>แนบเอกสาร/รูปภาพใบเตือน — ถ้ามี</label>
     <input type="file" id="warningEvidenceInput" accept="image/*,.pdf">
@@ -1480,6 +1488,7 @@ function defaultDB(){
     otRequests: [],
     branchTransfers: [],
     warningLetters: [],
+    companies: [],
     notifications: [],
     settings: { centralToken:'', centralChatId:'', otChatId:'', graceMinutes:15, adminPassword:'admin1234', holidays:[], telegramRooms:[],
       gsheetWebappUrl:'', gsheetSecret:'', gsheetLastSync:null,
@@ -1731,8 +1740,10 @@ const approverToRow = a => ({ id:a.id, name:a.name, pin:a.pin||null, role:a.role
 // อ่านมาใช้อย่างเดียว ไม่ต้องส่งกลับตอนบันทึก จะได้ไม่เผลอเขียนทับชื่อเดิมด้วยค่าว่าง
 const rowToLog = r => ({ id:r.id, employeeId:r.employee_id, employeeName:r.employee_name||'', type:r.type, time:r.time, branchId:r.branch_id, lateMinutes:r.late_minutes||0, sent:r.sent, acPointId:r.ac_point_id||null, cleanPointId:r.clean_point_id||null, leaveConflict:!!r.leave_conflict, corrected:!!r.corrected, manualEntry:!!r.manual_entry, manualBy:r.manual_by||null });
 const logToRow = l => ({ id:l.id, employee_id:l.employeeId, type:l.type, time:l.time, branch_id:l.branchId||null, late_minutes:l.lateMinutes||0, sent:l.sent, ac_point_id:l.acPointId||null, clean_point_id:l.cleanPointId||null, leave_conflict:!!l.leaveConflict, corrected:!!l.corrected, manual_entry:!!l.manualEntry, manual_by:l.manualBy||null });
-const rowToWarningLetter = r => ({ id:r.id, employeeId:r.employee_id, subject:r.subject||'', issuedDate:r.issued_date, details:r.details||'', punishment:r.punishment||'verbal', warningNumber:r.warning_number||1, evidenceFileId:r.evidence_file_id||null, issuedBy:r.issued_by||'-', createdAt:r.created_at });
-const warningLetterToRow = w => ({ id:w.id, employee_id:w.employeeId, subject:w.subject||null, issued_date:w.issuedDate, details:w.details||null, punishment:w.punishment||'verbal', warning_number:w.warningNumber||1, evidence_file_id:w.evidenceFileId||null, issued_by:w.issuedBy||null, created_at:w.createdAt });
+const rowToWarningLetter = r => ({ id:r.id, employeeId:r.employee_id, companyId:r.company_id||null, subject:r.subject||'', issuedDate:r.issued_date, details:r.details||'', punishments:r.punishments||(r.punishment?[r.punishment]:['verbal']), warningNumber:r.warning_number||1, evidenceFileId:r.evidence_file_id||null, issuedBy:r.issued_by||'-', createdAt:r.created_at });
+const warningLetterToRow = w => ({ id:w.id, employee_id:w.employeeId, company_id:w.companyId||null, subject:w.subject||null, issued_date:w.issuedDate, details:w.details||null, punishments:w.punishments&&w.punishments.length?w.punishments:['verbal'], warning_number:w.warningNumber||1, evidence_file_id:w.evidenceFileId||null, issued_by:w.issuedBy||null, created_at:w.createdAt });
+const rowToCompany = r => ({ id:r.id, name:r.name||'', logoBase64:r.logo_base64||null, createdAt:r.created_at });
+const companyToRow = c => ({ id:c.id, name:c.name||null, logo_base64:c.logoBase64||null, created_at:c.createdAt });
 
 const rowToLeave = r => ({ id:r.id, employeeId:r.employee_id, kind:r.kind, from:r.from_date, to:r.to_date, hourStart:r.from_time||null, hourEnd:r.to_time||null, reason:r.reason||'', status:r.status, requestedAt:r.requested_at, decidedAt:r.decided_at||null, evidenceSent:r.evidence_sent??null, evidenceFileId:r.evidence_file_id||null, editRequest:r.edit_request||null, locationLat:r.location_lat??null, locationLng:r.location_lng??null, locationAddress:r.location_address||null });
 const leaveToRow = l => ({ id:l.id, employee_id:l.employeeId, kind:l.kind, from_date:l.from, to_date:l.to, from_time:l.hourStart||null, to_time:l.hourEnd||null, reason:l.reason||null, status:l.status, requested_at:l.requestedAt, decided_at:l.decidedAt||null, evidence_sent:l.evidenceSent??null, evidence_file_id:l.evidenceFileId||null, edit_request:l.editRequest||null, location_lat:l.locationLat??null, location_lng:l.locationLng??null, location_address:l.locationAddress||null, days: (l.from && l.to) ? (Math.round((new Date(l.to)-new Date(l.from))/86400000)+1) : null });
@@ -1751,10 +1762,10 @@ const settingsToRow = s => ({ id:1, central_token:s.centralToken||'', central_ch
 
 async function loadDB(){
   sbLoadFailed = [];
-  const [branchRows, empRows, approverRows, logRows, leaveRows, otRows, transferRows, notiRows, settingsRows, warningRows] = await Promise.all([
+  const [branchRows, empRows, approverRows, logRows, leaveRows, otRows, transferRows, notiRows, settingsRows, warningRows, companyRows] = await Promise.all([
     sbSelectAll('branches'), sbSelectAll('employees'), sbSelectAll('approvers'), sbSelectAll('logs'),
     sbSelectAll('leaves'), sbSelectAll('ot_requests'), sbSelectAll('branch_transfers'), sbSelectAll('notifications'), sbSelectAll('settings'),
-    sbSelectAll('warning_letters')
+    sbSelectAll('warning_letters'), sbSelectAll('companies')
   ]);
   db = defaultDB();
   if(branchRows.length) db.branches = branchRows.map(rowToBranch);
@@ -1766,6 +1777,7 @@ async function loadDB(){
   db.branchTransfers = transferRows.map(rowToBranchTransfer);
   db.notifications = notiRows.map(rowToNoti);
   db.warningLetters = warningRows.map(rowToWarningLetter);
+  db.companies = companyRows.map(rowToCompany);
   if(settingsRows.length) db.settings = { ...defaultDB().settings, ...rowToSettings(settingsRows[0]) };
   db.settings.notifyTypes = { ...defaultDB().settings.notifyTypes, ...(db.settings.notifyTypes||{}) };
   db.settings.telegramRooms = db.settings.telegramRooms || [];
@@ -1780,6 +1792,7 @@ async function saveLogRow(row){ await sbUpsertRow('logs', logToRow(row)); }
 async function saveLeaveRow(row){ await sbUpsertRow('leaves', leaveToRow(row)); }
 async function saveOtRow(row){ await sbUpsertRow('ot_requests', otToRow(row)); }
 async function saveWarningLetterRow(row){ await sbUpsertRow('warning_letters', warningLetterToRow(row)); }
+async function saveCompanyRow(row){ await sbUpsertRow('companies', companyToRow(row)); }
 // เรียกทุกครั้งที่ leave/ot แถวที่เคย sync ไป Google Sheets แล้วมีการเปลี่ยนสถานะ/ค่า (อนุมัติ/ปฏิเสธ/แก้ไข)
 // เพื่อให้รอบ sync ถัดไปดึงไปอัปเดตอีกครั้ง (ไม่งั้น Sheet จะค้างค่าตอน sync ครั้งแรกตลอดไป)
 async function markLeaveForResync(id){ await sbUpsertRow('leaves', {id, synced_at:null}); }
@@ -3261,7 +3274,7 @@ function switchATab(tab){
   if(tab==='Leaves'){ renderApprovalBranchFilter(); renderLeaveLists(); renderOtLists(); renderTransferList(); }
   if(tab==='Inspect'){ initInspectTab(); renderInspectTab(); }
   if(tab==='Reports'){ initReportsTab(); renderReportsTab(); }
-  if(tab==='Settings'){ renderDbStatus(); renderAdminEmpList(); renderApproverEditor(); renderBranchEditor(); renderAcPointEditor(); renderCleanPointEditor(); renderHolidayEditor(); renderNotifyTypesEditor(); renderTelegramRoomsEditor(); renderAuditLogFilter(); renderOrphanTab(); updateSettingsFlags(); }
+  if(tab==='Settings'){ renderDbStatus(); renderAdminEmpList(); renderApproverEditor(); renderCompanyList(); renderBranchEditor(); renderAcPointEditor(); renderCleanPointEditor(); renderHolidayEditor(); renderNotifyTypesEditor(); renderTelegramRoomsEditor(); renderAuditLogFilter(); renderOrphanTab(); updateSettingsFlags(); }
 }
 
 function toggleSetGroup(name){
@@ -3925,9 +3938,14 @@ function openWarningForm(){
   const sel = document.getElementById('warningEmpSelect');
   sel.innerHTML = db.employees.filter(e=>e.active!==false).sort((a,b)=>a.name.localeCompare(b.name,'th'))
     .map(e=>`<option value="${e.id}">${e.name}${e.nickname?` (${e.nickname})`:''}</option>`).join('');
+  const compSel = document.getElementById('warningCompanySelect');
+  compSel.innerHTML = db.companies.length ? db.companies.map(c=>`<option value="${c.id}">${c.name}</option>`).join('')
+    : `<option value="">— ยังไม่มีบริษัท ไปเพิ่มที่ตั้งค่า → คนและสิทธิ์ก่อน —</option>`;
+  document.getElementById('warningPunishmentChecks').innerHTML = Object.entries(WARNING_PUNISHMENT_LABELS).map(([k,label])=>
+    `<label style="display:flex;align-items:flex-start;gap:8px;font-size:13px;font-weight:400;margin:0;"><input type="checkbox" value="${k}" class="warnPunishCheck" style="width:auto;margin-top:3px;">${label}</label>`
+  ).join('');
   document.getElementById('warningSubject').value = '';
   document.getElementById('warningDetails').value = '';
-  document.getElementById('warningPunishment').value = 'verbal';
   document.getElementById('warningEvidenceInput').value = '';
   document.getElementById('warningFormMsg').textContent = '';
   setDateVal('warningDate', dateKey(new Date()));
@@ -3938,16 +3956,17 @@ document.getElementById('closeWarningBtn').onclick = ()=> document.getElementByI
 document.getElementById('submitWarningBtn').onclick = async ()=>{
   const msg = document.getElementById('warningFormMsg');
   const employeeId = document.getElementById('warningEmpSelect').value;
+  const companyId = document.getElementById('warningCompanySelect').value || null;
   const subject = document.getElementById('warningSubject').value.trim();
   const issuedDate = getDateVal('warningDate');
   const details = document.getElementById('warningDetails').value.trim();
-  const punishment = document.getElementById('warningPunishment').value;
+  const punishments = [...document.querySelectorAll('.warnPunishCheck:checked')].map(c=>c.value);
   const evidenceFile = document.getElementById('warningEvidenceInput').files[0];
   if(!employeeId || !subject || !issuedDate){ msg.className='msg err'; msg.textContent='กรอกพนักงาน/เรื่อง/วันที่ให้ครบ'; return; }
   const emp = db.employees.find(e=>e.id===employeeId);
   const warningNumber = db.warningLetters.filter(w=>w.employeeId===employeeId).length + 1;
   const issuedBy = session.role==='admin' ? 'เจ้าของ/HR' : (currentApprover()?.name || 'ผู้บริหาร');
-  const w = { id:uid(), employeeId, subject, issuedDate, details, punishment, warningNumber, evidenceFileId:null, issuedBy, createdAt:new Date().toISOString() };
+  const w = { id:uid(), employeeId, companyId, subject, issuedDate, details, punishments:punishments.length?punishments:['verbal'], warningNumber, evidenceFileId:null, issuedBy, createdAt:new Date().toISOString() };
   if(evidenceFile && db.settings.centralChatId){
     const caption = `📋บันทึกใบเตือน (ใบที่ ${warningNumber})\n${notifyName(emp)}\nเรื่อง: ${subject}`;
     const r = await tgSendPhoto(db.settings.centralToken, db.settings.centralChatId, evidenceFile, caption);
@@ -3960,22 +3979,14 @@ document.getElementById('submitWarningBtn').onclick = async ()=>{
   setTimeout(()=>{ document.getElementById('warningOverlay').classList.remove('show'); }, 700);
 };
 document.getElementById('closeWarningDetailBtn').onclick = ()=> document.getElementById('warningDetailOverlay').classList.remove('show');
+// ตัดข้อมูลอื่นออก โชว์แค่หัวข้อ/วันที่/รายละเอียด ตามที่ user ขอ (ไม่ให้รกตา — ข้อมูลพนักงาน/สาขา/ระดับโทษ
+// ดูได้จากแถวในลิสต์อยู่แล้วไม่ต้องซ้ำในนี้)
 function viewWarningDetail(id){
   const w = db.warningLetters.find(x=>x.id===id); if(!w) return;
-  const emp = db.employees.find(e=>e.id===w.employeeId);
-  const br = db.branches.find(b=>b.id===emp?.branchId);
   document.getElementById('warningDetailBody').innerHTML = `
-    <div><b>สาขา:</b> ${br?.name||'-'}</div>
-    <div><b>ชื่อ-นามสกุล:</b> ${emp?.name||'-'}</div>
-    <div><b>ชื่อเล่น:</b> ${emp?.nickname||'-'}</div>
-    <div><b>ตำแหน่ง:</b> ${emp?.jobTitle||'-'}</div>
-    <div><b>อายุงาน:</b> ${tenureText(emp?.startDate)}</div>
-    <div><b>วันที่ออกใบเตือน:</b> ${ddmmyyyy(w.issuedDate)}</div>
-    <div><b>ใบเตือนครั้งที่:</b> ${w.warningNumber}</div>
     <div><b>เรื่อง:</b> ${w.subject}</div>
-    <div><b>ระดับโทษ:</b> ${WARNING_PUNISHMENT_LABELS[w.punishment]||w.punishment}</div>
+    <div><b>วันที่ออกใบเตือน:</b> ${ddmmyyyy(w.issuedDate)}</div>
     <div style="margin-top:8px;"><b>รายละเอียด:</b><br>${(w.details||'-').replace(/\n/g,'<br>')}</div>
-    <div style="margin-top:8px;color:var(--muted);font-size:12px;">บันทึกโดย ${w.issuedBy} เมื่อ ${new Date(w.createdAt).toLocaleString('th-TH')}</div>
   `;
   document.getElementById('warningDetailOverlay').classList.add('show');
 }
@@ -4511,6 +4522,54 @@ async function renderAuditLogViewer(){
       <div class="meta">${new Date(r.created_at).toLocaleString('th-TH')}</div>
     </div></div>`).join('') : '<div class="empty">ไม่มีประวัติการแก้ไข/ลบในช่วงที่เลือก</div>';
 }
+// ===== บริษัทในเครือ (สำหรับออกเอกสาร เช่น ใบเตือน) =====
+function renderCompanyList(){
+  const el = document.getElementById('companyList'); if(!el) return;
+  el.innerHTML = db.companies.length ? db.companies.map(c=>`
+    <div class="settingsrow"><div class="info" style="display:flex;align-items:center;gap:10px;">
+      ${c.logoBase64?`<img src="${c.logoBase64}" style="height:32px;max-width:60px;object-fit:contain;">`:''}
+      <div class="name">${c.name}</div>
+    </div><button class="btn ghost sm" data-rmcompany="${c.id}">ลบ</button></div>
+  `).join('') : '<div class="empty">ยังไม่มีบริษัทในเครือ — เพิ่มด้านล่าง</div>';
+  el.querySelectorAll('[data-rmcompany]').forEach(btn=>{
+    btn.onclick = async ()=>{
+      if(!confirm('ลบบริษัทนี้? ใบเตือนเก่าที่เคยออกด้วยบริษัทนี้จะยังอยู่ แต่จะไม่มีชื่อบริษัทให้เลือกออกเอกสารใหม่อีก')) return;
+      await sbDeleteRow('companies', btn.dataset.rmcompany);
+      db.companies = db.companies.filter(c=>c.id!==btn.dataset.rmcompany);
+      renderCompanyList();
+    };
+  });
+}
+document.getElementById('newCompanyLogo').addEventListener('change', (e)=>{
+  const file = e.target.files[0];
+  const preview = document.getElementById('newCompanyLogoPreview');
+  if(!file){ preview.classList.add('hidden'); return; }
+  const reader = new FileReader();
+  reader.onload = ()=>{ preview.src = reader.result; preview.classList.remove('hidden'); };
+  reader.readAsDataURL(file);
+});
+document.getElementById('addCompanyBtn').onclick = async ()=>{
+  const msg = document.getElementById('companyMsg');
+  const name = document.getElementById('newCompanyName').value.trim();
+  const file = document.getElementById('newCompanyLogo').files[0];
+  if(!name){ msg.className='msg err'; msg.textContent='กรอกชื่อบริษัท'; return; }
+  let logoBase64 = null;
+  if(file){
+    logoBase64 = await new Promise(resolve=>{
+      const reader = new FileReader();
+      reader.onload = ()=> resolve(reader.result);
+      reader.readAsDataURL(file);
+    });
+  }
+  const c = { id:uid(), name, logoBase64, createdAt:new Date().toISOString() };
+  db.companies.push(c); await saveCompanyRow(c);
+  await logAudit('add_company', 'company', c.id, `เพิ่มบริษัท "${name}" สำหรับออกเอกสาร`);
+  document.getElementById('newCompanyName').value = '';
+  document.getElementById('newCompanyLogo').value = '';
+  document.getElementById('newCompanyLogoPreview').classList.add('hidden');
+  msg.className='msg ok'; msg.textContent='เพิ่มบริษัทเรียบร้อย';
+  renderCompanyList();
+};
 function renderApproverEditor(){
   const el = document.getElementById('approverEditor'); if(!el) return;
   if(!canManageApprovers()){
