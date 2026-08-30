@@ -522,9 +522,37 @@
     body.deskmode .rpttable .namecol{padding-left:10px;padding-right:10px;}
     body.deskmode .segbtn{font-size:13.5px;}
   }
+
+  /* ---------- ใบเตือนพนักงาน: หน้าปริ้น/บันทึกเป็น PDF ----------
+     ใช้ window.print() ของเบราว์เซอร์เอง (เลือก "บันทึกเป็น PDF" ในหน้าต่างปริ้นได้เลย) แทนไลบรารีสร้าง PDF
+     เพราะฟอนต์ไทยของเบราว์เซอร์เอง (Sarabun ที่โหลดอยู่แล้ว) เรนเดอร์ถูกต้องแน่นอน ไม่ต้องฝังไฟล์ฟอนต์เอง */
+  #warningPrintArea{display:none;}
+  .wp-page{width:190mm;margin:0 auto;font-family:'Sarabun',sans-serif;color:#111;font-size:14px;line-height:1.7;}
+  .wp-head{display:flex;align-items:center;justify-content:center;gap:16px;border-bottom:2px solid #111;padding-bottom:10px;margin-bottom:16px;}
+  .wp-head img{height:56px;object-fit:contain;}
+  .wp-head .wp-headtext{text-align:center;}
+  .wp-head .wp-company{font-weight:700;font-size:16px;}
+  .wp-head .wp-doctitle{font-weight:700;font-size:15px;margin-top:2px;}
+  .wp-field{margin-bottom:6px;}
+  .wp-field b{font-weight:700;}
+  .wp-sectiontitle{font-weight:700;text-decoration:underline;margin:14px 0 8px;}
+  .wp-body p{margin:0 0 10px;text-indent:2em;text-align:justify;}
+  .wp-punish label{display:block;margin-bottom:4px;}
+  .wp-sigtable{width:100%;border-collapse:collapse;margin-top:22px;}
+  .wp-sigtable th,.wp-sigtable td{border:1px solid #111;padding:8px;text-align:center;font-size:13px;}
+  .wp-sigtable td{height:70px;vertical-align:bottom;padding-bottom:14px;}
+  .wp-sigtable img{max-height:50px;max-width:90%;}
+  .wp-footer{text-align:center;font-weight:700;margin-top:18px;font-size:13px;}
+  @media print{
+    body *{visibility:hidden;}
+    #warningPrintArea, #warningPrintArea *{visibility:visible;}
+    #warningPrintArea{display:block;position:absolute;top:0;left:0;width:100%;}
+    @page{size:A4;margin:15mm;}
+  }
 </style>
 </head>
 <body>
+<div id="warningPrintArea"></div>
 <div class="phonewrap">
 
 <!-- ============ LOGIN ============ -->
@@ -4001,6 +4029,7 @@ function renderWarningLetterList(){
     const br = db.branches.find(b=>b.id===emp?.branchId);
     return `<div class="card" style="position:relative;margin-bottom:10px;">
       <div style="position:absolute;top:12px;right:12px;display:flex;gap:8px;">
+        <button class="btn ghost sm" data-warnprint="${w.id}" title="ดูฟอร์ม/ปริ้น">🖨️</button>
         <button class="btn ghost sm" data-warndetail="${w.id}" title="ดูรายละเอียด">📄</button>
         ${w.evidenceFileId?`<button class="btn ghost sm" data-warnphoto="${w.evidenceFileId}" title="ดูรูป/เอกสารแนบ">🖼️</button>`:''}
       </div>
@@ -4014,6 +4043,52 @@ function renderWarningLetterList(){
   }).join('') : '<div class="empty">ยังไม่มีใบเตือนในสาขาที่เลือก</div>';
   document.querySelectorAll('[data-warndetail]').forEach(b=> b.onclick = ()=> viewWarningDetail(b.dataset.warndetail));
   document.querySelectorAll('[data-warnphoto]').forEach(b=> b.onclick = ()=> viewTelegramPhoto(b.dataset.warnphoto));
+  document.querySelectorAll('[data-warnprint]').forEach(b=> b.onclick = ()=> printWarningLetter(b.dataset.warnprint));
+}
+
+// ===== สร้างหน้าฟอร์มใบเตือนสำหรับปริ้น/บันทึกเป็น PDF (ใช้ print ของเบราว์เซอร์เอง ฟอนต์ไทยถูกต้องแน่นอน) =====
+// ย่อหน้าปิดท้าย (บริษัทฯ พิจารณาแล้ว.../จึงเรียนมาเพื่อทราบ...) เป็นข้อความตายตัวเหมือนกันทุกใบ ตามที่ user ยืนยันไว้
+const WARNING_FIXED_CLOSING = [
+  'บริษัทฯ พิจารณาแล้วเห็นว่า การกระทำของพนักงานถือเป็นการละเลยต่อหน้าที่และไม่ปฏิบัติตามคำสั่งของนายจ้าง จึงขอออกหนังสือเตือนฉบับนี้ เพื่อให้พนักงานปรับปรุงพฤติกรรมการทำงานให้ถูกต้องตามขั้นตอนอย่างเคร่งครัด หากพบว่าพนักงานยังคงละเลย เพิกเฉย หรือกระทำผิดซ้ำในลักษณะเดิมอีก บริษัทฯ จะพิจารณาดำเนินการลงโทษทางวินัยในขั้นที่สูงขึ้นต่อไป ซึ่งอาจรวมถึงการพักงาน หรือการเลิกจ้างโดยไม่จ่ายค่าชดเชย ตามกฎระเบียบและข้อบังคับการทำงานของบริษัทฯ',
+  'จึงเรียนมาเพื่อทราบและปรับปรุงการปฏิบัติงานโดยทันที'
+];
+function printWarningLetter(id){
+  const w = db.warningLetters.find(x=>x.id===id); if(!w) return;
+  const emp = db.employees.find(e=>e.id===w.employeeId);
+  const br = db.branches.find(b=>b.id===emp?.branchId);
+  const company = db.companies.find(c=>c.id===w.companyId) || db.companies[0] || null;
+  const bodyParas = (w.details||'').split(/\n{2,}/).filter(p=>p.trim()).map(p=>`<p>${p.trim().replace(/\n/g,'<br>')}</p>`).join('');
+  const punishSet = new Set(w.punishments && w.punishments.length ? w.punishments : ['verbal']);
+  const punishHtml = Object.entries(WARNING_PUNISHMENT_LABELS).map(([k,label])=>
+    `<label>${punishSet.has(k)?'☑':'☐'} ${label}</label>`
+  ).join('');
+  document.getElementById('warningPrintArea').innerHTML = `
+    <div class="wp-page">
+      <div class="wp-head">
+        ${company?.logoBase64?`<img src="${company.logoBase64}">`:''}
+        <div class="wp-headtext">
+          <div class="wp-company">${company?.name||'-'}</div>
+          <div class="wp-doctitle">หนังสือแจ้งการลงโทษทางวินัย</div>
+        </div>
+      </div>
+      <div class="wp-field"><b>เรื่อง</b> ${w.subject}</div>
+      <div class="wp-field"><b>ชื่อพนักงาน</b> ${emp?.name||'-'} <b>พนักงานตำแหน่ง</b> ${emp?.jobTitle||'-'} <b>สาขา</b> ${br?.name||'-'}</div>
+      <div class="wp-field"><b>วันที่ออกหนังสือเตือน</b> ${ddmmyyyy(w.issuedDate)}</div>
+      <div class="wp-sectiontitle">รายละเอียดเกี่ยวกับเหตุการณ์ เช่น วัน เวลา สถานที่ เรื่องราว พยานหลักฐาน และอื่นๆ ดังนี้</div>
+      <div class="wp-body">${bodyParas || '<p>-</p>'}</div>
+      <div class="wp-body"><p>${WARNING_FIXED_CLOSING[0]}</p></div>
+      <div style="margin:10px 0;">${WARNING_FIXED_CLOSING[1]}</div>
+      <div class="wp-sectiontitle">สำหรับปัญหาที่เกิดขึ้นในครั้งนี้ จึงพิจารณาลงโทษความผิด ดังนี้</div>
+      <div class="wp-punish">${punishHtml}</div>
+      <table class="wp-sigtable">
+        <tr><th>พนักงานรับทราบ</th><th>ผู้จัดการ</th><th>ผู้บริหาร</th></tr>
+        <tr><td></td><td></td><td></td></tr>
+        <tr><td>วันที่ ......../......../........</td><td>วันที่ ......../......../........</td><td>วันที่ ......../......../........</td></tr>
+      </table>
+      <div class="wp-footer">${company?.name||''}</div>
+    </div>
+  `;
+  setTimeout(()=> window.print(), 200);
 }
 
 function dailyTableHTML(rpt, view){
