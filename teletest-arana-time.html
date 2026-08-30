@@ -2029,11 +2029,15 @@ function summaryForRange(empId, fromStr, toStr){
   const hourKind = { hourly_sick:{count:0,hours:0}, hourly_personal:{count:0,hours:0} };
   db.leaves.filter(l=>l.employeeId===empId && l.status==='approved' && HOURLY_KINDS.includes(l.kind) && l.from>=fromStr && l.from<=toStr)
     .forEach(l=>{ hourKind[l.kind].count++; hourKind[l.kind].hours += leaveHoursNum(l); });
-  return {onTime, late, lateMinutes, absent, leaveDays, byKind, hourKind};
+  // ลืมสแกน (แอดมินเพิ่มย้อนหลังให้) + ใบเตือน — นับจากวันที่ในช่วงที่ดูเหมือนกัน
+  const forgotCount = db.logs.filter(l=>l.employeeId===empId && l.type==='IN' && l.manualEntry && dateKey(new Date(l.time))>=fromStr && dateKey(new Date(l.time))<=toStr).length;
+  const warningCount = (db.warningLetters||[]).filter(w=>w.employeeId===empId && w.issuedDate>=fromStr && w.issuedDate<=toStr).length;
+  return {onTime, late, lateMinutes, absent, leaveDays, byKind, hourKind, forgotCount, warningCount};
 }
 // ลำดับ+label กล่องสรุปวันลาที่หน้าแรกพนักงาน (ลาคลอดไว้ท้ายสุดเพราะเกิดน้อยที่สุด)
 // type:'day' = นับวันเต็มวัน, 'hour' = โชว์จำนวนครั้ง+รวมชั่วโมงในการ์ดเดียวกัน,
 // 'quota' = โชว์ใช้ไปแล้ว/สิทธิ์ทั้งหมด (x/x) แทนตัวเลขเดี่ยว (รวมสิทธิ์คงเหลือไว้ในช่องเดียวกัน ไม่ต้องมีกล่องแยก)
+// 'count' = ดึงตัวเลขตรงจาก m[key] เลย (ไม่ใช่ byKind) — ใช้กับ forgotCount/warningCount
 const HOME_LEAVE_BOX_ORDER = [
   {key:'sick_nocert', label:'ลาป่วย (ไม่มีใบรับรองแพทย์)', type:'day'},
   {key:'sick_cert', label:'ลาป่วย (มีใบรับรองแพทย์)', type:'day'},
@@ -2045,6 +2049,8 @@ const HOME_LEAVE_BOX_ORDER = [
   {key:'hourly_sick', label:'ลาเป็นชั่วโมง (ป่วย)', type:'hour'},
   {key:'absent', label:'ขาดงาน', type:'day', color:'color:var(--red);'},
   {key:'maternity', label:'ลาคลอด', type:'day'},
+  {key:'forgotCount', label:'ลืมเช็คอินเข้างาน', type:'count', unit:'ครั้ง', color:'color:var(--amber);'},
+  {key:'warningCount', label:'ใบเตือน', type:'count', unit:'ใบ', color:'color:var(--red);'},
 ];
 function syncEmpFilterUI(){
   ['home','leave','ot'].forEach(scope=>{
@@ -2407,6 +2413,9 @@ function renderEmployeeHome(){
       const num = eligible ? `${used}/${total}` : '-';
       const lbl = eligible ? 'วัน' : `อายุงานยังไม่ครบ ${monthsNeeded===12?'1 ปี':'1 เดือน'}`;
       return `<div class="stat"><div class="t">${b.label}</div><div class="num" style="${color}">${num}</div><div class="lbl">${lbl}</div></div>`;
+    }
+    if(b.type==='count'){
+      return `<div class="stat"><div class="t">${b.label}</div><div class="num" style="${color}">${m[b.key]||0}</div><div class="lbl">${b.unit}</div></div>`;
     }
     const val = b.key==='absent' ? m.absent : (m.byKind[b.key]||0);
     return `<div class="stat"><div class="t">${b.label}</div><div class="num" style="${color}">${val}</div><div class="lbl">วัน</div></div>`;
