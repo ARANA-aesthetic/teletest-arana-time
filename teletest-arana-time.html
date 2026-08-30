@@ -2684,10 +2684,10 @@ document.getElementById('submitLeaveBtn').onclick = async ()=>{
   renderLeaveTab();
   const br = currentBranch(emp);
   const rangeText = leaveRangeText(leave);
-  let text = `💌รออนุมัติ สาขา ${br?.name||'-'}\n▪️${notifyName(emp)}\n▪️ยื่น${leaveLabel(kind)} ${rangeText}\n▪️เหตุผล: ${reason||'-'}`;
+  let text = `💌รออนุมัติ สาขา ${br?.name||'-'}\n▪️${notifyName(emp)}\n▪️ยื่น${leaveLabel(kind)}\n▪️${rangeText}\n▪️เหตุผล: ${reason||'-'}`;
   if(locationLat!=null){
     const mapLink = `https://maps.google.com/?q=${locationLat},${locationLng}`;
-    text += `\n▪️พิกัด: ${locationAddress||'-'} (<a href="${mapLink}">แผนที่</a>)`;
+    text += `\n📍พิกัด: ${locationAddress||'-'} (<a href="${mapLink}">แผนที่</a>)`;
   }
   if(db.settings.notifyTypes.leaveSubmit && db.settings.centralChatId){
     if(evidenceFile){
