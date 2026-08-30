@@ -1655,8 +1655,8 @@ const approverToRow = a => ({ id:a.id, name:a.name, pin:a.pin||null, role:a.role
 const rowToLog = r => ({ id:r.id, employeeId:r.employee_id, employeeName:r.employee_name||'', type:r.type, time:r.time, branchId:r.branch_id, lateMinutes:r.late_minutes||0, sent:r.sent, acPointId:r.ac_point_id||null, cleanPointId:r.clean_point_id||null, leaveConflict:!!r.leave_conflict, corrected:!!r.corrected });
 const logToRow = l => ({ id:l.id, employee_id:l.employeeId, type:l.type, time:l.time, branch_id:l.branchId||null, late_minutes:l.lateMinutes||0, sent:l.sent, ac_point_id:l.acPointId||null, clean_point_id:l.cleanPointId||null, leave_conflict:!!l.leaveConflict, corrected:!!l.corrected });
 
-const rowToLeave = r => ({ id:r.id, employeeId:r.employee_id, kind:r.kind, from:r.from_date, to:r.to_date, hourStart:r.from_time||null, hourEnd:r.to_time||null, reason:r.reason||'', status:r.status, requestedAt:r.requested_at, decidedAt:r.decided_at||null, evidenceSent:r.evidence_sent??null, evidenceFileId:r.evidence_file_id||null, editRequest:r.edit_request||null });
-const leaveToRow = l => ({ id:l.id, employee_id:l.employeeId, kind:l.kind, from_date:l.from, to_date:l.to, from_time:l.hourStart||null, to_time:l.hourEnd||null, reason:l.reason||null, status:l.status, requested_at:l.requestedAt, decided_at:l.decidedAt||null, evidence_sent:l.evidenceSent??null, evidence_file_id:l.evidenceFileId||null, edit_request:l.editRequest||null, days: (l.from && l.to) ? (Math.round((new Date(l.to)-new Date(l.from))/86400000)+1) : null });
+const rowToLeave = r => ({ id:r.id, employeeId:r.employee_id, kind:r.kind, from:r.from_date, to:r.to_date, hourStart:r.from_time||null, hourEnd:r.to_time||null, reason:r.reason||'', status:r.status, requestedAt:r.requested_at, decidedAt:r.decided_at||null, evidenceSent:r.evidence_sent??null, evidenceFileId:r.evidence_file_id||null, editRequest:r.edit_request||null, locationLat:r.location_lat??null, locationLng:r.location_lng??null, locationAddress:r.location_address||null });
+const leaveToRow = l => ({ id:l.id, employee_id:l.employeeId, kind:l.kind, from_date:l.from, to_date:l.to, from_time:l.hourStart||null, to_time:l.hourEnd||null, reason:l.reason||null, status:l.status, requested_at:l.requestedAt, decided_at:l.decidedAt||null, evidence_sent:l.evidenceSent??null, evidence_file_id:l.evidenceFileId||null, edit_request:l.editRequest||null, location_lat:l.locationLat??null, location_lng:l.locationLng??null, location_address:l.locationAddress||null, days: (l.from && l.to) ? (Math.round((new Date(l.to)-new Date(l.from))/86400000)+1) : null });
 
 const rowToOt = r => ({ id:r.id, employeeId:r.employee_id, date:r.date, hourStart:r.hour_start, hourEnd:r.hour_end, reason:r.reason||'', status:r.status, requestedAt:r.requested_at, decidedAt:r.decided_at||null, groupId:r.group_id||null, editRequest:r.edit_request||null });
 const otToRow = o => ({ id:o.id, employee_id:o.employeeId, date:o.date, hour_start:o.hourStart, hour_end:o.hourEnd, reason:o.reason||null, status:o.status, requested_at:o.requestedAt, decided_at:o.decidedAt||null, group_id:o.groupId||null, edit_request:o.editRequest||null });
@@ -2470,6 +2470,22 @@ const LEAVE_KIND_LABELS = {
   sick:'ลาป่วย', personal:'ลากิจ', vacation:'ลาพักร้อน'
 };
 const HOURLY_KINDS = ['hourly_sick','hourly_personal'];
+// ลาป่วย/ลากิจ ทั้งเต็มวันและเป็นชั่วโมง — ต้องมีหลักฐานแนบ (แนบตอนยื่นหรือภายหลังก็ได้) และเก็บพิกัด GPS
+// ตอนยื่นไว้ให้แอดมินดูหลังบ้านเท่านั้น (ไม่โชว์ในแอปฝั่งพนักงาน)
+const EVIDENCE_REQUIRED_KINDS = ['sick_cert','sick_nocert','personal_deduct','personal_nodeduct','hourly_sick','hourly_personal'];
+function ddmmyyyy(dateStr){ if(!dateStr) return '-'; const [y,m,d] = dateStr.split('-'); return `${d}/${m}/${y}`; }
+// แปลงพิกัด GPS เป็นที่อยู่ภาษาไทยอ่านง่าย (ตำบล/อำเภอ/จังหวัด) ด้วย OpenStreetMap Nominatim (ฟรี ไม่ต้องใช้ API key)
+// เป็น best-effort เท่านั้น — ถ้าเรียกไม่สำเร็จ/timeout จะ return null แล้วโค้ดที่เรียกใช้จะ fallback ไปใช้แค่ลิงก์แผนที่แทน
+async function reverseGeocodeThai(lat, lng){
+  try{
+    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&accept-language=th&zoom=16`);
+    if(!res.ok) return null;
+    const data = await res.json();
+    const a = data.address || {};
+    const parts = [a.suburb||a.village||a.hamlet||a.neighbourhood||a.road, a.subdistrict||a.city_district, a.district||a.county||a.city, a.province||a.state].filter(Boolean);
+    return parts.length ? parts.join(' ') : (data.display_name || null);
+  }catch(e){ return null; }
+}
 function leaveLabel(k){ return LEAVE_KIND_LABELS[k] || k; }
 function notifyName(emp){
   if(!emp || !emp.name) return '-';
@@ -2496,13 +2512,18 @@ function renderLeaveTab(){
     else if(l.status==='approved') actionHtml = l.editRequest
       ? `<span class="badge pending" style="margin-left:8px;">รออนุมัติการแก้ไข</span>`
       : `<button class="btn ghost sm" data-requestleaveedit="${l.id}" style="margin-left:8px;">ขอแก้ไข</button>`;
+    const needsEvidence = EVIDENCE_REQUIRED_KINDS.includes(l.kind);
+    const hasEvidence = !!l.evidenceFileId;
+    const evidenceBadge = needsEvidence ? (hasEvidence ? ' · <span style="color:var(--green);">แนบหลักฐานแล้ว</span>' : ' · <span style="color:var(--amber);">ยังไม่แนบหลักฐาน</span>') : '';
+    if(needsEvidence && !hasEvidence && l.status!=='rejected') actionHtml += `<button class="btn ghost sm" data-attachevidence="${l.id}" style="margin-left:8px;">แนบหลักฐาน</button>`;
     return `<div class="listrow"><div class="info">
       <div class="name">${leaveLabel(l.kind)} · ${leaveRangeText(l)}</div>
-      <div class="meta">${l.reason||''}${l.evidenceSent?' · แนบหลักฐานแล้ว':''}</div>
+      <div class="meta">${l.reason||''}${evidenceBadge}</div>
     </div><span class="badge ${l.status}">${leaveStatusLabel(l.status)}</span>${actionHtml}</div>`;
   }).join('') : '<div class="empty">ไม่มีใบลาในช่วงที่เลือก</div>';
   document.querySelectorAll('[data-editleave]').forEach(btn=> btn.onclick = ()=> openLeaveForm(btn.dataset.editleave));
   document.querySelectorAll('[data-requestleaveedit]').forEach(btn=> btn.onclick = ()=> openLeaveEditRequestForm(btn.dataset.requestleaveedit));
+  document.querySelectorAll('[data-attachevidence]').forEach(btn=> btn.onclick = ()=> attachLeaveEvidenceLater(btn.dataset.attachevidence));
 }
 document.getElementById('exportMyLeaveBtn').onclick = ()=>{
   const emp = currentEmployee(); if(!emp) return;
@@ -2649,13 +2670,25 @@ document.getElementById('submitLeaveBtn').onclick = async ()=>{
     setTimeout(()=>{ document.getElementById('leaveOverlay').classList.remove('show'); editingLeaveId=null; }, 900);
     return;
   }
-  const leave = {id:uid(), employeeId:emp.id, kind, from, to, hourStart, hourEnd, reason, status:'pending', requestedAt:new Date().toISOString(), evidenceSent:null, evidenceFileId:null};
+  let locationLat=null, locationLng=null, locationAddress=null;
+  if(EVIDENCE_REQUIRED_KINDS.includes(kind)){
+    const pos = await getPosition();
+    if(pos){
+      locationLat = pos.lat; locationLng = pos.lng;
+      locationAddress = await reverseGeocodeThai(pos.lat, pos.lng);
+    }
+  }
+  const leave = {id:uid(), employeeId:emp.id, kind, from, to, hourStart, hourEnd, reason, status:'pending', requestedAt:new Date().toISOString(), evidenceSent:null, evidenceFileId:null, locationLat, locationLng, locationAddress};
   db.leaves.push(leave); await saveLeaveRow(leave);
   msg.className='msg ok'; msg.textContent='ส่งใบลาเรียบร้อย รออนุมัติจาก HR';
   renderLeaveTab();
   const br = currentBranch(emp);
   const rangeText = leaveRangeText(leave);
-  const text = `<b>${notifyName(emp)}</b> ยื่น${leaveLabel(kind)} ${rangeText}\nเหตุผล: ${reason||'-'}`;
+  let text = `💌รออนุมัติ สาขา ${br?.name||'-'}\n▪️${notifyName(emp)}\n▪️ยื่น${leaveLabel(kind)} ${rangeText}\n▪️เหตุผล: ${reason||'-'}`;
+  if(locationLat!=null){
+    const mapLink = `https://maps.google.com/?q=${locationLat},${locationLng}`;
+    text += `\n▪️พิกัด: ${locationAddress||'-'} (<a href="${mapLink}">แผนที่</a>)`;
+  }
   if(db.settings.notifyTypes.leaveSubmit && db.settings.centralChatId){
     if(evidenceFile){
       const r = await tgSendPhoto(db.settings.centralToken, db.settings.centralChatId, evidenceFile, text);
@@ -2668,6 +2701,33 @@ document.getElementById('submitLeaveBtn').onclick = async ()=>{
   await pushNotification(emp.id, 'ส่งใบลาแล้ว', `${leaveLabel(kind)} ${rangeText} กำลังรอการอนุมัติ`);
   setTimeout(()=>{ document.getElementById('leaveOverlay').classList.remove('show'); }, 900);
 };
+
+// -- แนบหลักฐานการลาภายหลัง (สำหรับลาป่วย/ลากิจ ที่ยื่นไปก่อนโดยยังไม่มีรูป) --
+let lateEvidenceLeaveId = null;
+const lateEvidenceInput = document.createElement('input');
+lateEvidenceInput.type='file'; lateEvidenceInput.accept='image/*'; lateEvidenceInput.id='lateEvidenceInput'; lateEvidenceInput.style.display='none';
+document.body.appendChild(lateEvidenceInput);
+function attachLeaveEvidenceLater(leaveId){
+  lateEvidenceLeaveId = leaveId;
+  document.getElementById('lateEvidenceInput').click();
+}
+lateEvidenceInput.addEventListener('change', async (e)=>{
+  const file = e.target.files[0]; e.target.value='';
+  if(!file || !lateEvidenceLeaveId) return;
+  const leave = db.leaves.find(l=>l.id===lateEvidenceLeaveId);
+  lateEvidenceLeaveId = null;
+  if(!leave) return;
+  const emp = db.employees.find(e=>e.id===leave.employeeId);
+  const br = db.branches.find(b=>b.id===emp?.branchId);
+  const caption = `✅ส่งหลักฐานการลา\n${notifyName(emp)} ${ddmmyyyy(leave.from)}\nประเภทการลา : ${leaveLabel(leave.kind)}`;
+  const r = await tgSendPhoto(db.settings.centralToken, br?.chatIdLeaveApproval, file, caption);
+  leave.evidenceFileId = r.fileId || leave.evidenceFileId;
+  leave.evidenceSent = r.ok;
+  await saveLeaveRow(leave);
+  renderLeaveTab();
+  await pushNotification(emp.id, r.ok ? 'ส่งหลักฐานการลาแล้ว' : 'ส่งหลักฐานการลาไม่สำเร็จ',
+    r.ok ? `${leaveLabel(leave.kind)} ${ddmmyyyy(leave.from)} — ส่งเข้ากลุ่มอนุมัติเรียบร้อย` : 'ลองใหม่อีกครั้ง');
+});
 
 // -- AC tab --
 function renderAcTab(){
@@ -3935,10 +3995,12 @@ async function decideLeave(id, status){
   const isHourly = HOURLY_KINDS.includes(leave.kind);
   if(db.settings.notifyTypes.leaveDecision && br?.chatIdLeaveApproval){
     if(status==='approved'){
+      const approverName = session.role==='admin' ? 'เจ้าของ/HR' : (currentApprover()?.name || 'ผู้บริหาร');
       let lines = [
-        `✅อนุมัติการลา :`,
+        `✅อนุมัติการลา : ${approverName}`,
         `แผนก : ${emp?.department || br?.name || '-'}`,
-        `ชื่อ : ${notifyName(emp)}`,
+        `ชื่อ-นามสกุล : ${emp?.name || '-'}`,
+        `ชื่อเล่น : ${emp?.nickname || '-'}`,
         `ตำแหน่งงาน : ${emp?.jobTitle || '-'}`,
         `ประเภทการลา : ${leaveLabel(leave.kind)}`,
         `ลาวันที่ : ${leave.from}`,
