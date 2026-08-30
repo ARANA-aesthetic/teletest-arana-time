@@ -824,6 +824,8 @@
           <div class="stat"><div class="t">แจ้งปิดแอร์</div><div class="num" style="color:var(--pink-dark);font-size:17px;" id="oAc">0/0</div><div class="lbl" id="oAcLbl">จุด</div></div>
           <div class="stat"><div class="t">ตรวจความสะอาด</div><div class="num" style="color:var(--pink-dark);font-size:17px;" id="oClean">0/0</div><div class="lbl" id="oCleanLbl">จุด</div></div>
           <div class="stat"><div class="t">ความเรียบร้อย</div><div class="num" style="color:var(--pink-dark);font-size:17px;" id="oGroom">0/0</div><div class="lbl" id="oGroomLbl">คน</div></div>
+          <div class="stat"><div class="t">ลืมเช็คอินเข้างาน</div><div class="num" style="color:var(--amber);font-size:17px;" id="oForgot">0</div><div class="lbl">ครั้ง</div></div>
+          <div class="stat"><div class="t">ใบเตือน</div><div class="num" style="color:var(--red);font-size:17px;" id="oWarning">0</div><div class="lbl">ใบ</div></div>
         </div>
       </section>
       <section>
@@ -931,9 +933,10 @@
           <button class="segbtn" data-rview="late">มาสาย</button>
           <button class="segbtn" data-rview="ot">OT</button>
           <button class="segbtn" data-rview="summary">สรุปเดือน</button>
+          <button class="segbtn" data-rview="warning">ใบเตือน</button>
         </div>
       </section>
-      <section>
+      <section id="reportNormalSection">
         <div class="rpthead">
           <div class="sectitle" id="reportTitle" style="margin-bottom:0;">ตารางขาด-ลา รายวัน</div>
           <button class="btn sm ghost" id="reportRefreshBtn">↻ โหลดข้อมูลล่าสุด</button>
@@ -944,13 +947,20 @@
         </div>
         <div id="reportLegend" class="rptlegend"></div>
       </section>
-      <section>
+      <section id="reportGsheetSection">
         <div class="sectitle">ส่งรายงานเดือนนี้ไป Google Sheets</div>
         <div class="card">
           <div style="color:var(--muted);font-size:12px;margin-bottom:10px;">ส่งตารางทั้ง 4 แบบของเดือนที่เลือก ไปสร้าง/อัปเดตแท็บในไฟล์ Google Sheets เดิม (ไฟล์เดียวกับที่ซิ้งขาดลาอยู่) ใช้แทนตารางสรุปรายเดือนที่เคยทำมือ</div>
           <button class="btn block" id="syncReportMonthBtn">ส่งรายงานเดือนนี้ไป Google Sheets</button>
           <div class="msg" id="syncReportMsg"></div>
         </div>
+      </section>
+      <section id="warningLetterSection" class="hidden">
+        <div class="rpthead">
+          <div class="sectitle" style="margin-bottom:0;">ใบเตือนพนักงาน</div>
+          <button class="btn sm hidden" id="addWarningLetterBtn">+ เพิ่มใบเตือน</button>
+        </div>
+        <div id="warningLetterList"></div>
       </section>
     </div>
 
@@ -1239,6 +1249,72 @@
   </div>
 </div>
 
+<!-- Warning letter modal (HR only) -->
+<div class="overlay" id="warningOverlay">
+  <div class="modal">
+    <h3>เพิ่มใบเตือน</h3>
+    <label>พนักงาน</label>
+    <select id="warningEmpSelect"></select>
+
+    <label>เรื่อง</label>
+    <input type="text" id="warningSubject" placeholder="เช่น เตือนความประพฤติกรณีไม่ปฏิบัติหน้าที่...">
+
+    <label>วันที่ออกหนังสือเตือน</label>
+    <div id="warningDate_holder"></div>
+
+    <label>รายละเอียดเกี่ยวกับเหตุการณ์</label>
+    <textarea id="warningDetails" placeholder="วัน เวลา สถานที่ เรื่องราว พยานหลักฐาน และอื่นๆ"></textarea>
+
+    <label>ระดับโทษ</label>
+    <select id="warningPunishment">
+      <option value="verbal">เตือนด้วยวาจาโดยบันทึกเป็นลายลักษณ์อักษรไว้เป็นหลักฐาน</option>
+      <option value="written1">เตือนด้วยลายลักษณ์อักษรครั้งที่ 1</option>
+      <option value="written2">เตือนด้วยลายลักษณ์อักษรครั้งที่ 2</option>
+      <option value="written3">เตือนด้วยลายลักษณ์อักษรครั้งที่ 3</option>
+      <option value="commission50">หักเงินค่าคอมมิชชั่น 50%</option>
+      <option value="suspend">พักงานโดยไม่รับค่าจ้าง</option>
+      <option value="terminate">เลิกจ้าง</option>
+    </select>
+
+    <label>แนบเอกสาร/รูปภาพใบเตือน — ถ้ามี</label>
+    <input type="file" id="warningEvidenceInput" accept="image/*,.pdf">
+
+    <div class="modalfoot">
+      <button class="btn block" id="submitWarningBtn">บันทึกใบเตือน</button>
+      <button class="btn gray" id="closeWarningBtn">ยกเลิก</button>
+    </div>
+    <div class="msg" id="warningFormMsg"></div>
+  </div>
+</div>
+
+<!-- Warning letter detail view -->
+<div class="overlay" id="warningDetailOverlay">
+  <div class="modal">
+    <h3>รายละเอียดใบเตือน</h3>
+    <div id="warningDetailBody" style="font-size:13.5px;line-height:1.7;"></div>
+    <div class="modalfoot">
+      <button class="btn gray" id="closeWarningDetailBtn">ปิด</button>
+    </div>
+  </div>
+</div>
+
+<!-- Manual check-in entry (admin/HR only — ลืมสแกนเข้างานข้ามวัน) -->
+<div class="overlay" id="manualCheckinOverlay">
+  <div class="modal">
+    <h3>เพิ่มเวลาเข้างานย้อนหลัง</h3>
+    <div class="msg" style="color:var(--amber);margin-bottom:10px;">ใช้เฉพาะกรณีพนักงานลืมสแกนเข้างานและมีหลักฐานยืนยันว่ามาทำงานจริง — ระบบจะคิดสาย 30 นาทีให้อัตโนมัติ (นโยบายลืมสแกน) และจะระบุว่าเป็นรายการที่แอดมินเพิ่มเอง ไม่ใช่การสแกนจริง</div>
+    <div id="manualCheckinEmpName" style="font-weight:600;margin-bottom:6px;"></div>
+    <div id="manualCheckinDateText" style="color:var(--muted);font-size:12.5px;margin-bottom:10px;"></div>
+    <label>เวลาเข้างาน (โดยประมาณ)</label>
+    <input type="time" id="manualCheckinTime">
+    <div class="modalfoot">
+      <button class="btn block" id="submitManualCheckinBtn">บันทึก (สาย 30 นาที)</button>
+      <button class="btn gray" id="closeManualCheckinBtn">ยกเลิก</button>
+    </div>
+    <div class="msg" id="manualCheckinMsg"></div>
+  </div>
+</div>
+
 <!-- OT request modal -->
 <div class="overlay" id="otOverlay">
   <div class="modal">
@@ -1403,6 +1479,7 @@ function defaultDB(){
     leaves: [],
     otRequests: [],
     branchTransfers: [],
+    warningLetters: [],
     notifications: [],
     settings: { centralToken:'', centralChatId:'', otChatId:'', graceMinutes:15, adminPassword:'admin1234', holidays:[], telegramRooms:[],
       gsheetWebappUrl:'', gsheetSecret:'', gsheetLastSync:null,
@@ -1652,8 +1729,10 @@ const approverToRow = a => ({ id:a.id, name:a.name, pin:a.pin||null, role:a.role
 
 // employeeName = ชื่อ ณ ตอนบันทึก ฐานข้อมูลเติมให้เองด้วย trigger (ดู sql/keep-employee-name-snapshot.sql)
 // อ่านมาใช้อย่างเดียว ไม่ต้องส่งกลับตอนบันทึก จะได้ไม่เผลอเขียนทับชื่อเดิมด้วยค่าว่าง
-const rowToLog = r => ({ id:r.id, employeeId:r.employee_id, employeeName:r.employee_name||'', type:r.type, time:r.time, branchId:r.branch_id, lateMinutes:r.late_minutes||0, sent:r.sent, acPointId:r.ac_point_id||null, cleanPointId:r.clean_point_id||null, leaveConflict:!!r.leave_conflict, corrected:!!r.corrected });
-const logToRow = l => ({ id:l.id, employee_id:l.employeeId, type:l.type, time:l.time, branch_id:l.branchId||null, late_minutes:l.lateMinutes||0, sent:l.sent, ac_point_id:l.acPointId||null, clean_point_id:l.cleanPointId||null, leave_conflict:!!l.leaveConflict, corrected:!!l.corrected });
+const rowToLog = r => ({ id:r.id, employeeId:r.employee_id, employeeName:r.employee_name||'', type:r.type, time:r.time, branchId:r.branch_id, lateMinutes:r.late_minutes||0, sent:r.sent, acPointId:r.ac_point_id||null, cleanPointId:r.clean_point_id||null, leaveConflict:!!r.leave_conflict, corrected:!!r.corrected, manualEntry:!!r.manual_entry, manualBy:r.manual_by||null });
+const logToRow = l => ({ id:l.id, employee_id:l.employeeId, type:l.type, time:l.time, branch_id:l.branchId||null, late_minutes:l.lateMinutes||0, sent:l.sent, ac_point_id:l.acPointId||null, clean_point_id:l.cleanPointId||null, leave_conflict:!!l.leaveConflict, corrected:!!l.corrected, manual_entry:!!l.manualEntry, manual_by:l.manualBy||null });
+const rowToWarningLetter = r => ({ id:r.id, employeeId:r.employee_id, subject:r.subject||'', issuedDate:r.issued_date, details:r.details||'', punishment:r.punishment||'verbal', warningNumber:r.warning_number||1, evidenceFileId:r.evidence_file_id||null, issuedBy:r.issued_by||'-', createdAt:r.created_at });
+const warningLetterToRow = w => ({ id:w.id, employee_id:w.employeeId, subject:w.subject||null, issued_date:w.issuedDate, details:w.details||null, punishment:w.punishment||'verbal', warning_number:w.warningNumber||1, evidence_file_id:w.evidenceFileId||null, issued_by:w.issuedBy||null, created_at:w.createdAt });
 
 const rowToLeave = r => ({ id:r.id, employeeId:r.employee_id, kind:r.kind, from:r.from_date, to:r.to_date, hourStart:r.from_time||null, hourEnd:r.to_time||null, reason:r.reason||'', status:r.status, requestedAt:r.requested_at, decidedAt:r.decided_at||null, evidenceSent:r.evidence_sent??null, evidenceFileId:r.evidence_file_id||null, editRequest:r.edit_request||null, locationLat:r.location_lat??null, locationLng:r.location_lng??null, locationAddress:r.location_address||null });
 const leaveToRow = l => ({ id:l.id, employee_id:l.employeeId, kind:l.kind, from_date:l.from, to_date:l.to, from_time:l.hourStart||null, to_time:l.hourEnd||null, reason:l.reason||null, status:l.status, requested_at:l.requestedAt, decided_at:l.decidedAt||null, evidence_sent:l.evidenceSent??null, evidence_file_id:l.evidenceFileId||null, edit_request:l.editRequest||null, location_lat:l.locationLat??null, location_lng:l.locationLng??null, location_address:l.locationAddress||null, days: (l.from && l.to) ? (Math.round((new Date(l.to)-new Date(l.from))/86400000)+1) : null });
@@ -1672,9 +1751,10 @@ const settingsToRow = s => ({ id:1, central_token:s.centralToken||'', central_ch
 
 async function loadDB(){
   sbLoadFailed = [];
-  const [branchRows, empRows, approverRows, logRows, leaveRows, otRows, transferRows, notiRows, settingsRows] = await Promise.all([
+  const [branchRows, empRows, approverRows, logRows, leaveRows, otRows, transferRows, notiRows, settingsRows, warningRows] = await Promise.all([
     sbSelectAll('branches'), sbSelectAll('employees'), sbSelectAll('approvers'), sbSelectAll('logs'),
-    sbSelectAll('leaves'), sbSelectAll('ot_requests'), sbSelectAll('branch_transfers'), sbSelectAll('notifications'), sbSelectAll('settings')
+    sbSelectAll('leaves'), sbSelectAll('ot_requests'), sbSelectAll('branch_transfers'), sbSelectAll('notifications'), sbSelectAll('settings'),
+    sbSelectAll('warning_letters')
   ]);
   db = defaultDB();
   if(branchRows.length) db.branches = branchRows.map(rowToBranch);
@@ -1685,6 +1765,7 @@ async function loadDB(){
   db.otRequests = otRows.map(rowToOt);
   db.branchTransfers = transferRows.map(rowToBranchTransfer);
   db.notifications = notiRows.map(rowToNoti);
+  db.warningLetters = warningRows.map(rowToWarningLetter);
   if(settingsRows.length) db.settings = { ...defaultDB().settings, ...rowToSettings(settingsRows[0]) };
   db.settings.notifyTypes = { ...defaultDB().settings.notifyTypes, ...(db.settings.notifyTypes||{}) };
   db.settings.telegramRooms = db.settings.telegramRooms || [];
@@ -1698,6 +1779,7 @@ async function saveDB(){
 async function saveLogRow(row){ await sbUpsertRow('logs', logToRow(row)); }
 async function saveLeaveRow(row){ await sbUpsertRow('leaves', leaveToRow(row)); }
 async function saveOtRow(row){ await sbUpsertRow('ot_requests', otToRow(row)); }
+async function saveWarningLetterRow(row){ await sbUpsertRow('warning_letters', warningLetterToRow(row)); }
 // เรียกทุกครั้งที่ leave/ot แถวที่เคย sync ไป Google Sheets แล้วมีการเปลี่ยนสถานะ/ค่า (อนุมัติ/ปฏิเสธ/แก้ไข)
 // เพื่อให้รอบ sync ถัดไปดึงไปอัปเดตอีกครั้ง (ไม่งั้น Sheet จะค้างค่าตอน sync ครั้งแรกตลอดไป)
 async function markLeaveForResync(id){ await sbUpsertRow('leaves', {id, synced_at:null}); }
@@ -3406,6 +3488,21 @@ function renderOverviewStats(){
     document.getElementById('oClean').textContent = `${cleanSent}/${cleanPointsTotal}`;
     document.getElementById('oGroom').textContent = `${groomSent}/${groomExpTotal}`;
   }
+
+  const empIds = new Set(emps.map(e=>e.id));
+  let forgotCount = 0;
+  db.logs.forEach(l=>{
+    if(l.type==='IN' && l.manualEntry && empIds.has(l.employeeId)){
+      const k = dateKey(new Date(l.time));
+      if(k>=fromStr && k<=toStr) forgotCount++;
+    }
+  });
+  let warningCount = 0;
+  (db.warningLetters||[]).forEach(w=>{
+    if(empIds.has(w.employeeId) && w.issuedDate>=fromStr && w.issuedDate<=toStr) warningCount++;
+  });
+  document.getElementById('oForgot').textContent = forgotCount;
+  document.getElementById('oWarning').textContent = warningCount;
 }
 // ช่องปฏิทินของ overview ถูกผูกไว้แล้วใน wireDatePreset('overview', ...) ด้านบน
 document.getElementById('exportLateMatrixBtn').onclick = ()=>{
@@ -3559,12 +3656,15 @@ function renderInspectTab(){
         if(st.inLog && !HOURLY_KINDS.includes(st.leave.kind)){ statusText += ` ⚠️ แต่มีการเช็กอินเข้างาน (${fmtTime(new Date(st.inLog.time))}) — ข้อมูลไม่สอดคล้องกัน`; badgeClass='rejected'; }
       }
       else if(st.isHol){ statusText = 'วันหยุดบริษัท'; badgeClass='idle'; }
-      else if(st.inLog){ statusText = st.inLog.lateMinutes>0 ? `สาย ${st.inLog.lateMinutes} นาที (เข้า ${fmtTime(new Date(st.inLog.time))})` : `ตรงเวลา (เข้า ${fmtTime(new Date(st.inLog.time))})`; badgeClass = st.inLog.lateMinutes>0?'late':'approved'; }
+      else if(st.inLog){ statusText = st.inLog.lateMinutes>0 ? `สาย ${st.inLog.lateMinutes} นาที (เข้า ${fmtTime(new Date(st.inLog.time))})` : `ตรงเวลา (เข้า ${fmtTime(new Date(st.inLog.time))})`; if(st.inLog.manualEntry) statusText += ' (แอดมินเพิ่มให้)'; badgeClass = st.inLog.lateMinutes>0?'late':'approved'; }
       else { statusText = 'ยังไม่เข้างาน'; badgeClass='rejected'; }
-      empHtml += `<div class="listrow"><div class="avatar">${e.name.trim()[0]||'?'}</div><div class="info"><div class="name">${e.name}</div><div class="meta">${statusText}</div></div><span class="badge ${badgeClass}">${badgeClass==='late'?'สาย':badgeClass==='approved'?'ตรงเวลา':badgeClass==='pending'?'ลา':badgeClass==='idle'?'หยุด':'ขาด'}</span></div>`;
+      const canManualAdd = !st.leave && !st.isHol && !st.inLog && dateStr<=dateKey(new Date()) && canManageApprovers();
+      const manualBtn = canManualAdd ? `<button class="btn ghost sm" data-manualcheckin="${e.id}" style="margin-left:8px;">ลืมสแกน</button>` : '';
+      empHtml += `<div class="listrow"><div class="avatar">${e.name.trim()[0]||'?'}</div><div class="info"><div class="name">${e.name}</div><div class="meta">${statusText}</div></div><span class="badge ${badgeClass}">${badgeClass==='late'?'สาย':badgeClass==='approved'?'ตรงเวลา':badgeClass==='pending'?'ลา':badgeClass==='idle'?'หยุด':'ขาด'}</span>${manualBtn}</div>`;
     });
   });
   document.getElementById('inspectEmpStatusList').innerHTML = empHtml || '<div class="empty">ไม่มีพนักงานในสาขาที่เลือก</div>';
+  document.querySelectorAll('[data-manualcheckin]').forEach(b=> b.onclick = ()=> openManualCheckinForm(b.dataset.manualcheckin, dateStr));
 
   // AC points
   let acHtml = '';
@@ -3605,6 +3705,40 @@ function renderInspectTab(){
   });
   document.getElementById('inspectGroomList').innerHTML = groomHtml || '<div class="empty">ไม่มีพนักงานแผนกหน้าร้านในสาขาที่เลือก</div>';
 }
+
+// ===== เพิ่มเวลาเข้างานย้อนหลัง (พนักงานลืมสแกน มีหลักฐานว่ามาทำงานจริง) =====
+// นโยบาย: คิดสาย "30 นาทีคงที่" เสมอ ไม่คำนวณจากเวลาเข้ากะจริง (ไม่ว่าจะกรอกเวลาอะไรก็ตาม)
+// เพื่อเป็นบทลงโทษมาตรฐานกรณีลืมสแกน — ไม่ส่ง Telegram (ไม่ใช่การสแกนจริง ณ เวลานั้น) แต่บันทึก audit log
+let manualCheckinTarget = null;
+function openManualCheckinForm(empId, dateStr){
+  const emp = db.employees.find(e=>e.id===empId); if(!emp) return;
+  manualCheckinTarget = { empId, dateStr };
+  document.getElementById('manualCheckinEmpName').textContent = emp.name;
+  document.getElementById('manualCheckinDateText').textContent = `วันที่ ${ddmmyyyy(dateStr)}`;
+  document.getElementById('manualCheckinTime').value = emp.shiftStart || '09:00';
+  document.getElementById('manualCheckinMsg').textContent = '';
+  document.getElementById('manualCheckinOverlay').classList.add('show');
+}
+document.getElementById('closeManualCheckinBtn').onclick = ()=> document.getElementById('manualCheckinOverlay').classList.remove('show');
+document.getElementById('submitManualCheckinBtn').onclick = async ()=>{
+  if(!canManageApprovers()){ alert('ไม่มีสิทธิ์ ต้องเป็นเจ้าของ/HR เท่านั้น'); return; }
+  const msg = document.getElementById('manualCheckinMsg');
+  const time = document.getElementById('manualCheckinTime').value;
+  if(!time || !manualCheckinTarget){ msg.className='msg err'; msg.textContent='กรุณาระบุเวลา'; return; }
+  const { empId, dateStr } = manualCheckinTarget;
+  const emp = db.employees.find(e=>e.id===empId);
+  const br = currentBranch(emp);
+  const manualBy = session.role==='admin' ? 'เจ้าของ/HR' : (currentApprover()?.name || 'ผู้บริหาร');
+  const logEntry = {
+    id:uid(), employeeId:empId, type:'IN', time:new Date(`${dateStr}T${time}:00`).toISOString(),
+    branchId:br?.id||null, lateMinutes:30, sent:false, manualEntry:true, manualBy
+  };
+  db.logs.unshift(logEntry); await saveLogRow(logEntry);
+  await logAudit('manual_checkin', 'log', logEntry.id, `เพิ่มเวลาเข้างานย้อนหลังให้ ${emp?.name||'-'} วันที่ ${ddmmyyyy(dateStr)} เวลา ${time} (สาย 30 นาที ตามนโยบายลืมสแกน)`);
+  msg.className='msg ok'; msg.textContent='บันทึกเรียบร้อย';
+  renderInspectTab(); renderOverviewStats();
+  setTimeout(()=>{ document.getElementById('manualCheckinOverlay').classList.remove('show'); manualCheckinTarget=null; }, 700);
+};
 
 /* ================= Reports tab ================= */
 const THAI_MONTHS = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
@@ -3653,6 +3787,7 @@ function initReportsTab(){
       }catch(e){ msg.textContent = 'ดึงข้อมูลไม่สำเร็จ ลองใหม่อีกครั้ง'; }
       btn.disabled = false;
     };
+    document.getElementById('addWarningLetterBtn').onclick = openWarningForm;
   }
   sel.innerHTML = `<option value="all">ทุกสาขา</option>` + db.branches.map(b=>`<option value="${b.id}">${b.name}</option>`).join('');
   sel.value = sel.dataset.current || 'all';
@@ -3740,6 +3875,14 @@ const RPT_SUMMARY_KINDS = ['sick_cert','sick_nocert','personal_nodeduct','person
 function renderReportsTab(){
   document.getElementById('reportMonthLabel').textContent = `${THAI_MONTHS[reportCursor.getMonth()]} ${reportCursor.getFullYear()+543}`;
   document.querySelectorAll('#reportViewBar .segbtn').forEach(b=> b.classList.toggle('active', b.dataset.rview===reportView));
+
+  const isWarning = reportView==='warning';
+  document.getElementById('reportNormalSection').classList.toggle('hidden', isWarning);
+  document.getElementById('reportGsheetSection').classList.toggle('hidden', isWarning);
+  document.getElementById('warningLetterSection').classList.toggle('hidden', !isWarning);
+  document.getElementById('addWarningLetterBtn').classList.toggle('hidden', !canManageApprovers());
+  if(isWarning){ renderWarningLetterList(); return; }
+
   const titles = { leave:'ตารางขาด-ลา รายวัน', late:'ตารางนาทีที่มาสาย รายวัน', ot:'ตารางชั่วโมง OT รายวัน (อนุมัติแล้ว)', summary:'สรุปรวมทั้งเดือน' };
   document.getElementById('reportTitle').textContent = titles[reportView];
   document.getElementById('reportLegend').innerHTML = reportView==='leave'
@@ -3756,6 +3899,101 @@ function renderReportsTab(){
 // ช่องแรกเป็นชื่อพนักงาน ที่เหลือ (รวมช่องรวมท้ายตาราง) กว้างเท่ากันหมด
 function rptColgroup(cellCount){
   return `<colgroup><col class="c-name">${'<col class="c-cell">'.repeat(cellCount)}</colgroup>`;
+}
+
+/* ================= ใบเตือนพนักงาน (Warning Letters) ================= */
+const WARNING_PUNISHMENT_LABELS = {
+  verbal: 'เตือนด้วยวาจาโดยบันทึกเป็นลายลักษณ์อักษรไว้เป็นหลักฐาน',
+  written1: 'เตือนด้วยลายลักษณ์อักษรครั้งที่ 1',
+  written2: 'เตือนด้วยลายลักษณ์อักษรครั้งที่ 2',
+  written3: 'เตือนด้วยลายลักษณ์อักษรครั้งที่ 3',
+  commission50: 'หักเงินค่าคอมมิชชั่น 50%',
+  suspend: 'พักงานโดยไม่รับค่าจ้าง',
+  terminate: 'เลิกจ้าง'
+};
+function openWarningForm(){
+  if(!canManageApprovers()){ alert('ไม่มีสิทธิ์บันทึกใบเตือน ต้องเป็นเจ้าของ/HR เท่านั้น'); return; }
+  const sel = document.getElementById('warningEmpSelect');
+  sel.innerHTML = db.employees.filter(e=>e.active!==false).sort((a,b)=>a.name.localeCompare(b.name,'th'))
+    .map(e=>`<option value="${e.id}">${e.name}${e.nickname?` (${e.nickname})`:''}</option>`).join('');
+  document.getElementById('warningSubject').value = '';
+  document.getElementById('warningDetails').value = '';
+  document.getElementById('warningPunishment').value = 'verbal';
+  document.getElementById('warningEvidenceInput').value = '';
+  document.getElementById('warningFormMsg').textContent = '';
+  setDateVal('warningDate', dateKey(new Date()));
+  document.getElementById('warningOverlay').classList.add('show');
+}
+document.getElementById('warningDate_holder').innerHTML = dateSelectHTML('warningDate');
+document.getElementById('closeWarningBtn').onclick = ()=> document.getElementById('warningOverlay').classList.remove('show');
+document.getElementById('submitWarningBtn').onclick = async ()=>{
+  const msg = document.getElementById('warningFormMsg');
+  const employeeId = document.getElementById('warningEmpSelect').value;
+  const subject = document.getElementById('warningSubject').value.trim();
+  const issuedDate = getDateVal('warningDate');
+  const details = document.getElementById('warningDetails').value.trim();
+  const punishment = document.getElementById('warningPunishment').value;
+  const evidenceFile = document.getElementById('warningEvidenceInput').files[0];
+  if(!employeeId || !subject || !issuedDate){ msg.className='msg err'; msg.textContent='กรอกพนักงาน/เรื่อง/วันที่ให้ครบ'; return; }
+  const emp = db.employees.find(e=>e.id===employeeId);
+  const warningNumber = db.warningLetters.filter(w=>w.employeeId===employeeId).length + 1;
+  const issuedBy = session.role==='admin' ? 'เจ้าของ/HR' : (currentApprover()?.name || 'ผู้บริหาร');
+  const w = { id:uid(), employeeId, subject, issuedDate, details, punishment, warningNumber, evidenceFileId:null, issuedBy, createdAt:new Date().toISOString() };
+  if(evidenceFile && db.settings.centralChatId){
+    const caption = `📋บันทึกใบเตือน (ใบที่ ${warningNumber})\n${notifyName(emp)}\nเรื่อง: ${subject}`;
+    const r = await tgSendPhoto(db.settings.centralToken, db.settings.centralChatId, evidenceFile, caption);
+    if(r.ok) w.evidenceFileId = r.fileId || null;
+  }
+  db.warningLetters.push(w); await saveWarningLetterRow(w);
+  await logAudit('add_warning', 'warning_letter', w.id, `บันทึกใบเตือน "${subject}" (ใบที่ ${warningNumber}) ให้ ${emp?.name||'-'}`);
+  msg.className='msg ok'; msg.textContent='บันทึกใบเตือนเรียบร้อย';
+  renderWarningLetterList();
+  setTimeout(()=>{ document.getElementById('warningOverlay').classList.remove('show'); }, 700);
+};
+document.getElementById('closeWarningDetailBtn').onclick = ()=> document.getElementById('warningDetailOverlay').classList.remove('show');
+function viewWarningDetail(id){
+  const w = db.warningLetters.find(x=>x.id===id); if(!w) return;
+  const emp = db.employees.find(e=>e.id===w.employeeId);
+  const br = db.branches.find(b=>b.id===emp?.branchId);
+  document.getElementById('warningDetailBody').innerHTML = `
+    <div><b>สาขา:</b> ${br?.name||'-'}</div>
+    <div><b>ชื่อ-นามสกุล:</b> ${emp?.name||'-'}</div>
+    <div><b>ชื่อเล่น:</b> ${emp?.nickname||'-'}</div>
+    <div><b>ตำแหน่ง:</b> ${emp?.jobTitle||'-'}</div>
+    <div><b>อายุงาน:</b> ${tenureText(emp?.startDate)}</div>
+    <div><b>วันที่ออกใบเตือน:</b> ${ddmmyyyy(w.issuedDate)}</div>
+    <div><b>ใบเตือนครั้งที่:</b> ${w.warningNumber}</div>
+    <div><b>เรื่อง:</b> ${w.subject}</div>
+    <div><b>ระดับโทษ:</b> ${WARNING_PUNISHMENT_LABELS[w.punishment]||w.punishment}</div>
+    <div style="margin-top:8px;"><b>รายละเอียด:</b><br>${(w.details||'-').replace(/\n/g,'<br>')}</div>
+    <div style="margin-top:8px;color:var(--muted);font-size:12px;">บันทึกโดย ${w.issuedBy} เมื่อ ${new Date(w.createdAt).toLocaleString('th-TH')}</div>
+  `;
+  document.getElementById('warningDetailOverlay').classList.add('show');
+}
+function renderWarningLetterList(){
+  const branchSel = document.getElementById('reportBranchFilter');
+  const branchVal = branchSel ? (branchSel.dataset.current||'all') : 'all';
+  const empIds = new Set(db.employees.filter(e=> branchVal==='all' || e.branchId===branchVal).map(e=>e.id));
+  const list = db.warningLetters.filter(w=>empIds.has(w.employeeId)).sort((a,b)=>new Date(b.issuedDate)-new Date(a.issuedDate));
+  const el = document.getElementById('warningLetterList');
+  el.innerHTML = list.length ? list.map(w=>{
+    const emp = db.employees.find(e=>e.id===w.employeeId);
+    const br = db.branches.find(b=>b.id===emp?.branchId);
+    return `<div class="card" style="position:relative;margin-bottom:10px;">
+      <div style="position:absolute;top:12px;right:12px;display:flex;gap:8px;">
+        <button class="btn ghost sm" data-warndetail="${w.id}" title="ดูรายละเอียด">📄</button>
+        ${w.evidenceFileId?`<button class="btn ghost sm" data-warnphoto="${w.evidenceFileId}" title="ดูรูป/เอกสารแนบ">🖼️</button>`:''}
+      </div>
+      <div style="padding-right:80px;">
+        <div style="font-weight:600;font-size:13.5px;">${br?.name||'-'} · ${emp?.name||'-'}${emp?.nickname?` (${emp.nickname})`:''}</div>
+        <div style="color:var(--muted);font-size:12px;margin-top:2px;">${emp?.jobTitle||'-'} · อายุงาน ${tenureText(emp?.startDate)}</div>
+        <div style="font-size:12.5px;margin-top:6px;">วันที่ออก ${ddmmyyyy(w.issuedDate)} · ใบที่ ${w.warningNumber}</div>
+        <div style="font-size:12.5px;margin-top:2px;">${w.subject}</div>
+      </div>
+    </div>`;
+  }).join('') : '<div class="empty">ยังไม่มีใบเตือนในสาขาที่เลือก</div>';
+  document.querySelectorAll('[data-warndetail]').forEach(b=> b.onclick = ()=> viewWarningDetail(b.dataset.warndetail));
+  document.querySelectorAll('[data-warnphoto]').forEach(b=> b.onclick = ()=> viewTelegramPhoto(b.dataset.warnphoto));
 }
 
 function dailyTableHTML(rpt, view){
