@@ -1334,6 +1334,26 @@
   </div>
 </div>
 
+<!-- Warning letter e-signature (ส่งต่อแท็บเล็ตให้เซ็นทีละคน) -->
+<div class="overlay" id="warningSignOverlay">
+  <div class="modal">
+    <h3>เซ็นใบเตือนออนไลน์</h3>
+    <div class="segbar" id="warningSignTabs">
+      <button class="segbtn active" data-sigrole="employee">พนักงานรับทราบ</button>
+      <button class="segbtn" data-sigrole="manager">ผู้จัดการ</button>
+      <button class="segbtn" data-sigrole="owner">ผู้บริหาร</button>
+    </div>
+    <div id="warningSigStatus" style="font-size:12px;color:var(--muted);margin:10px 0 6px;"></div>
+    <canvas id="warningSigCanvas" width="600" height="240" style="width:100%;aspect-ratio:2.5/1;border:1px solid var(--border);border-radius:10px;touch-action:none;background:#fff;"></canvas>
+    <div class="modalfoot">
+      <button class="btn ghost" id="clearWarningSigBtn">ล้าง</button>
+      <button class="btn" id="saveWarningSigBtn">บันทึกลายเซ็นนี้</button>
+    </div>
+    <button class="btn gray block" style="margin-top:10px;" id="closeWarningSignBtn">ปิด</button>
+    <div class="msg" id="warningSignMsg"></div>
+  </div>
+</div>
+
 <!-- Manual check-in entry (admin/HR only — ลืมสแกนเข้างานข้ามวัน) -->
 <div class="overlay" id="manualCheckinOverlay">
   <div class="modal">
@@ -1768,8 +1788,8 @@ const approverToRow = a => ({ id:a.id, name:a.name, pin:a.pin||null, role:a.role
 // อ่านมาใช้อย่างเดียว ไม่ต้องส่งกลับตอนบันทึก จะได้ไม่เผลอเขียนทับชื่อเดิมด้วยค่าว่าง
 const rowToLog = r => ({ id:r.id, employeeId:r.employee_id, employeeName:r.employee_name||'', type:r.type, time:r.time, branchId:r.branch_id, lateMinutes:r.late_minutes||0, sent:r.sent, acPointId:r.ac_point_id||null, cleanPointId:r.clean_point_id||null, leaveConflict:!!r.leave_conflict, corrected:!!r.corrected, manualEntry:!!r.manual_entry, manualBy:r.manual_by||null });
 const logToRow = l => ({ id:l.id, employee_id:l.employeeId, type:l.type, time:l.time, branch_id:l.branchId||null, late_minutes:l.lateMinutes||0, sent:l.sent, ac_point_id:l.acPointId||null, clean_point_id:l.cleanPointId||null, leave_conflict:!!l.leaveConflict, corrected:!!l.corrected, manual_entry:!!l.manualEntry, manual_by:l.manualBy||null });
-const rowToWarningLetter = r => ({ id:r.id, employeeId:r.employee_id, companyId:r.company_id||null, subject:r.subject||'', issuedDate:r.issued_date, details:r.details||'', punishments:r.punishments||(r.punishment?[r.punishment]:['verbal']), warningNumber:r.warning_number||1, evidenceFileId:r.evidence_file_id||null, issuedBy:r.issued_by||'-', createdAt:r.created_at });
-const warningLetterToRow = w => ({ id:w.id, employee_id:w.employeeId, company_id:w.companyId||null, subject:w.subject||null, issued_date:w.issuedDate, details:w.details||null, punishments:w.punishments&&w.punishments.length?w.punishments:['verbal'], warning_number:w.warningNumber||1, evidence_file_id:w.evidenceFileId||null, issued_by:w.issuedBy||null, created_at:w.createdAt });
+const rowToWarningLetter = r => ({ id:r.id, employeeId:r.employee_id, companyId:r.company_id||null, subject:r.subject||'', issuedDate:r.issued_date, details:r.details||'', punishments:r.punishments||(r.punishment?[r.punishment]:['verbal']), warningNumber:r.warning_number||1, evidenceFileId:r.evidence_file_id||null, issuedBy:r.issued_by||'-', createdAt:r.created_at, signatures:r.signatures||{} });
+const warningLetterToRow = w => ({ id:w.id, employee_id:w.employeeId, company_id:w.companyId||null, subject:w.subject||null, issued_date:w.issuedDate, details:w.details||null, punishments:w.punishments&&w.punishments.length?w.punishments:['verbal'], warning_number:w.warningNumber||1, evidence_file_id:w.evidenceFileId||null, issued_by:w.issuedBy||null, created_at:w.createdAt, signatures:w.signatures||{} });
 const rowToCompany = r => ({ id:r.id, name:r.name||'', logoBase64:r.logo_base64||null, createdAt:r.created_at });
 const companyToRow = c => ({ id:c.id, name:c.name||null, logo_base64:c.logoBase64||null, created_at:c.createdAt });
 
@@ -4027,23 +4047,27 @@ function renderWarningLetterList(){
   el.innerHTML = list.length ? list.map(w=>{
     const emp = db.employees.find(e=>e.id===w.employeeId);
     const br = db.branches.find(b=>b.id===emp?.branchId);
+    const signedCount = ['employee','manager','owner'].filter(r=>w.signatures && w.signatures[r]).length;
     return `<div class="card" style="position:relative;margin-bottom:10px;">
       <div style="position:absolute;top:12px;right:12px;display:flex;gap:8px;">
+        <button class="btn ghost sm" data-warnsign="${w.id}" title="เซ็นออนไลน์">✍️</button>
         <button class="btn ghost sm" data-warnprint="${w.id}" title="ดูฟอร์ม/ปริ้น">🖨️</button>
         <button class="btn ghost sm" data-warndetail="${w.id}" title="ดูรายละเอียด">📄</button>
         ${w.evidenceFileId?`<button class="btn ghost sm" data-warnphoto="${w.evidenceFileId}" title="ดูรูป/เอกสารแนบ">🖼️</button>`:''}
       </div>
-      <div style="padding-right:80px;">
+      <div style="padding-right:120px;">
         <div style="font-weight:600;font-size:13.5px;">${br?.name||'-'} · ${emp?.name||'-'}${emp?.nickname?` (${emp.nickname})`:''}</div>
         <div style="color:var(--muted);font-size:12px;margin-top:2px;">${emp?.jobTitle||'-'} · อายุงาน ${tenureText(emp?.startDate)}</div>
         <div style="font-size:12.5px;margin-top:6px;">วันที่ออก ${ddmmyyyy(w.issuedDate)} · ใบที่ ${w.warningNumber}</div>
         <div style="font-size:12.5px;margin-top:2px;">${w.subject}</div>
+        <div style="font-size:11.5px;margin-top:4px;color:${signedCount===3?'var(--green)':'var(--amber)'};">เซ็นแล้ว ${signedCount}/3</div>
       </div>
     </div>`;
   }).join('') : '<div class="empty">ยังไม่มีใบเตือนในสาขาที่เลือก</div>';
   document.querySelectorAll('[data-warndetail]').forEach(b=> b.onclick = ()=> viewWarningDetail(b.dataset.warndetail));
   document.querySelectorAll('[data-warnphoto]').forEach(b=> b.onclick = ()=> viewTelegramPhoto(b.dataset.warnphoto));
   document.querySelectorAll('[data-warnprint]').forEach(b=> b.onclick = ()=> printWarningLetter(b.dataset.warnprint));
+  document.querySelectorAll('[data-warnsign]').forEach(b=> b.onclick = ()=> openWarningSignForm(b.dataset.warnsign));
 }
 
 // ===== สร้างหน้าฟอร์มใบเตือนสำหรับปริ้น/บันทึกเป็น PDF (ใช้ print ของเบราว์เซอร์เอง ฟอนต์ไทยถูกต้องแน่นอน) =====
@@ -4082,14 +4106,94 @@ function printWarningLetter(id){
       <div class="wp-punish">${punishHtml}</div>
       <table class="wp-sigtable">
         <tr><th>พนักงานรับทราบ</th><th>ผู้จัดการ</th><th>ผู้บริหาร</th></tr>
-        <tr><td></td><td></td><td></td></tr>
-        <tr><td>วันที่ ......../......../........</td><td>วันที่ ......../......../........</td><td>วันที่ ......../......../........</td></tr>
+        <tr>${['employee','manager','owner'].map(r=> `<td>${w.signatures && w.signatures[r] ? `<img src="${w.signatures[r].img}">` : ''}</td>`).join('')}</tr>
+        <tr>${['employee','manager','owner'].map(r=> `<td>วันที่ ${w.signatures && w.signatures[r] ? ddmmyyyy(w.signatures[r].date) : '......../......../........'}</td>`).join('')}</tr>
       </table>
       <div class="wp-footer">${company?.name||''}</div>
     </div>
   `;
   setTimeout(()=> window.print(), 200);
 }
+
+// ===== เซ็นใบเตือนออนไลน์ — ส่งต่อแท็บเล็ตเครื่องเดียวให้เซ็นทีละคน ไม่ต้องล็อกอินแยกแต่ละคน
+// (เหมือนกับการปริ้นแล้วส่งกระดาษให้เซ็นมือทีละคนที่ใช้อยู่เดิม แค่เปลี่ยนมาเซ็นบนหน้าจอแทน) =====
+const WARNING_SIGN_ROLE_LABELS = { employee:'พนักงานรับทราบ', manager:'ผู้จัดการ', owner:'ผู้บริหาร' };
+let warningSignTarget = null;
+let warningSignRole = 'employee';
+let sigCtx = null;
+function openWarningSignForm(id){
+  if(!canManageApprovers()){ alert('ไม่มีสิทธิ์ ต้องเป็นเจ้าของ/HR เท่านั้น'); return; }
+  const w = db.warningLetters.find(x=>x.id===id); if(!w) return;
+  warningSignTarget = id;
+  warningSignRole = 'employee';
+  document.querySelectorAll('#warningSignTabs .segbtn').forEach(b=> b.classList.toggle('active', b.dataset.sigrole==='employee'));
+  document.getElementById('warningSignMsg').textContent = '';
+  document.getElementById('warningSignOverlay').classList.add('show');
+  loadSigCanvasForRole();
+}
+function setupSigCanvas(){
+  const canvas = document.getElementById('warningSigCanvas');
+  sigCtx = canvas.getContext('2d');
+  sigCtx.lineWidth = 2.5; sigCtx.lineCap = 'round'; sigCtx.lineJoin = 'round'; sigCtx.strokeStyle = '#111';
+  let drawing = false, last = null;
+  function pos(e){
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width/rect.width, scaleY = canvas.height/rect.height;
+    return { x:(e.clientX-rect.left)*scaleX, y:(e.clientY-rect.top)*scaleY };
+  }
+  canvas.onpointerdown = (e)=>{ e.preventDefault(); drawing = true; last = pos(e); canvas.setPointerCapture(e.pointerId); };
+  canvas.onpointermove = (e)=>{
+    if(!drawing) return; e.preventDefault();
+    const p = pos(e);
+    sigCtx.beginPath(); sigCtx.moveTo(last.x,last.y); sigCtx.lineTo(p.x,p.y); sigCtx.stroke();
+    last = p;
+  };
+  canvas.onpointerup = ()=> drawing = false;
+  canvas.onpointerleave = ()=> drawing = false;
+}
+function clearSigCanvas(){
+  const canvas = document.getElementById('warningSigCanvas');
+  sigCtx.clearRect(0,0,canvas.width,canvas.height);
+}
+function loadSigCanvasForRole(){
+  clearSigCanvas();
+  const w = db.warningLetters.find(x=>x.id===warningSignTarget);
+  const existing = w?.signatures?.[warningSignRole];
+  document.getElementById('warningSigStatus').textContent = existing
+    ? `เซ็นแล้วเมื่อ ${ddmmyyyy(existing.date)} — วาดใหม่แล้วกด "บันทึกลายเซ็นนี้" เพื่อเซ็นทับ`
+    : `ยังไม่เซ็น — ให้ "${WARNING_SIGN_ROLE_LABELS[warningSignRole]}" เซ็นในกรอบด้านล่างแล้วกดบันทึก`;
+  if(existing){
+    const canvas = document.getElementById('warningSigCanvas');
+    const img = new Image();
+    img.onload = ()=> sigCtx.drawImage(img,0,0,canvas.width,canvas.height);
+    img.src = existing.img;
+  }
+}
+document.querySelectorAll('#warningSignTabs .segbtn').forEach(b=>{
+  b.onclick = ()=>{
+    document.querySelectorAll('#warningSignTabs .segbtn').forEach(x=> x.classList.toggle('active', x===b));
+    warningSignRole = b.dataset.sigrole;
+    loadSigCanvasForRole();
+  };
+});
+document.getElementById('clearWarningSigBtn').onclick = clearSigCanvas;
+document.getElementById('closeWarningSignBtn').onclick = ()=> document.getElementById('warningSignOverlay').classList.remove('show');
+document.getElementById('saveWarningSigBtn').onclick = async ()=>{
+  const msg = document.getElementById('warningSignMsg');
+  const w = db.warningLetters.find(x=>x.id===warningSignTarget); if(!w) return;
+  const canvas = document.getElementById('warningSigCanvas');
+  const blank = document.createElement('canvas'); blank.width = canvas.width; blank.height = canvas.height;
+  if(canvas.toDataURL() === blank.toDataURL()){ msg.className='msg err'; msg.textContent = 'กรุณาเซ็นก่อนบันทึก'; return; }
+  const dataUrl = canvas.toDataURL('image/png');
+  w.signatures = w.signatures || {};
+  w.signatures[warningSignRole] = { img:dataUrl, date:dateKey(new Date()) };
+  await saveWarningLetterRow(w);
+  await logAudit('sign_warning', 'warning_letter', w.id, `เซ็น "${WARNING_SIGN_ROLE_LABELS[warningSignRole]}" ในใบเตือนของ ${db.employees.find(e=>e.id===w.employeeId)?.name||'-'}`);
+  msg.className='msg ok'; msg.textContent = 'บันทึกลายเซ็นเรียบร้อย';
+  renderWarningLetterList();
+  loadSigCanvasForRole();
+};
+setupSigCanvas();
 
 function dailyTableHTML(rpt, view){
   const totLabel = view==='leave' ? 'ขาด/ลา' : view==='late' ? 'รวมนาที' : 'รวม ชม.';
