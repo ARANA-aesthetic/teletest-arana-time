@@ -3995,9 +3995,9 @@ async function decideLeave(id, status){
   const isHourly = HOURLY_KINDS.includes(leave.kind);
   if(db.settings.notifyTypes.leaveDecision && br?.chatIdLeaveApproval){
     if(status==='approved'){
-      const approverName = session.role==='admin' ? 'เจ้าของ/HR' : (currentApprover()?.name || 'ผู้บริหาร');
+      const approverName = session.role==='admin' ? 'เจ้าของ/HR' : (currentApprover()?.name?.trim().split(/\s+/)[0] || 'ผู้บริหาร');
       let lines = [
-        `✅อนุมัติการลา : ${approverName}`,
+        `✅อนุมัติโดย : ${approverName}`,
         `แผนก : ${emp?.department || br?.name || '-'}`,
         `ชื่อ-นามสกุล : ${emp?.name || '-'}`,
         `ชื่อเล่น : ${emp?.nickname || '-'}`,
