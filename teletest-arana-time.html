@@ -1514,7 +1514,8 @@
 
 <script>
 const MODEL_URL = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js/weights';
-const MATCH_THRESHOLD = 0.5;
+const MATCH_THRESHOLD = 0.42;
+const MATCH_STREAK_REQUIRED = 3; // ต้องตรวจจับใบหน้าตรงกันติดต่อกันหลายเฟรม กันจับพลาดจากเฟรมสั่น/แสงกระพริบเฟรมเดียว
 const uid = ()=> crypto.randomUUID();
 
 // ===== Supabase config =====
@@ -5511,6 +5512,8 @@ function grabSimplePhotoBlob(mirror){
 
 async function runScanLoop(emp, pos, distance){
   const video = document.getElementById('camVideo');
+  let matchStreak = 0;
+  let lastConfidence = 0;
   const detect = async ()=>{
     if(!camStream) return;
     if(!scanBusy){
@@ -5520,12 +5523,20 @@ async function runScanLoop(emp, pos, distance){
         if(det){
           const dist = faceapi.euclideanDistance(det.descriptor, emp.descriptor);
           if(dist < MATCH_THRESHOLD){
+            matchStreak++;
+            lastConfidence = Math.max(0, Math.min(100, Math.round((1-dist/0.6)*100)));
             document.getElementById('camRing').className='camring match';
-            const confidence = Math.max(0, Math.min(100, Math.round((1-dist/0.6)*100)));
-            await finalizeScan(emp, confidence, pos, distance); return;
-          } else document.getElementById('camStatusText').textContent = 'ใบหน้าไม่ตรงกับที่ลงทะเบียนไว้ ลองจัดหน้าให้ชัดเจนขึ้น';
-        } else document.getElementById('camStatusText').textContent = 'กำลังตรวจจับใบหน้า…';
-      }catch(e){}
+            if(matchStreak >= MATCH_STREAK_REQUIRED){
+              await finalizeScan(emp, lastConfidence, pos, distance); return;
+            }
+            document.getElementById('camStatusText').textContent = 'กำลังยืนยันใบหน้า…';
+          } else {
+            matchStreak = 0;
+            document.getElementById('camRing').className='camring';
+            document.getElementById('camStatusText').textContent = 'ใบหน้าไม่ตรงกับที่ลงทะเบียนไว้ ลองจัดหน้าให้ชัดเจนขึ้น';
+          }
+        } else { matchStreak = 0; document.getElementById('camStatusText').textContent = 'กำลังตรวจจับใบหน้า…'; }
+      }catch(e){ matchStreak = 0; }
       scanBusy = false;
     }
     scanLoopId = requestAnimationFrame(detect);
