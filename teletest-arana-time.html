@@ -4323,7 +4323,7 @@ let approvalHistorySearched = false;
 function renderApprovalLists(){ renderLeaveLists(); renderOtLists(); }
 function renderLeaveLists(){
   const empIds = getApprovalFilteredEmpIds();
-  const pending = db.leaves.filter(l=>l.status==='pending' && empIds.has(l.employeeId) && inApprovalDateRange(dateKey(new Date(l.requestedAt)))).sort((a,b)=>new Date(a.requestedAt)-new Date(b.requestedAt));
+  const pending = db.leaves.filter(l=>l.status==='pending' && empIds.has(l.employeeId)).sort((a,b)=>new Date(a.requestedAt)-new Date(b.requestedAt));
   const pendEl = document.getElementById('pendingLeaveList');
   pendEl.innerHTML = pending.length ? pending.map(l=>{
     const emp = db.employees.find(e=>e.id===l.employeeId);
@@ -4471,7 +4471,7 @@ async function decideLeave(id, status){
 
 function renderOtLists(){
   const empIds = getApprovalFilteredEmpIds();
-  const pending = db.otRequests.filter(o=>o.status==='pending' && empIds.has(o.employeeId) && inApprovalDateRange(o.date)).sort((a,b)=>new Date(a.requestedAt)-new Date(b.requestedAt));
+  const pending = db.otRequests.filter(o=>o.status==='pending' && empIds.has(o.employeeId)).sort((a,b)=>new Date(a.requestedAt)-new Date(b.requestedAt));
   const pendEl = document.getElementById('pendingOtList');
   const groups = {};
   pending.forEach(o=>{ const gid = o.groupId || o.id; groups[gid] = groups[gid] || []; groups[gid].push(o); });
