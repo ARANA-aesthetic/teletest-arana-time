@@ -920,6 +920,10 @@
         <div class="sectitle">คำขอไปทำงานสาขาอื่นรออนุมัติ</div>
         <div class="card" id="pendingTransferList" style="padding:0 16px;"></div>
       </section>
+      <section>
+        <div class="sectitle">คำขอเปลี่ยนใบหน้าที่ลงทะเบียนรออนุมัติ</div>
+        <div class="card" id="pendingFaceList" style="padding:0 16px;"></div>
+      </section>
     </div>
 
     <!-- Inspect -->
@@ -1541,7 +1545,7 @@ function defaultDB(){
     notifications: [],
     settings: { centralToken:'', centralChatId:'', otChatId:'', graceMinutes:15, adminPassword:'admin1234', holidays:[], telegramRooms:[],
       gsheetWebappUrl:'', gsheetSecret:'', gsheetLastSync:null,
-      notifyTypes: { checkin:true, checkout:true, ac:true, clean:true, groom:true, leaveSubmit:true, leaveDecision:true, otSubmit:true, otDecision:true } }
+      notifyTypes: { checkin:true, checkout:true, ac:true, clean:true, groom:true, leaveSubmit:true, leaveDecision:true, otSubmit:true, otDecision:true, faceReenroll:true } }
   };
 }
 let db = defaultDB();
@@ -1779,8 +1783,8 @@ async function sbUpsertRow(table, row, conflictCol='id'){
 const rowToBranch = r => ({ id:r.id, name:r.name, lat:r.lat, lng:r.lng, radius:r.radius, chatIdCheckinout:r.chat_id_checkinout||r.chat_id||'', chatIdFacility:r.chat_id_facility||r.chat_id||'', chatIdLeaveApproval:r.chat_id_leave_approval||'', weeklyOffDays:r.weekly_off_days||[], acPoints:r.ac_points||[], cleaningPoints:r.cleaning_points||[] });
 const branchToRow = b => ({ id:b.id, name:b.name, lat:b.lat, lng:b.lng, radius:b.radius, chat_id_checkinout:b.chatIdCheckinout||'', chat_id_facility:b.chatIdFacility||'', chat_id_leave_approval:b.chatIdLeaveApproval||'', weekly_off_days:b.weeklyOffDays||[], ac_points:b.acPoints||[], cleaning_points:b.cleaningPoints||[] });
 
-const rowToEmployee = r => ({ id:r.id, name:r.name, nickname:r.nickname||'', department:r.department||'', jobTitle:r.job_title||'', branchId:r.branch_id||'', startDate:r.start_date||'', shiftStart:r.shift_start||'', shiftEnd:r.shift_end||'', email:r.email||'', pin:r.pin||null, descriptor:r.descriptor||null, homeLat:r.home_lat??null, homeLng:r.home_lng??null, active:r.active!==false });
-const employeeToRow = e => ({ id:e.id, name:e.name, nickname:e.nickname||null, department:e.department||null, job_title:e.jobTitle||null, branch_id:e.branchId||null, start_date:e.startDate||null, shift_start:e.shiftStart||null, shift_end:e.shiftEnd||null, email:e.email||null, pin:e.pin||null, descriptor:e.descriptor||null, home_lat:e.homeLat??null, home_lng:e.homeLng??null, active:e.active!==false });
+const rowToEmployee = r => ({ id:r.id, name:r.name, nickname:r.nickname||'', department:r.department||'', jobTitle:r.job_title||'', branchId:r.branch_id||'', startDate:r.start_date||'', shiftStart:r.shift_start||'', shiftEnd:r.shift_end||'', email:r.email||'', pin:r.pin||null, descriptor:r.descriptor||null, homeLat:r.home_lat??null, homeLng:r.home_lng??null, active:r.active!==false, pendingDescriptor:r.pending_descriptor||null, pendingDescriptorPhotoId:r.pending_descriptor_photo_id||null, pendingDescriptorAt:r.pending_descriptor_at||null });
+const employeeToRow = e => ({ id:e.id, name:e.name, nickname:e.nickname||null, department:e.department||null, job_title:e.jobTitle||null, branch_id:e.branchId||null, start_date:e.startDate||null, shift_start:e.shiftStart||null, shift_end:e.shiftEnd||null, email:e.email||null, pin:e.pin||null, descriptor:e.descriptor||null, home_lat:e.homeLat??null, home_lng:e.homeLng??null, active:e.active!==false, pending_descriptor:e.pendingDescriptor||null, pending_descriptor_photo_id:e.pendingDescriptorPhotoId||null, pending_descriptor_at:e.pendingDescriptorAt||null });
 
 const rowToApprover = r => ({ id:r.id, name:r.name, pin:r.pin||null, role:r.role||'hr' });
 const approverToRow = a => ({ id:a.id, name:a.name, pin:a.pin||null, role:a.role||'hr' });
@@ -3128,6 +3132,32 @@ async function decideTransfer(id, status){
   await pushNotification(emp.id, status==='approved'?'คำขอไปสาขาอื่นได้รับการอนุมัติ':'คำขอไปสาขาอื่นถูกปฏิเสธ', `${targetLabel} ${t.fromDate}${t.fromDate!==t.toDate?' – '+t.toDate:''}`);
   renderTransferList();
 }
+function renderFaceReenrollList(){
+  const empIds = getApprovalFilteredEmpIds();
+  const pending = db.employees.filter(e=> empIds.has(e.id) && e.pendingDescriptor);
+  const el = document.getElementById('pendingFaceList'); if(!el) return;
+  el.innerHTML = pending.length ? pending.map(e=>{
+    const br = db.branches.find(b=>b.id===e.branchId);
+    return `<div class="listrow" style="flex-direction:column;align-items:stretch;gap:6px;position:relative;">
+      ${e.pendingDescriptorPhotoId ? `<button class="btn ghost sm" data-viewphoto="${e.pendingDescriptorPhotoId}" style="position:absolute;top:0;right:0;">ดูรูป</button>` : ''}
+      <div style="display:flex;align-items:center;gap:12px;padding-right:${e.pendingDescriptorPhotoId?'64px':'0'};"><div class="avatar">${e.name.trim()[0]||'?'}</div><div class="info"><div class="name">${e.name}${e.nickname?` (${e.nickname})`:''}${br?.name?` · ${br.name}`:''}</div><div class="meta">ขอเปลี่ยนใบหน้าที่ลงทะเบียน · ${e.pendingDescriptorAt?fmtDateShort(new Date(e.pendingDescriptorAt))+' '+fmtTime(new Date(e.pendingDescriptorAt)):'-'}</div></div></div>
+      ${isAdminTier() ? `<div class="actionrow"><button class="btn-mini approve" data-faceapprove="${e.id}">อนุมัติ</button><button class="btn-mini reject" data-facereject="${e.id}">ปฏิเสธ</button></div>` : `<div style="font-size:11.5px;color:var(--muted);">ไม่มีสิทธิ์อนุมัติรายการนี้ (ต้องเป็นเจ้าของ/HR เท่านั้น)</div>`}
+    </div>`;
+  }).join('') : '<div class="empty">ไม่มีคำขอเปลี่ยนใบหน้าที่รออนุมัติ</div>';
+  el.querySelectorAll('[data-faceapprove]').forEach(b=> b.onclick = ()=> decideFaceReenroll(b.dataset.faceapprove,'approved'));
+  el.querySelectorAll('[data-facereject]').forEach(b=> b.onclick = ()=> decideFaceReenroll(b.dataset.facereject,'rejected'));
+  el.querySelectorAll('[data-viewphoto]').forEach(b=> b.onclick = ()=> viewTelegramPhoto(b.dataset.viewphoto));
+}
+async function decideFaceReenroll(empId, decision){
+  if(!isAdminTier()){ alert('ไม่มีสิทธิ์อนุมัติ ต้องเป็นเจ้าของ/HR เท่านั้น'); return; }
+  const emp = db.employees.find(e=>e.id===empId); if(!emp || !emp.pendingDescriptor) return;
+  if(decision==='approved') emp.descriptor = emp.pendingDescriptor;
+  emp.pendingDescriptor = null; emp.pendingDescriptorPhotoId = null; emp.pendingDescriptorAt = null;
+  await saveEmployeeRow(emp);
+  await logAudit(decision, 'face_reenroll', emp.id, `${decision==='approved'?'อนุมัติ':'ปฏิเสธ'}คำขอเปลี่ยนใบหน้าของ ${emp.name}`);
+  await pushNotification(emp.id, decision==='approved'?'คำขอเปลี่ยนใบหน้าได้รับการอนุมัติแล้ว':'คำขอเปลี่ยนใบหน้าถูกปฏิเสธ', decision==='approved'?'ใบหน้าที่ลงทะเบียนใหม่มีผลแล้ว':'ใบหน้าเดิมยังใช้สแกนเข้างานได้ตามปกติ');
+  renderFaceReenrollList();
+}
 async function decideOt(id, status){
   if(!canApproveOt()){ alert('ไม่มีสิทธิ์อนุมัติ OT ต้องเป็นเจ้าของ/HR เท่านั้น'); return; }
   const ot = db.otRequests.find(o=>o.id===id); if(!ot) return;
@@ -3320,7 +3350,7 @@ function switchATab(tab){
   updateAdminHeaderMeta();
   if(tab==='Overview'){ renderBranchFilter(); renderOverviewStats(); renderEmpSummary(); }
   if(tab==='Employees') renderEmployeesView();
-  if(tab==='Leaves'){ renderApprovalBranchFilter(); renderLeaveLists(); renderOtLists(); renderTransferList(); }
+  if(tab==='Leaves'){ renderApprovalBranchFilter(); renderLeaveLists(); renderOtLists(); renderTransferList(); renderFaceReenrollList(); }
   if(tab==='Inspect'){ initInspectTab(); renderInspectTab(); }
   if(tab==='Reports'){ initReportsTab(); renderReportsTab(); }
   if(tab==='Settings'){ renderDbStatus(); renderAdminEmpList(); renderApproverEditor(); renderCompanyList(); renderBranchEditor(); renderAcPointEditor(); renderCleanPointEditor(); renderHolidayEditor(); renderNotifyTypesEditor(); renderTelegramRoomsEditor(); renderAuditLogFilter(); renderOrphanTab(); updateSettingsFlags(); }
@@ -4303,7 +4333,7 @@ function renderApprovalBranchFilter(){
   if(sel.dataset.wired) { sel.innerHTML = `<option value="all">ทุกสาขา</option>` + db.branches.map(b=>`<option value="${b.id}">${b.name}</option>`).join(''); sel.value = sel.dataset.current||'all'; return; }
   sel.innerHTML = `<option value="all">ทุกสาขา</option>` + db.branches.map(b=>`<option value="${b.id}">${b.name}</option>`).join('');
   sel.dataset.wired = '1'; sel.dataset.current = 'all';
-  sel.onchange = ()=>{ sel.dataset.current = sel.value; renderLeaveLists(); renderOtLists(); };
+  sel.onchange = ()=>{ sel.dataset.current = sel.value; renderLeaveLists(); renderOtLists(); renderFaceReenrollList(); };
   wireDatePreset('approval', renderApprovalLists);
   const searchBtn = document.getElementById('searchApprovalHistoryBtn');
   if(searchBtn && !searchBtn.dataset.wired){
@@ -5107,6 +5137,7 @@ const NOTIFY_TYPE_LABELS = [
   {key:'leaveDecision', name:'ผลอนุมัติใบลา', meta:'แจ้งเมื่ออนุมัติ/ปฏิเสธใบลา'},
   {key:'otSubmit', name:'ยื่นขอ OT', meta:'แจ้งเมื่อพนักงานยื่นคำขอ OT ใหม่ (รออนุมัติ)'},
   {key:'otDecision', name:'ผลอนุมัติ OT', meta:'แจ้งเมื่ออนุมัติ/ปฏิเสธคำขอ OT'},
+  {key:'faceReenroll', name:'ขอเปลี่ยนใบหน้าที่ลงทะเบียน', meta:'แจ้งเมื่อพนักงานขอลงทะเบียนใบหน้าใหม่ (รออนุมัติ HR ก่อนมีผล)'},
 ];
 function renderTelegramRoomsEditor(){
   const el = document.getElementById('telegramRoomsEditor'); if(!el) return;
@@ -5652,7 +5683,28 @@ async function captureEnrollment(fromAdmin){
   try{
     const det = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
     if(!det){ document.getElementById('camStatusText').textContent = 'ไม่พบใบหน้า กรุณาลองใหม่ให้อยู่กึ่งกลางกรอบ'; return; }
-    camTarget.descriptor = Array.from(det.descriptor); await saveEmployeeRow(camTarget);
+    const newDescriptor = Array.from(det.descriptor);
+    // มีใบหน้าลงทะเบียนอยู่แล้ว และไม่ใช่แอดมิน/HR เป็นคนกดให้ -> ต้องรออนุมัติก่อนมีผล
+    // กันพนักงานให้คนอื่นถ่ายหน้าแทนตอน "เปลี่ยนใบหน้าใหม่" แล้วสแกนเข้างานแทนกันได้ตลอดไป
+    if(!fromAdmin && camTarget.descriptor){
+      camTarget.pendingDescriptor = newDescriptor;
+      camTarget.pendingDescriptorAt = new Date().toISOString();
+      let photoId = null;
+      const blob = await grabSimplePhotoBlob(true);
+      if(blob && db.settings.notifyTypes.faceReenroll && db.settings.centralToken && db.settings.centralChatId){
+        const r = await tgSendPhoto(db.settings.centralToken, db.settings.centralChatId, blob, `🧑‍💼<b>${notifyName(camTarget)}</b> ขอเปลี่ยนใบหน้าที่ลงทะเบียนใหม่\nรออนุมัติจาก HR ก่อนมีผล`);
+        if(r.ok) photoId = r.fileId;
+      }
+      camTarget.pendingDescriptorPhotoId = photoId;
+      await saveEmployeeRow(camTarget);
+      await pushNotification(camTarget.id, 'ส่งคำขอเปลี่ยนใบหน้าแล้ว', 'รออนุมัติจาก HR ก่อนมีผล ใบหน้าเดิมยังใช้สแกนเข้างานได้ตามปกติจนกว่าจะอนุมัติ');
+      document.getElementById('camStatusText').innerHTML = `ส่งคำขอเปลี่ยนใบหน้าแล้ว<br>รออนุมัติจาก HR ก่อนมีผล<br>(ใบหน้าเดิมยังใช้สแกนเข้างานได้ตามปกติ)`;
+      setTimeout(()=>{ closeCamera(); if(session.role==='employee') renderEmployeeHome(); }, 1600);
+      return;
+    }
+    camTarget.descriptor = newDescriptor;
+    camTarget.pendingDescriptor = null; camTarget.pendingDescriptorPhotoId = null; camTarget.pendingDescriptorAt = null;
+    await saveEmployeeRow(camTarget);
     document.getElementById('camStatusText').innerHTML = `ลงทะเบียนใบหน้าสำเร็จ`;
     setTimeout(()=>{ closeCamera(); if(session.role==='employee') renderEmployeeHome(); if(fromAdmin) renderAdminEmpList(); }, 900);
   }catch(e){ document.getElementById('camStatusText').textContent = 'เกิดข้อผิดพลาด กรุณาลองใหม่'; }
