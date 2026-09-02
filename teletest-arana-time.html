@@ -341,6 +341,7 @@
   .btn-mini{flex:1;padding:8px;border-radius:9px;border:none;font-size:12px;font-weight:600;cursor:pointer;}
   .btn-mini.approve{background:var(--green);color:#fff;}
   .btn-mini.reject{background:#F3F4F6;color:var(--text);}
+  .btn-mini.icononly{flex:0 0 auto;width:36px;display:flex;align-items:center;justify-content:center;background:#FEE2E2;color:var(--red);}
   .taglist{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
   .tagchip{background:var(--pink-pale);color:var(--pink-dark);font-size:11.5px;padding:5px 10px;border-radius:99px;display:flex;align-items:center;gap:6px;}
   .tagchip button{background:none;border:none;color:var(--pink-dark);font-weight:700;cursor:pointer;padding:0;}
@@ -1123,6 +1124,10 @@
               <button class="btn sm" style="margin-top:10px;" id="saveRulesBtn">บันทึกเกณฑ์</button>
             </div>
           </section>
+          <section>
+            <div class="sectitle">เข้างานพิเศษเฉพาะวัน</div>
+            <div class="card" id="shiftOverrideEditor" style="padding:16px;"></div>
+          </section>
         </div>
       </div>
 
@@ -1519,7 +1524,12 @@
 <script>
 const MODEL_URL = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js/weights';
 const MATCH_THRESHOLD = 0.42;
-const MATCH_STREAK_REQUIRED = 3; // ต้องตรวจจับใบหน้าตรงกันติดต่อกันหลายเฟรม กันจับพลาดจากเฟรมสั่น/แสงกระพริบเฟรมเดียว
+const MATCH_STREAK_REQUIRED = 2; // ต้องตรวจจับใบหน้าตรงกันติดต่อกันหลายเฟรม กันจับพลาดจากเฟรมสั่น/แสงกระพริบเฟรมเดียว
+// ลดเกณฑ์ความมั่นใจตอน "ตรวจจับว่ามีใบหน้าอยู่ในเฟรม" ให้หลวมขึ้นกว่าค่า default (0.5) เพราะพบว่าพนักงาน
+// หลายคนเจอข้อความ "ตรวจสอบไม่พบใบหน้า" บ่อย (แสงในร้าน/มุมกล้องมือถือ) — เกณฑ์นี้แค่บอกว่า "มีหน้าคนอยู่
+// ตรงนี้ไหม" ไม่ใช่เกณฑ์ว่า "ใช่คนที่ลงทะเบียนไว้ไหม" (อันนั้นคุม MATCH_THRESHOLD แยกต่างหากอยู่แล้ว)
+function faceDetectorOptions(){ return new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.3 }); }
+const TRASH_ICON_SVG = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path></svg>';
 const uid = ()=> crypto.randomUUID();
 
 // ===== Supabase config =====
@@ -1543,7 +1553,7 @@ function defaultDB(){
     warningLetters: [],
     companies: [],
     notifications: [],
-    settings: { centralToken:'', centralChatId:'', otChatId:'', graceMinutes:15, adminPassword:'admin1234', holidays:[], telegramRooms:[],
+    settings: { centralToken:'', centralChatId:'', otChatId:'', graceMinutes:15, adminPassword:'admin1234', holidays:[], telegramRooms:[], shiftOverrides:[],
       gsheetWebappUrl:'', gsheetSecret:'', gsheetLastSync:null,
       notifyTypes: { checkin:true, checkout:true, ac:true, clean:true, groom:true, leaveSubmit:true, leaveDecision:true, otSubmit:true, otDecision:true, faceReenroll:true } }
   };
@@ -1810,8 +1820,8 @@ const branchTransferToRow = t => ({ id:t.id, employee_id:t.employeeId, branch_id
 const rowToNoti = r => ({ id:r.id, employeeId:r.employee_id, title:r.title, body:r.body, time:r.time, read:!!r.read });
 const notiToRow = n => ({ id:n.id, employee_id:n.employeeId, title:n.title, body:n.body, time:n.time, read:!!n.read });
 
-const rowToSettings = r => ({ centralToken:r.central_token||'', centralChatId:r.central_chat_id||'', otChatId:r.ot_chat_id||'', graceMinutes:r.grace_minutes??15, adminPassword:r.admin_password||'admin1234', holidays:r.holidays||[], notifyTypes:r.notify_types||{}, telegramRooms:r.telegram_rooms||[], gsheetWebappUrl:r.gsheet_webapp_url||'', gsheetSecret:r.gsheet_secret||'', gsheetLastSync:r.gsheet_last_sync||null });
-const settingsToRow = s => ({ id:1, central_token:s.centralToken||'', central_chat_id:s.centralChatId||'', ot_chat_id:s.otChatId||'', grace_minutes:s.graceMinutes??15, admin_password:s.adminPassword||'admin1234', holidays:s.holidays||[], notify_types:s.notifyTypes||{}, telegram_rooms:s.telegramRooms||[], gsheet_webapp_url:s.gsheetWebappUrl||'', gsheet_secret:s.gsheetSecret||'' });
+const rowToSettings = r => ({ centralToken:r.central_token||'', centralChatId:r.central_chat_id||'', otChatId:r.ot_chat_id||'', graceMinutes:r.grace_minutes??15, adminPassword:r.admin_password||'admin1234', holidays:r.holidays||[], notifyTypes:r.notify_types||{}, telegramRooms:r.telegram_rooms||[], gsheetWebappUrl:r.gsheet_webapp_url||'', gsheetSecret:r.gsheet_secret||'', gsheetLastSync:r.gsheet_last_sync||null, shiftOverrides:r.shift_overrides||[] });
+const settingsToRow = s => ({ id:1, central_token:s.centralToken||'', central_chat_id:s.centralChatId||'', ot_chat_id:s.otChatId||'', grace_minutes:s.graceMinutes??15, admin_password:s.adminPassword||'admin1234', holidays:s.holidays||[], notify_types:s.notifyTypes||{}, telegram_rooms:s.telegramRooms||[], gsheet_webapp_url:s.gsheetWebappUrl||'', gsheet_secret:s.gsheetSecret||'', shift_overrides:s.shiftOverrides||[] });
 
 async function loadDB(){
   sbLoadFailed = [];
@@ -1834,6 +1844,7 @@ async function loadDB(){
   if(settingsRows.length) db.settings = { ...defaultDB().settings, ...rowToSettings(settingsRows[0]) };
   db.settings.notifyTypes = { ...defaultDB().settings.notifyTypes, ...(db.settings.notifyTypes||{}) };
   db.settings.telegramRooms = db.settings.telegramRooms || [];
+  db.settings.shiftOverrides = db.settings.shiftOverrides || [];
 }
 async function saveDB(){
   await Promise.all([
@@ -2665,7 +2676,7 @@ function renderLeaveTab(){
   }).sort((a,b)=>new Date(b.requestedAt)-new Date(a.requestedAt));
   document.getElementById('myLeaveList').innerHTML = myLeaves.length ? myLeaves.map(l=>{
     let actionHtml = '';
-    if(l.status==='pending') actionHtml = `<button class="btn ghost sm" data-editleave="${l.id}" style="margin-left:8px;">แก้ไข</button>`;
+    if(l.status==='pending') actionHtml = `<button class="btn ghost sm" data-editleave="${l.id}" style="margin-left:8px;">แก้ไข</button><button class="btn ghost sm" data-deleteleave="${l.id}" style="margin-left:6px;color:var(--red);">${TRASH_ICON_SVG}</button>`;
     else if(l.status==='approved') actionHtml = l.editRequest
       ? `<span class="badge pending" style="margin-left:8px;">รออนุมัติการแก้ไข</span>`
       : `<button class="btn ghost sm" data-requestleaveedit="${l.id}" style="margin-left:8px;">ขอแก้ไข</button>`;
@@ -2681,6 +2692,7 @@ function renderLeaveTab(){
   document.querySelectorAll('[data-editleave]').forEach(btn=> btn.onclick = ()=> openLeaveForm(btn.dataset.editleave));
   document.querySelectorAll('[data-requestleaveedit]').forEach(btn=> btn.onclick = ()=> openLeaveEditRequestForm(btn.dataset.requestleaveedit));
   document.querySelectorAll('[data-attachevidence]').forEach(btn=> btn.onclick = ()=> attachLeaveEvidenceLater(btn.dataset.attachevidence));
+  document.querySelectorAll('[data-deleteleave]').forEach(btn=> btn.onclick = ()=> deleteLeaveRequest(btn.dataset.deleteleave));
 }
 document.getElementById('exportMyLeaveBtn').onclick = ()=>{
   const emp = currentEmployee(); if(!emp) return;
@@ -2838,6 +2850,7 @@ document.getElementById('submitLeaveBtn').onclick = async ()=>{
   const leave = {id:uid(), employeeId:emp.id, kind, from, to, hourStart, hourEnd, reason, status:'pending', requestedAt:new Date().toISOString(), evidenceSent:null, evidenceFileId:null, locationLat, locationLng, locationAddress};
   db.leaves.push(leave); await saveLeaveRow(leave);
   msg.className='msg ok'; msg.textContent='ส่งใบลาเรียบร้อย รออนุมัติจาก HR';
+  alert('ส่งคำขอใบลาเรียบร้อย รออนุมัติ จึงจะได้รับข้อความทางกลุ่มสาขา');
   renderLeaveTab();
   const br = currentBranch(emp);
   const rangeText = leaveRangeText(leave);
@@ -3023,7 +3036,8 @@ function renderOtTab(){
   }).sort((a,b)=>new Date(b.requestedAt)-new Date(a.requestedAt));
   document.getElementById('myOtList').innerHTML = myOt.length ? myOt.map(o=>{
     let actionHtml = '';
-    if(o.status==='approved') actionHtml = o.editRequest
+    if(o.status==='pending') actionHtml = `<button class="btn ghost sm" data-deleteot="${o.id}" style="margin-left:8px;color:var(--red);">${TRASH_ICON_SVG}</button>`;
+    else if(o.status==='approved') actionHtml = o.editRequest
       ? `<span class="badge pending" style="margin-left:8px;">รออนุมัติการแก้ไข</span>`
       : `<button class="btn ghost sm" data-requestotedit="${o.id}" style="margin-left:8px;">ขอแก้ไข</button>`;
     return `<div class="listrow"><div class="info">
@@ -3032,6 +3046,7 @@ function renderOtTab(){
     </div><span class="badge ${o.status}">${otStatusLabel(o.status)}</span>${actionHtml}</div>`;
   }).join('') : '<div class="empty">ไม่มีคำขอ OT ในช่วงที่เลือก</div>';
   document.querySelectorAll('[data-requestotedit]').forEach(btn=> btn.onclick = ()=> openOtEditRequestForm(btn.dataset.requestotedit));
+  document.querySelectorAll('[data-deleteot]').forEach(btn=> btn.onclick = ()=> deleteOtRequest(btn.dataset.deleteot));
 }
 let requestingEditOtId = null;
 document.getElementById('openOtFormBtn').onclick = ()=>{
@@ -3133,8 +3148,9 @@ async function decideTransfer(id, status){
   renderTransferList();
 }
 function renderFaceReenrollList(){
-  const empIds = getApprovalFilteredEmpIds();
-  const pending = db.employees.filter(e=> empIds.has(e.id) && e.pendingDescriptor);
+  // ไม่กรองตามตัวกรองสาขา/วันที่ในหน้าอนุมัติโดยเจตนา — คำขอเปลี่ยนใบหน้าเป็นเรื่องความปลอดภัย
+  // HR/เจ้าของต้องเห็นทุกคำขอเสมอ ไม่ให้ตัวกรองที่ค้างไว้จากการใช้งานอื่นบังรายการนี้
+  const pending = db.employees.filter(e=> e.pendingDescriptor);
   const el = document.getElementById('pendingFaceList'); if(!el) return;
   el.innerHTML = pending.length ? pending.map(e=>{
     const br = db.branches.find(b=>b.id===e.branchId);
@@ -3187,6 +3203,32 @@ async function decideOtGroup(groupId, status){
   }
   await Promise.all(items.map(ot => pushNotification(ot.employeeId, status==='approved'?'คำขอ OT ได้รับการอนุมัติ':'คำขอ OT ถูกปฏิเสธ', `${first.date} เวลา ${first.hourStart}-${first.hourEnd}`)));
   renderOtLists();
+}
+// -- ลบคำขอที่รออนุมัติ (กรณีคีย์ซ้ำ) — ลบได้ทั้งฝั่งพนักงาน (ลบของตัวเอง) และฝั่งบริหาร ไม่ส่งแจ้งเตือนเข้ากลุ่มใดๆ --
+async function deleteLeaveRequest(id){
+  const leave = db.leaves.find(l=>l.id===id); if(!leave || leave.status!=='pending') return;
+  if(!confirm('ยืนยันลบคำขอลานี้? (ไม่มีการแจ้งเตือนเข้ากลุ่มใดๆ)')) return;
+  db.leaves = db.leaves.filter(l=>l.id!==id);
+  await sbDeleteRow('leaves', id);
+  await logAudit('delete', 'leave', id, `ลบคำขอลา (${leaveLabel(leave.kind)} ${leaveRangeText(leave)})`);
+  renderLeaveTab(); renderLeaveLists();
+}
+async function deleteOtRequest(id){
+  const ot = db.otRequests.find(o=>o.id===id); if(!ot || ot.status!=='pending') return;
+  if(!confirm('ยืนยันลบคำขอ OT นี้? (ไม่มีการแจ้งเตือนเข้ากลุ่มใดๆ)')) return;
+  db.otRequests = db.otRequests.filter(o=>o.id!==id);
+  await sbDeleteRow('ot_requests', id);
+  await logAudit('delete', 'ot', id, `ลบคำขอ OT วันที่ ${ot.date} ${ot.hourStart}-${ot.hourEnd}`);
+  renderOtTab(); renderOtLists();
+}
+async function deleteOtGroup(groupId){
+  const items = db.otRequests.filter(o=>(o.groupId||o.id)===groupId && o.status==='pending');
+  if(!items.length) return;
+  if(!confirm(`ยืนยันลบคำขอ OT นี้ (${items.length} คน)? (ไม่มีการแจ้งเตือนเข้ากลุ่มใดๆ)`)) return;
+  db.otRequests = db.otRequests.filter(o=>(o.groupId||o.id)!==groupId);
+  for(const o of items) await sbDeleteRow('ot_requests', o.id);
+  await logAudit('delete', 'ot_group', groupId, `ลบคำขอ OT กลุ่ม ${items.length} คน วันที่ ${items[0].date}`);
+  renderOtTab(); renderOtLists();
 }
 
 // -- Notifications tab --
@@ -3353,7 +3395,7 @@ function switchATab(tab){
   if(tab==='Leaves'){ renderApprovalBranchFilter(); renderLeaveLists(); renderOtLists(); renderTransferList(); renderFaceReenrollList(); }
   if(tab==='Inspect'){ initInspectTab(); renderInspectTab(); }
   if(tab==='Reports'){ initReportsTab(); renderReportsTab(); }
-  if(tab==='Settings'){ renderDbStatus(); renderAdminEmpList(); renderApproverEditor(); renderCompanyList(); renderBranchEditor(); renderAcPointEditor(); renderCleanPointEditor(); renderHolidayEditor(); renderNotifyTypesEditor(); renderTelegramRoomsEditor(); renderAuditLogFilter(); renderOrphanTab(); updateSettingsFlags(); }
+  if(tab==='Settings'){ renderDbStatus(); renderAdminEmpList(); renderApproverEditor(); renderCompanyList(); renderBranchEditor(); renderAcPointEditor(); renderCleanPointEditor(); renderHolidayEditor(); renderShiftOverrideEditor(); renderNotifyTypesEditor(); renderTelegramRoomsEditor(); renderAuditLogFilter(); renderOrphanTab(); updateSettingsFlags(); }
 }
 
 function toggleSetGroup(name){
@@ -4369,11 +4411,12 @@ function renderLeaveLists(){
           <div class="meta">${l.reason||'-'}</div>
         </div>
       </div>
-      ${canApproveLeave() ? `<div class="actionrow"><button class="btn-mini approve" data-approve="${l.id}">อนุมัติ</button><button class="btn-mini reject" data-reject="${l.id}">ปฏิเสธ</button></div>` : `<div style="font-size:11.5px;color:var(--muted);">ไม่มีสิทธิ์อนุมัติรายการนี้ (ต้องเป็นเจ้าของ/HR/ผู้จัดการ)</div>`}
+      ${canApproveLeave() ? `<div class="actionrow"><button class="btn-mini approve" data-approve="${l.id}">อนุมัติ</button><button class="btn-mini reject" data-reject="${l.id}">ปฏิเสธ</button><button class="btn-mini icononly" data-deleteleave="${l.id}" title="ลบ (ไม่แจ้งเตือน)">${TRASH_ICON_SVG}</button></div>` : `<div style="font-size:11.5px;color:var(--muted);">ไม่มีสิทธิ์อนุมัติรายการนี้ (ต้องเป็นเจ้าของ/HR/ผู้จัดการ)</div>`}
     </div>`;
   }).join('') : '<div class="empty">ไม่มีคำขอลาที่รออนุมัติ</div>';
   pendEl.querySelectorAll('[data-approve]').forEach(b=> b.onclick = ()=> decideLeave(b.dataset.approve,'approved'));
   pendEl.querySelectorAll('[data-reject]').forEach(b=> b.onclick = ()=> decideLeave(b.dataset.reject,'rejected'));
+  pendEl.querySelectorAll('[data-deleteleave]').forEach(b=> b.onclick = ()=> deleteLeaveRequest(b.dataset.deleteleave));
   pendEl.querySelectorAll('[data-viewphoto]').forEach(b=> b.onclick = ()=> viewTelegramPhoto(b.dataset.viewphoto));
   renderLeaveEditRequests(empIds);
   if(!approvalHistorySearched){
@@ -4513,11 +4556,12 @@ function renderOtLists(){
     const names = items.map(o=>{ const e = db.employees.find(x=>x.id===o.employeeId); return `${e?.name||'-'}${e?.nickname?` (${e.nickname})`:''}`; }).join(', ');
     return `<div class="listrow" style="flex-direction:column;align-items:stretch;gap:6px;">
       <div style="display:flex;align-items:flex-start;gap:12px;"><div class="avatar">${items.length}</div><div class="info"><div class="name">${br?.name||'-'} · ${fmtDateShort(new Date(first.date))} · ${first.hourStart}–${first.hourEnd} น.</div><div class="meta">${names}</div><div class="meta">${first.reason||'-'}</div></div></div>
-      ${canApproveOt() ? `<div class="actionrow"><button class="btn-mini approve" data-otapprovegroup="${gid}">อนุมัติทั้งหมด</button><button class="btn-mini reject" data-otrejectgroup="${gid}">ปฏิเสธทั้งหมด</button></div>` : `<div style="font-size:11.5px;color:var(--muted);">ไม่มีสิทธิ์อนุมัติรายการนี้ (ต้องเป็นเจ้าของ/HR เท่านั้น)</div>`}
+      ${canApproveOt() ? `<div class="actionrow"><button class="btn-mini approve" data-otapprovegroup="${gid}">อนุมัติทั้งหมด</button><button class="btn-mini reject" data-otrejectgroup="${gid}">ปฏิเสธทั้งหมด</button><button class="btn-mini icononly" data-otdeletegroup="${gid}" title="ลบ (ไม่แจ้งเตือน)">${TRASH_ICON_SVG}</button></div>` : `<div style="font-size:11.5px;color:var(--muted);">ไม่มีสิทธิ์อนุมัติรายการนี้ (ต้องเป็นเจ้าของ/HR เท่านั้น)</div>`}
     </div>`;
   }).join('') : '<div class="empty">ไม่มีคำขอ OT ที่รออนุมัติ</div>';
   pendEl.querySelectorAll('[data-otapprovegroup]').forEach(b=> b.onclick = ()=> decideOtGroup(b.dataset.otapprovegroup,'approved'));
   pendEl.querySelectorAll('[data-otrejectgroup]').forEach(b=> b.onclick = ()=> decideOtGroup(b.dataset.otrejectgroup,'rejected'));
+  pendEl.querySelectorAll('[data-otdeletegroup]').forEach(b=> b.onclick = ()=> deleteOtGroup(b.dataset.otdeletegroup));
   renderOtEditRequests(empIds);
   if(!approvalHistorySearched){
     document.getElementById('allOtList').innerHTML = '<div class="empty">เลือกเงื่อนไข (สาขา/วันที่) แล้วกด "ค้นหาประวัติ" เพื่อแสดงข้อมูล</div>';
@@ -5126,6 +5170,42 @@ function renderHolidayEditor(){
     await saveDB(); renderHolidayEditor();
   };
 }
+function renderShiftOverrideEditor(){
+  const el = document.getElementById('shiftOverrideEditor'); if(!el) return;
+  const list = (db.settings.shiftOverrides||[]).slice().sort((a,b)=> b.date.localeCompare(a.date));
+  el.innerHTML = `
+    <div style="color:var(--muted);font-size:11.5px;margin-bottom:10px;">
+      ใช้เมื่อมีเหตุพิเศษเฉพาะวัน (เช่น ไฟดับ/ซ่อมสายไฟ) แล้วอนุญาตให้เข้างานสายกว่าปกติได้ โดยไม่นับว่าสาย —
+      เลือก "ทุกสาขา" หรือระบุเฉพาะสาขาก็ได้ มีผลเฉพาะวันที่ระบุเท่านั้น
+    </div>
+    <div id="shiftOverrideList">${list.length ? list.map(o=>{
+      const br = db.branches.find(b=>b.id===o.branchId);
+      return `<div class="settingsrow"><div class="info"><div class="name">${new Date(o.date+'T00:00:00').toLocaleDateString('th-TH',{day:'numeric',month:'long',year:'numeric'})} · เข้างาน ${o.newShiftStart} น.</div><div class="meta">${br?br.name:'ทุกสาขา'}${o.reason?' · '+o.reason:''}</div></div>
+        <button class="btn ghost sm" data-rmshiftoverride="${o.id}">ลบ</button></div>`;
+    }).join('') : '<div class="empty">ยังไม่มีประกาศเข้างานพิเศษ</div>'}</div>
+    <div class="row2" style="margin-top:12px;">
+      <div id="newShiftOverrideDate_holder"></div>
+      <select id="newShiftOverrideBranch"><option value="">ทุกสาขา</option>${db.branches.map(b=>`<option value="${b.id}">${b.name}</option>`).join('')}</select>
+    </div>
+    <div class="row2" style="margin-top:10px;">
+      <div><label>เวลาเข้างานใหม่</label><input type="time" id="newShiftOverrideTime"></div>
+      <div><label>เหตุผล</label><input type="text" id="newShiftOverrideReason" placeholder="เช่น การไฟฟ้าตัดไฟซ่อมสายไฟ"></div>
+    </div>
+    <button class="btn sm" style="margin-top:10px;" id="addShiftOverrideBtn">เพิ่มประกาศ</button>`;
+  document.getElementById('newShiftOverrideDate_holder').innerHTML = dateSelectHTML('newShiftOverrideDate');
+  el.querySelectorAll('[data-rmshiftoverride]').forEach(btn=>{
+    btn.onclick = async ()=>{ db.settings.shiftOverrides = db.settings.shiftOverrides.filter(o=>o.id!==btn.dataset.rmshiftoverride); await saveDB(); renderShiftOverrideEditor(); };
+  });
+  document.getElementById('addShiftOverrideBtn').onclick = async ()=>{
+    const date = getDateVal('newShiftOverrideDate');
+    const branchId = document.getElementById('newShiftOverrideBranch').value || null;
+    const newShiftStart = document.getElementById('newShiftOverrideTime').value;
+    const reason = document.getElementById('newShiftOverrideReason').value.trim();
+    if(!date || !newShiftStart) return;
+    db.settings.shiftOverrides.push({id:uid(), date, branchId, newShiftStart, reason});
+    await saveDB(); renderShiftOverrideEditor();
+  };
+}
 
 const NOTIFY_TYPE_LABELS = [
   {key:'checkin', name:'เช็กอิน', meta:'แจ้งเมื่อพนักงานสแกนหน้าเข้างาน'},
@@ -5550,7 +5630,7 @@ async function runScanLoop(emp, pos, distance){
     if(!scanBusy){
       scanBusy = true;
       try{
-        const det = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
+        const det = await faceapi.detectSingleFace(video, faceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
         if(det){
           const dist = faceapi.euclideanDistance(det.descriptor, emp.descriptor);
           if(dist < MATCH_THRESHOLD){
@@ -5591,6 +5671,11 @@ function shiftLateMinutes(emp, now){
   const toMin = t => { const [h,m] = t.split(':').map(Number); return h*60 + m; };
   // ตั้งต้นจากเวลาเข้ากะของพนักงานคนนั้นเสมอ (แต่ละคนกะไม่เท่ากัน)
   let baseMin = toMin(emp.shiftStart);
+  // เข้างานพิเศษเฉพาะวัน (เช่น ไฟดับ/ซ่อมสายไฟ) — ถ้ามีประกาศตรงวันนี้ที่ครอบคลุมสาขาของพนักงาน
+  // (branchId เป็น null = ทุกสาขา) ให้ใช้เวลานั้นแทนเวลาเข้ากะปกติ
+  const br0 = currentBranch(emp);
+  const override = (db.settings.shiftOverrides||[]).find(o=> o.date===todayStr && (!o.branchId || o.branchId===br0?.id));
+  if(override && override.newShiftStart) baseMin = toMin(override.newShiftStart);
   let backFromLeave = false;
   // ใบลาเป็นชั่วโมงที่ครอบคลุมช่วงต้นกะ (เริ่มลาไม่เกินเวลาเข้างาน) ให้เลื่อนจุดเริ่มนับสาย
   // ไปที่เวลาสิ้นสุดการลาแทน — แต่ใบลาชั่วโมงที่อยู่กลางวันหรือท้ายวัน (เช่นขอออกก่อน)
@@ -5681,7 +5766,7 @@ async function captureEnrollment(fromAdmin){
   document.getElementById('camStatusText').textContent = 'กำลังประมวลผลใบหน้า…';
   const video = document.getElementById('camVideo');
   try{
-    const det = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
+    const det = await faceapi.detectSingleFace(video, faceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
     if(!det){ document.getElementById('camStatusText').textContent = 'ไม่พบใบหน้า กรุณาลองใหม่ให้อยู่กึ่งกลางกรอบ'; return; }
     const newDescriptor = Array.from(det.descriptor);
     // มีใบหน้าลงทะเบียนอยู่แล้ว และไม่ใช่แอดมิน/HR เป็นคนกดให้ -> ต้องรออนุมัติก่อนมีผล
