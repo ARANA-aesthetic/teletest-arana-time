@@ -5181,6 +5181,7 @@ function renderShiftOverrideEditor(){
     <div id="shiftOverrideList">${list.length ? list.map(o=>{
       const br = db.branches.find(b=>b.id===o.branchId);
       return `<div class="settingsrow"><div class="info"><div class="name">${new Date(o.date+'T00:00:00').toLocaleDateString('th-TH',{day:'numeric',month:'long',year:'numeric'})} · เข้างาน ${o.newShiftStart} น.</div><div class="meta">${br?br.name:'ทุกสาขา'}${o.reason?' · '+o.reason:''}</div></div>
+        <button class="btn ghost sm" data-recalcshiftoverride="${o.id}" style="margin-right:6px;white-space:nowrap;">คำนวณนาทีสายใหม่</button>
         <button class="btn ghost sm" data-rmshiftoverride="${o.id}">ลบ</button></div>`;
     }).join('') : '<div class="empty">ยังไม่มีประกาศเข้างานพิเศษ</div>'}</div>
     <div class="row2" style="margin-top:12px;">
@@ -5196,15 +5197,37 @@ function renderShiftOverrideEditor(){
   el.querySelectorAll('[data-rmshiftoverride]').forEach(btn=>{
     btn.onclick = async ()=>{ db.settings.shiftOverrides = db.settings.shiftOverrides.filter(o=>o.id!==btn.dataset.rmshiftoverride); await saveDB(); renderShiftOverrideEditor(); };
   });
+  el.querySelectorAll('[data-recalcshiftoverride]').forEach(btn=>{
+    btn.onclick = ()=> recalcLateForOverride(btn.dataset.recalcshiftoverride);
+  });
   document.getElementById('addShiftOverrideBtn').onclick = async ()=>{
     const date = getDateVal('newShiftOverrideDate');
     const branchId = document.getElementById('newShiftOverrideBranch').value || null;
     const newShiftStart = document.getElementById('newShiftOverrideTime').value;
     const reason = document.getElementById('newShiftOverrideReason').value.trim();
     if(!date || !newShiftStart) return;
-    db.settings.shiftOverrides.push({id:uid(), date, branchId, newShiftStart, reason});
+    const override = {id:uid(), date, branchId, newShiftStart, reason};
+    db.settings.shiftOverrides.push(override);
     await saveDB(); renderShiftOverrideEditor();
+    // ถ้ามีคนสแกนเข้างานไปแล้ววันนี้ก่อนตั้งค่านี้ นาทีสายที่บันทึกไว้แล้วจะไม่ปรับเองอัตโนมัติ
+    // (คำนวณตอนสแกนแค่ครั้งเดียว) ให้คำนวณใหม่ให้ทันทีเลยจะได้ไม่ต้องมากดซ้ำ
+    await recalcLateForOverride(override.id, true);
   };
+}
+async function recalcLateForOverride(overrideId, silent){
+  const o = db.settings.shiftOverrides.find(x=>x.id===overrideId); if(!o) return;
+  const targetLogs = db.logs.filter(l=> l.type==='IN' && dateKey(new Date(l.time))===o.date && (!o.branchId || l.branchId===o.branchId));
+  if(!targetLogs.length){ if(!silent) alert('ไม่มีรายการเช็กอินวันที่นั้นให้คำนวณใหม่'); return; }
+  if(!silent && !confirm(`คำนวณนาทีสายใหม่สำหรับ ${targetLogs.length} รายการที่เช็กอินไปแล้ว (${o.date}) ตามเวลาเข้างานพิเศษที่ตั้งไว้?`)) return;
+  let changed = 0;
+  for(const log of targetLogs){
+    const emp = db.employees.find(e=>e.id===log.employeeId); if(!emp) continue;
+    const newLate = shiftLateMinutes(emp, new Date(log.time));
+    if(newLate!==log.lateMinutes){ log.lateMinutes = newLate; await saveLogRow(log); changed++; }
+  }
+  await logAudit('recalc_late', 'shift_override', overrideId, `คำนวณนาทีสายใหม่ตามเวลาเข้างานพิเศษวันที่ ${o.date} (${targetLogs.length} รายการ ปรับ ${changed} รายการ)`);
+  renderOverviewStats(); renderEmpSummary();
+  if(!silent) alert(`คำนวณนาทีสายใหม่เรียบร้อย (ปรับ ${changed} จาก ${targetLogs.length} รายการ)`);
 }
 
 const NOTIFY_TYPE_LABELS = [
