@@ -1459,6 +1459,8 @@
       <div><label>เวลาเข้างาน</label><input type="time" id="editEmpShiftStart"></div>
       <div><label>เวลาออกงาน</label><input type="time" id="editEmpShiftEnd"></div>
     </div>
+    <label>วันหยุดประจำสัปดาห์ของพนักงานคนนี้ (ไม่ต้องเข้างาน ไม่นับขาดงาน)</label>
+    <div id="editEmpWeeklyOffChips" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;"></div>
     <label>อีเมล (ถ้ามี)</label>
     <input type="text" id="editEmpEmail" placeholder="name@example.com">
     <label>ตั้งรหัส PIN ให้พนักงาน (4 หลัก)</label>
@@ -1793,8 +1795,8 @@ async function sbUpsertRow(table, row, conflictCol='id'){
 const rowToBranch = r => ({ id:r.id, name:r.name, lat:r.lat, lng:r.lng, radius:r.radius, chatIdCheckinout:r.chat_id_checkinout||r.chat_id||'', chatIdFacility:r.chat_id_facility||r.chat_id||'', chatIdLeaveApproval:r.chat_id_leave_approval||'', weeklyOffDays:r.weekly_off_days||[], acPoints:r.ac_points||[], cleaningPoints:r.cleaning_points||[] });
 const branchToRow = b => ({ id:b.id, name:b.name, lat:b.lat, lng:b.lng, radius:b.radius, chat_id_checkinout:b.chatIdCheckinout||'', chat_id_facility:b.chatIdFacility||'', chat_id_leave_approval:b.chatIdLeaveApproval||'', weekly_off_days:b.weeklyOffDays||[], ac_points:b.acPoints||[], cleaning_points:b.cleaningPoints||[] });
 
-const rowToEmployee = r => ({ id:r.id, name:r.name, nickname:r.nickname||'', department:r.department||'', jobTitle:r.job_title||'', branchId:r.branch_id||'', startDate:r.start_date||'', shiftStart:r.shift_start||'', shiftEnd:r.shift_end||'', email:r.email||'', pin:r.pin||null, descriptor:r.descriptor||null, homeLat:r.home_lat??null, homeLng:r.home_lng??null, active:r.active!==false, pendingDescriptor:r.pending_descriptor||null, pendingDescriptorPhotoId:r.pending_descriptor_photo_id||null, pendingDescriptorAt:r.pending_descriptor_at||null });
-const employeeToRow = e => ({ id:e.id, name:e.name, nickname:e.nickname||null, department:e.department||null, job_title:e.jobTitle||null, branch_id:e.branchId||null, start_date:e.startDate||null, shift_start:e.shiftStart||null, shift_end:e.shiftEnd||null, email:e.email||null, pin:e.pin||null, descriptor:e.descriptor||null, home_lat:e.homeLat??null, home_lng:e.homeLng??null, active:e.active!==false, pending_descriptor:e.pendingDescriptor||null, pending_descriptor_photo_id:e.pendingDescriptorPhotoId||null, pending_descriptor_at:e.pendingDescriptorAt||null });
+const rowToEmployee = r => ({ id:r.id, name:r.name, nickname:r.nickname||'', department:r.department||'', jobTitle:r.job_title||'', branchId:r.branch_id||'', startDate:r.start_date||'', shiftStart:r.shift_start||'', shiftEnd:r.shift_end||'', email:r.email||'', pin:r.pin||null, descriptor:r.descriptor||null, homeLat:r.home_lat??null, homeLng:r.home_lng??null, active:r.active!==false, pendingDescriptor:r.pending_descriptor||null, pendingDescriptorPhotoId:r.pending_descriptor_photo_id||null, pendingDescriptorAt:r.pending_descriptor_at||null, weeklyOffDays:r.weekly_off_days||[] });
+const employeeToRow = e => ({ id:e.id, name:e.name, nickname:e.nickname||null, department:e.department||null, job_title:e.jobTitle||null, branch_id:e.branchId||null, start_date:e.startDate||null, shift_start:e.shiftStart||null, shift_end:e.shiftEnd||null, email:e.email||null, pin:e.pin||null, descriptor:e.descriptor||null, home_lat:e.homeLat??null, home_lng:e.homeLng??null, active:e.active!==false, pending_descriptor:e.pendingDescriptor||null, pending_descriptor_photo_id:e.pendingDescriptorPhotoId||null, pending_descriptor_at:e.pendingDescriptorAt||null, weekly_off_days:e.weeklyOffDays||[] });
 
 const rowToApprover = r => ({ id:r.id, name:r.name, pin:r.pin||null, role:r.role||'hr' });
 const approverToRow = a => ({ id:a.id, name:a.name, pin:a.pin||null, role:a.role||'hr' });
@@ -2091,6 +2093,7 @@ function summaryForRange(empId, fromStr, toStr){
   }
   for(let d=new Date(start); d<=end; d.setDate(d.getDate()+1)){
     if(isHoliday(d)) continue;
+    if((emp?.weeklyOffDays||[]).includes(d.getDay())) continue;
     const dayKey = todayKey(d);
     const inLog = db.logs.find(l=>l.employeeId===empId && l.type==='IN' && todayKey(new Date(l.time))===dayKey);
     const leave = db.leaves.find(l => l.employeeId===empId && l.status==='approved' && new Date(l.from+'T00:00:00') <= d && d <= new Date(l.to+'T00:00:00'));
@@ -2170,6 +2173,7 @@ function monthlySummary(empId, month=new Date().getMonth(), year=new Date().getF
   const end = new Date(Math.min(new Date(year, month+1, 0).getTime(), today.getTime()));
   for(let d=new Date(start); d<=end; d.setDate(d.getDate()+1)){
     if(isHoliday(d)) continue;
+    if((emp?.weeklyOffDays||[]).includes(d.getDay())) continue;
     const dayKey = todayKey(d);
     const inLog = db.logs.find(l=>l.employeeId===empId && l.type==='IN' && todayKey(new Date(l.time))===dayKey);
     if(isApprovedLeaveOnDate(empId, d)){ leaveDays++; continue; }
@@ -3567,7 +3571,8 @@ function renderOverviewStats(){
 
   days.forEach(d=>{
     const dKey = d.toDateString();
-    const activeEmps = emps.filter(e=>hasStartedBy(e,d));
+    // ไม่นับพนักงานที่วันนี้ตรงกับวันหยุดประจำสัปดาห์เฉพาะบุคคลของเขาเลย (ไม่ต้องเข้างาน ไม่นับขาดงาน)
+    const activeEmps = emps.filter(e=>hasStartedBy(e,d) && !(e.weeklyOffDays||[]).includes(d.getDay()));
     let leaveTodayCount = 0;
     activeEmps.forEach(e=>{ if(isApprovedLeaveOnDate(e.id, d)) leaveTodayCount++; });
     const expectedWorkToday = activeEmps.length - leaveTodayCount;
@@ -3972,7 +3977,7 @@ function buildMonthReport(){
     return { branch: br, rows: emps.map(e=>{
       const cells = days.map(d=>{
         const cell = { day:d, code:'', late:0, ot:0, off:false };
-        const offWeekly = (br.weeklyOffDays||[]).includes(d.getDay());
+        const offWeekly = (br.weeklyOffDays||[]).includes(d.getDay()) || (e.weeklyOffDays||[]).includes(d.getDay());
         const leave = db.leaves.find(l=>l.employeeId===e.id && l.status==='approved' && new Date(l.from+'T00:00:00')<=d && d<=new Date(l.to+'T00:00:00'));
         const inLog = db.logs.find(l=>l.employeeId===e.id && l.type==='IN' && todayKey(new Date(l.time))===d.toDateString());
         if(inLog) cell.late = inLog.lateMinutes||0;
@@ -4639,6 +4644,19 @@ document.getElementById('exportOtReportBtn').onclick = ()=>{
 
 
 let editingEmpId = null;
+let editEmpWeeklyOffDays = [];
+function renderEmpWeeklyOffChips(){
+  const el = document.getElementById('editEmpWeeklyOffChips'); if(!el) return;
+  el.innerHTML = ['อา','จ','อ','พ','พฤ','ศ','ส'].map((d,i)=>`<label style="display:flex;align-items:center;gap:4px;background:${editEmpWeeklyOffDays.includes(i)?'var(--pink-pale)':'#FAF6F8'};border:1px solid var(--border);border-radius:99px;padding:5px 10px;font-size:12px;margin:0;cursor:pointer;"><input type="checkbox" data-empweeklyoff="${i}" ${editEmpWeeklyOffDays.includes(i)?'checked':''} style="width:14px;height:14px;">${d}</label>`).join('');
+  el.querySelectorAll('[data-empweeklyoff]').forEach(cb=>{
+    cb.onchange = ()=>{
+      const day = parseInt(cb.dataset.empweeklyoff);
+      if(cb.checked){ if(!editEmpWeeklyOffDays.includes(day)) editEmpWeeklyOffDays.push(day); }
+      else editEmpWeeklyOffDays = editEmpWeeklyOffDays.filter(d=>d!==day);
+      renderEmpWeeklyOffChips();
+    };
+  });
+}
 function openEmpEditor(empId){
   editingEmpId = empId;
   const sel = document.getElementById('editEmpBranch');
@@ -4655,6 +4673,7 @@ function openEmpEditor(empId){
     setDateVal('editEmpStartDate', e.startDate||'');
     document.getElementById('editEmpShiftStart').value = e.shiftStart||'09:00';
     document.getElementById('editEmpShiftEnd').value = e.shiftEnd||'18:00';
+    editEmpWeeklyOffDays = (e.weeklyOffDays||[]).slice(); renderEmpWeeklyOffChips();
     document.getElementById('editEmpEmail').value = e.email||'';
     document.getElementById('editEmpPin').value = '';
     document.getElementById('editEmpPin').placeholder = e.pin ? `ปัจจุบัน: ${e.pin} (เว้นว่าง = ไม่เปลี่ยน)` : 'เว้นว่างได้ถ้าให้พนักงานตั้งเอง';
@@ -4680,6 +4699,7 @@ function openEmpEditor(empId){
     setDateVal('editEmpStartDate', dateKey(new Date()));
     document.getElementById('editEmpShiftStart').value = '09:00';
     document.getElementById('editEmpShiftEnd').value = '18:00';
+    editEmpWeeklyOffDays = []; renderEmpWeeklyOffChips();
     document.getElementById('editEmpEmail').value = '';
     document.getElementById('editEmpPin').value = '';
     document.getElementById('editEmpPin').placeholder = 'เว้นว่างได้ถ้าให้พนักงานตั้งเอง';
@@ -4708,11 +4728,11 @@ document.getElementById('saveEmpEditBtn').onclick = async ()=>{
   let empToSave;
   if(editingEmpId){
     const e = db.employees.find(x=>x.id===editingEmpId);
-    Object.assign(e, {name, nickname, department, jobTitle, branchId, startDate, shiftStart, shiftEnd, email});
+    Object.assign(e, {name, nickname, department, jobTitle, branchId, startDate, shiftStart, shiftEnd, email, weeklyOffDays: editEmpWeeklyOffDays.slice()});
     if(pinInput) e.pin = pinInput;
     empToSave = e;
   } else {
-    empToSave = {id:uid(), name, nickname, department, jobTitle, branchId, startDate, shiftStart, shiftEnd, email, pin: pinInput||null, descriptor:null, homeLat:null, homeLng:null};
+    empToSave = {id:uid(), name, nickname, department, jobTitle, branchId, startDate, shiftStart, shiftEnd, email, weeklyOffDays: editEmpWeeklyOffDays.slice(), pin: pinInput||null, descriptor:null, homeLat:null, homeLng:null};
     db.employees.push(empToSave);
   }
   await saveEmployeeRow(empToSave);
