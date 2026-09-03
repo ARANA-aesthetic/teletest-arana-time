@@ -4300,7 +4300,9 @@ function dailyTableHTML(rpt, view){
           else if(c.leaveKind) color = RPT_KIND_COLOR[c.leaveKind] || 'color:var(--pink-dark);font-weight:600;';
         }
         else if(view==='late'){
-          if(c.code===RPT_CODE_WORK){ txt = c.late; color = c.late>0 ? 'color:var(--amber);font-weight:600;' : 'color:var(--text);'; }
+          // วันที่ลาเป็นชั่วโมง (ไม่ใช่ลาเต็มวัน) cell.code จะถูกตั้งเป็นรหัสใบลาแทน WORK แต่ยังมีการ
+          // เช็กอินเข้างานจริงในวันนั้น (นาทีสายคำนวณเผื่อช่วงลาให้แล้ว) ต้องยังแสดงในรายงานมาสายด้วย
+          if(c.code===RPT_CODE_WORK || (c.leaveKind && HOURLY_KINDS.includes(c.leaveKind))){ txt = c.late; color = c.late>0 ? 'color:var(--amber);font-weight:600;' : 'color:var(--text);'; }
         }
         else { if(c.ot>0){ txt = c.ot; color='color:var(--green);font-weight:600;'; } }
         html += `<td class="${wk?'weekend':''}" style="${color}">${txt}</td>`;
