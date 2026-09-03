@@ -140,6 +140,7 @@
   .pickrow:active{background:var(--pink-pale);}
   .badge{font-size:11px;font-weight:600;padding:4px 10px;border-radius:99px;font-family:'Prompt',sans-serif;white-space:nowrap;}
   .badge.idle{background:#F3F4F6;color:#9CA3AF;}
+  .badge.offsite{background:#EEF2FF;color:var(--blue);}
   .badge.in{background:var(--pink-pale);color:var(--pink-dark);}
   .badge.out{background:#EEF2FF;color:var(--blue);}
   .badge.late{background:#FEF3C7;color:var(--amber);}
@@ -2095,6 +2096,11 @@ function isOnBranchTransferToday(emp){
   const today = dateKey(new Date());
   return (db.branchTransfers||[]).some(t=>t.employeeId===emp.id && t.status==='approved' && t.fromDate<=today && t.toDate>=today);
 }
+// ใช้เช็กวันไหนก็ได้ (ไม่ใช่แค่วันนี้) ว่าพนักงานมีคำขอไปทำงานสาขาอื่น/นอกสถานที่ที่อนุมัติแล้วครอบคลุมวันนั้นไหม
+// (รวมทั้งกรณี HR เพิ่มย้อนหลังให้ผ่าน "ทำงานนอกสถานที่" ในแท็บตรวจ) — ไม่นับเป็นขาดงาน/ลืมสแกน
+function isApprovedTransferOnDate(empId, dateStr){
+  return (db.branchTransfers||[]).some(t=>t.employeeId===empId && t.status==='approved' && t.fromDate<=dateStr && t.toDate>=dateStr);
+}
 function dateKey(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
 function todayKey(d=new Date()){ return d.toDateString(); }
 function isHoliday(date){ return db.settings.holidays.some(h=>h.date===dateKey(date)); }
@@ -2137,6 +2143,7 @@ function summaryForRange(empId, fromStr, toStr){
   for(let d=new Date(start); d<=end; d.setDate(d.getDate()+1)){
     if(isHoliday(d)) continue;
     if((emp?.weeklyOffDays||[]).includes(d.getDay())) continue;
+    if(isApprovedTransferOnDate(empId, dateKey(d))) continue;
     const dayKey = todayKey(d);
     const inLog = db.logs.find(l=>l.employeeId===empId && l.type==='IN' && todayKey(new Date(l.time))===dayKey);
     const leave = db.leaves.find(l => l.employeeId===empId && l.status==='approved' && new Date(l.from+'T00:00:00') <= d && d <= new Date(l.to+'T00:00:00'));
@@ -2217,6 +2224,7 @@ function monthlySummary(empId, month=new Date().getMonth(), year=new Date().getF
   for(let d=new Date(start); d<=end; d.setDate(d.getDate()+1)){
     if(isHoliday(d)) continue;
     if((emp?.weeklyOffDays||[]).includes(d.getDay())) continue;
+    if(isApprovedTransferOnDate(empId, dateKey(d))) continue;
     const dayKey = todayKey(d);
     const inLog = db.logs.find(l=>l.employeeId===empId && l.type==='IN' && todayKey(new Date(l.time))===dayKey);
     if(isApprovedLeaveOnDate(empId, d)){ leaveDays++; continue; }
@@ -3674,7 +3682,8 @@ function renderOverviewStats(){
   days.forEach(d=>{
     const dKey = d.toDateString();
     // ไม่นับพนักงานที่วันนี้ตรงกับวันหยุดประจำสัปดาห์เฉพาะบุคคลของเขาเลย (ไม่ต้องเข้างาน ไม่นับขาดงาน)
-    const activeEmps = emps.filter(e=>hasStartedBy(e,d) && !(e.weeklyOffDays||[]).includes(d.getDay()));
+    // และไม่นับพนักงานที่มีคำขอไปทำงานสาขาอื่น/นอกสถานที่ที่อนุมัติแล้ววันนี้ (ไม่ต้องเช็กอินที่สาขาต้นสังกัด)
+    const activeEmps = emps.filter(e=>hasStartedBy(e,d) && !(e.weeklyOffDays||[]).includes(d.getDay()) && !isApprovedTransferOnDate(e.id, dateKey(d)));
     let leaveTodayCount = 0;
     activeEmps.forEach(e=>{ if(isApprovedLeaveOnDate(e.id, d)) leaveTodayCount++; });
     const expectedWorkToday = activeEmps.length - leaveTodayCount;
@@ -3877,7 +3886,8 @@ function empStatusOnDate(empId, dateStr){
   const outLog = db.logs.find(l=>l.employeeId===empId && l.type==='OUT' && todayKey(new Date(l.time))===dKey);
   const leave = db.leaves.find(l=>l.employeeId===empId && l.status==='approved' && new Date(l.from+'T00:00:00')<=dObj && dObj<=new Date(l.to+'T00:00:00'));
   const isHol = isHoliday(dObj);
-  return { inLog, outLog, leave, isHol };
+  const offsiteTransfer = isApprovedTransferOnDate(empId, dateStr) ? db.branchTransfers.find(t=>t.employeeId===empId && t.status==='approved' && t.fromDate<=dateStr && t.toDate>=dateStr) : null;
+  return { inLog, outLog, leave, isHol, offsiteTransfer };
 }
 function initInspectTab(){
   const sel = document.getElementById('inspectBranchFilter');
@@ -3910,15 +3920,17 @@ function renderInspectTab(){
         if(st.inLog && !HOURLY_KINDS.includes(st.leave.kind)){ statusText += ` ⚠️ แต่มีการเช็กอินเข้างาน (${fmtTime(new Date(st.inLog.time))}) — ข้อมูลไม่สอดคล้องกัน`; badgeClass='rejected'; }
       }
       else if(st.isHol){ statusText = 'วันหยุดบริษัท'; badgeClass='idle'; }
+      else if(st.offsiteTransfer){ const tb = db.branches.find(b=>b.id===st.offsiteTransfer.branchId); statusText = `ทำงาน${tb?'สาขา '+tb.name:'นอกสถานที่'}`; badgeClass='offsite'; }
       else if(st.inLog){ statusText = st.inLog.lateMinutes>0 ? `สาย ${st.inLog.lateMinutes} นาที (เข้า ${fmtTime(new Date(st.inLog.time))})` : `ตรงเวลา (เข้า ${fmtTime(new Date(st.inLog.time))})`; if(st.inLog.manualEntry) statusText += ' (แอดมินเพิ่มให้)'; badgeClass = st.inLog.lateMinutes>0?'late':'approved'; }
       else { statusText = 'ยังไม่เข้างาน'; badgeClass='rejected'; }
-      const canManualAdd = !st.leave && !st.isHol && !st.inLog && dateStr<=dateKey(new Date()) && canManageApprovers();
-      const manualBtn = canManualAdd ? `<button class="btn ghost sm" data-manualcheckin="${e.id}" style="margin-left:8px;">ลืมสแกน</button>` : '';
-      empHtml += `<div class="listrow"><div class="avatar">${e.name.trim()[0]||'?'}</div><div class="info"><div class="name">${e.name}</div><div class="meta">${statusText}</div></div><span class="badge ${badgeClass}">${badgeClass==='late'?'สาย':badgeClass==='approved'?'ตรงเวลา':badgeClass==='pending'?'ลา':badgeClass==='idle'?'หยุด':'ขาด'}</span>${manualBtn}</div>`;
+      const canManualAdd = !st.leave && !st.isHol && !st.inLog && !st.offsiteTransfer && dateStr<=dateKey(new Date()) && canManageApprovers();
+      const manualBtn = canManualAdd ? `<button class="btn ghost sm" data-manualcheckin="${e.id}" style="margin-left:8px;">ลืมสแกน</button><button class="btn ghost sm" data-offsiteadd="${e.id}" style="margin-left:6px;">ทำงานนอกสถานที่</button>` : '';
+      empHtml += `<div class="listrow"><div class="avatar">${e.name.trim()[0]||'?'}</div><div class="info"><div class="name">${e.name}</div><div class="meta">${statusText}</div></div><span class="badge ${badgeClass}">${badgeClass==='late'?'สาย':badgeClass==='approved'?'ตรงเวลา':badgeClass==='pending'?'ลา':badgeClass==='idle'?'หยุด':badgeClass==='offsite'?'นอกสถานที่':'ขาด'}</span>${manualBtn}</div>`;
     });
   });
   document.getElementById('inspectEmpStatusList').innerHTML = empHtml || '<div class="empty">ไม่มีพนักงานในสาขาที่เลือก</div>';
   document.querySelectorAll('[data-manualcheckin]').forEach(b=> b.onclick = ()=> openManualCheckinForm(b.dataset.manualcheckin, dateStr));
+  document.querySelectorAll('[data-offsiteadd]').forEach(b=> b.onclick = ()=> addRetroactiveOffsite(b.dataset.offsiteadd, dateStr));
 
   // AC points
   let acHtml = '';
@@ -3995,6 +4007,20 @@ document.getElementById('submitManualCheckinBtn').onclick = async ()=>{
   setTimeout(()=>{ document.getElementById('manualCheckinOverlay').classList.remove('show'); manualCheckinTarget=null; }, 700);
 };
 
+// -- เพิ่มบันทึก "ทำงานนอกสถานที่" ย้อนหลัง (พนักงานไม่ได้เช็กอินเพราะยังไม่รู้จักเมนูขอไปสาขาอื่น/นอกสถานที่) --
+// อนุมัติทันที ไม่นับขาดงาน/ลืมสแกน ต่างจาก "ลืมสแกน" ตรงที่ไม่มีการปรับสาย 30 นาที เพราะไม่ได้มาที่สาขาเลย
+async function addRetroactiveOffsite(empId, dateStr){
+  if(!canManageApprovers()){ alert('ไม่มีสิทธิ์ ต้องเป็นเจ้าของ/HR เท่านั้น'); return; }
+  const emp = db.employees.find(e=>e.id===empId); if(!emp) return;
+  if(!confirm(`ยืนยันเพิ่มบันทึก "ทำงานนอกสถานที่" ย้อนหลังให้ ${emp.name} วันที่ ${ddmmyyyy(dateStr)}?\n(จะไม่นับว่าขาดงานหรือลืมสแกน ไม่มีการคิดสาย)`)) return;
+  const manualBy = session.role==='admin' ? 'เจ้าของ/HR' : (currentApprover()?.name || 'ผู้บริหาร');
+  const transfer = {id:uid(), employeeId:empId, branchId:'offsite', fromDate:dateStr, toDate:dateStr, reason:'แอดมินเพิ่มย้อนหลัง (พนักงานทำงานนอกสถานที่ แต่ยังไม่ได้ใช้เมนูขอไปทำงานนอกสถานที่)', status:'approved', requestedAt:new Date().toISOString(), decidedAt:new Date().toISOString()};
+  db.branchTransfers.push(transfer);
+  await saveBranchTransferRow(transfer);
+  await logAudit('manual_offsite', 'branch_transfer', transfer.id, `เพิ่มบันทึกทำงานนอกสถานที่ย้อนหลังให้ ${emp.name} วันที่ ${ddmmyyyy(dateStr)} (โดย ${manualBy})`);
+  renderInspectTab(); renderOverviewStats();
+}
+
 /* ================= Reports tab ================= */
 const THAI_MONTHS = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
 // รหัสย่อในตารางรายวัน ใช้ชุดเดียวกับที่ใช้ในไฟล์ Excel ขาด-ลา-มาสาย เดิม (ผ่าน leaveAbbrev())
@@ -4002,6 +4028,7 @@ const THAI_MONTHS = ['มกราคม','กุมภาพันธ์','ม�
 const RPT_CODE_ABSENT = 'AWOL';   // ขาดงาน
 const RPT_CODE_OFF = 'OFF';       // วันหยุด
 const RPT_CODE_WORK = '1';        // มาทำงานปกติ
+const RPT_CODE_OFFSITE = 'OS';    // ไปทำงานสาขาอื่น/นอกสถานที่ (อนุมัติแล้ว) — ไม่นับขาด ไม่นับสาย
 // สีต่อประเภทการลา ให้กวาดตามองแล้วแยกสถานะออกจากกันได้ทันทีโดยไม่ต้องอ่านตัวหนังสือ
 const RPT_KIND_COLOR = {
   sick_cert:'color:#2563EB;font-weight:600;', sick_nocert:'color:#2563EB;font-weight:600;',
@@ -4016,6 +4043,7 @@ const RPT_LEGEND = [
   ['Holiday','ลาประเพณี','color:#7C3AED;'], ['VAC','ลาพักร้อน','color:#7C3AED;'], ['MAT','ลาคลอด','color:var(--pink-dark);'],
   ['Hour-S','ลาเป็นชั่วโมง (ป่วย)','color:#0D9488;'], ['Hour-L','ลาเป็นชั่วโมง (กิจ)','color:#0D9488;'],
   ['AWOL','ขาดงาน','color:var(--red);'], ['OFF','วันหยุด','color:#9CA3AF;'],
+  ['OS','ทำงานสาขาอื่น/นอกสถานที่','color:var(--blue);'],
   ['1','มาทำงานปกติ'], ['1','ช่วงเทรนงาน','color:var(--blue);']
 ];
 let reportCursor = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
@@ -4093,6 +4121,7 @@ function buildMonthReport(){
         }
         if(leave){ cell.code = leaveAbbrev(leave.kind); cell.leaveKind = leave.kind; cell.leaveHours = leaveHoursNum(leave); }
         else if(isHoliday(d) || offWeekly){ cell.code = RPT_CODE_OFF; cell.off = true; }
+        else if(isApprovedTransferOnDate(e.id, dateKey(d))){ cell.code = RPT_CODE_OFFSITE; cell.off = true; }
         else if(inLog) cell.code = RPT_CODE_WORK;
         else if(d <= lastClosedDay) cell.code = RPT_CODE_ABSENT;
         return cell;
@@ -4398,6 +4427,7 @@ function dailyTableHTML(rpt, view){
           if(c.training) color='color:var(--blue);font-weight:700;';
           else if(c.code===RPT_CODE_ABSENT) color='color:var(--red);font-weight:600;';
           else if(c.code===RPT_CODE_OFF) color='color:#D1D5DB;';
+          else if(c.code===RPT_CODE_OFFSITE) color='color:var(--blue);font-weight:600;';
           else if(c.code===RPT_CODE_WORK) color='color:var(--text);';
           else if(c.leaveKind) color = RPT_KIND_COLOR[c.leaveKind] || 'color:var(--pink-dark);font-weight:600;';
         }
