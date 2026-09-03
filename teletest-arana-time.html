@@ -1299,6 +1299,49 @@
   </div>
 </div>
 
+<!-- แก้ไขข้อมูลใบลาโดยตรง (HR/แอดมิน) — สำหรับกรณีพนักงานเลือกประเภท/วันที่ผิด แก้แล้วมีผลทันทีไม่ต้องรออนุมัติซ้ำ -->
+<div class="overlay" id="adminLeaveEditOverlay">
+  <div class="modal">
+    <h3>แก้ไขข้อมูลใบลา (HR)</h3>
+    <div style="color:var(--muted);font-size:11.5px;margin-bottom:10px;">แก้ไขแล้วมีผลทันที ไม่ต้องรออนุมัติซ้ำ เหมาะกับกรณีพนักงานยื่นข้อมูลผิด (เช่น เลือกประเภทลาผิด) — จะไม่ส่งแจ้งเตือนซ้ำเข้ากลุ่ม Telegram ใดๆ</div>
+    <label>ประเภทการลา</label>
+    <select id="adminLeaveType">
+      <option value="sick_cert">ลาป่วย (มีใบรับรองแพทย์)</option>
+      <option value="sick_nocert">ลาป่วย (ไม่มีใบรับรองแพทย์)</option>
+      <option value="personal_nodeduct">ลากิจ (ไม่หักเงิน)</option>
+      <option value="personal_deduct">ลากิจ (หักเงิน)</option>
+      <option value="traditional">ลาใช้สิทธิ์วันหยุดประเพณี</option>
+      <option value="vacation">ลาพักร้อน</option>
+      <option value="hourly_sick">ลาเป็นชั่วโมง (ป่วย)</option>
+      <option value="hourly_personal">ลาเป็นชั่วโมง (กิจ)</option>
+      <option value="maternity">ลาคลอด</option>
+    </select>
+
+    <div id="adminLeaveDateRangeFields" class="row2">
+      <div><label>วันที่เริ่ม</label><div id="adminLeaveFrom_holder"></div></div>
+      <div><label>ถึงวันที่</label><div id="adminLeaveTo_holder"></div></div>
+    </div>
+
+    <div id="adminLeaveHourlyFields" class="hidden">
+      <label>วันที่ลา</label>
+      <div id="adminLeaveSingleDate_holder"></div>
+      <div class="row2">
+        <div><label>เวลาเริ่ม</label><input type="time" id="adminLeaveHourStart"></div>
+        <div><label>เวลาสิ้นสุด</label><input type="time" id="adminLeaveHourEnd"></div>
+      </div>
+    </div>
+
+    <label>เหตุผล</label>
+    <textarea id="adminLeaveReason" placeholder="ระบุเหตุผลการลา"></textarea>
+
+    <div class="modalfoot">
+      <button class="btn block" id="saveAdminLeaveEditBtn">บันทึกการแก้ไข</button>
+      <button class="btn gray" id="closeAdminLeaveEditBtn">ยกเลิก</button>
+    </div>
+    <div class="msg" id="adminLeaveEditMsg"></div>
+  </div>
+</div>
+
 <!-- Warning letter modal (HR only) -->
 <div class="overlay" id="warningOverlay">
   <div class="modal">
@@ -2720,6 +2763,65 @@ document.getElementById('leaveType').addEventListener('change', ()=>{
   document.getElementById('leaveDateRangeFields').classList.toggle('hidden', isHourly);
   document.getElementById('leaveHourlyFields').classList.toggle('hidden', !isHourly);
 });
+
+// -- แก้ไขข้อมูลใบลาโดยตรงจากฝั่ง HR (ไม่ผ่านขั้นตอนขออนุมัติ) — กรณีพนักงานยื่นข้อมูลผิด/ระบบผิด --
+let adminEditingLeaveId = null;
+function openAdminLeaveEdit(leaveId){
+  if(!canApproveLeave()){ alert('ไม่มีสิทธิ์แก้ไข ต้องเป็นเจ้าของ/HR/ผู้จัดการ'); return; }
+  const leave = db.leaves.find(l=>l.id===leaveId); if(!leave) return;
+  adminEditingLeaveId = leaveId;
+  document.getElementById('adminLeaveEditMsg').textContent = '';
+  document.getElementById('adminLeaveType').value = leave.kind;
+  document.getElementById('adminLeaveFrom_holder').innerHTML = dateSelectHTML('adminLeaveFrom');
+  document.getElementById('adminLeaveTo_holder').innerHTML = dateSelectHTML('adminLeaveTo');
+  document.getElementById('adminLeaveSingleDate_holder').innerHTML = dateSelectHTML('adminLeaveSingleDate');
+  const isHourly = HOURLY_KINDS.includes(leave.kind);
+  document.getElementById('adminLeaveDateRangeFields').classList.toggle('hidden', isHourly);
+  document.getElementById('adminLeaveHourlyFields').classList.toggle('hidden', !isHourly);
+  if(isHourly){
+    setDateVal('adminLeaveSingleDate', leave.from);
+    document.getElementById('adminLeaveHourStart').value = leave.hourStart||'';
+    document.getElementById('adminLeaveHourEnd').value = leave.hourEnd||'';
+    setDateVal('adminLeaveFrom',''); setDateVal('adminLeaveTo','');
+  } else {
+    setDateVal('adminLeaveFrom', leave.from); setDateVal('adminLeaveTo', leave.to);
+    setDateVal('adminLeaveSingleDate',''); document.getElementById('adminLeaveHourStart').value=''; document.getElementById('adminLeaveHourEnd').value='';
+  }
+  document.getElementById('adminLeaveReason').value = leave.reason||'';
+  document.getElementById('adminLeaveEditOverlay').classList.add('show');
+}
+document.getElementById('closeAdminLeaveEditBtn').onclick = ()=> document.getElementById('adminLeaveEditOverlay').classList.remove('show');
+document.getElementById('adminLeaveType').addEventListener('change', ()=>{
+  const isHourly = HOURLY_KINDS.includes(document.getElementById('adminLeaveType').value);
+  document.getElementById('adminLeaveDateRangeFields').classList.toggle('hidden', isHourly);
+  document.getElementById('adminLeaveHourlyFields').classList.toggle('hidden', !isHourly);
+});
+document.getElementById('saveAdminLeaveEditBtn').onclick = async ()=>{
+  const leave = db.leaves.find(l=>l.id===adminEditingLeaveId); if(!leave) return;
+  const msg = document.getElementById('adminLeaveEditMsg');
+  const kind = document.getElementById('adminLeaveType').value;
+  const isHourly = HOURLY_KINDS.includes(kind);
+  const reason = document.getElementById('adminLeaveReason').value.trim();
+  let from, to, hourStart=null, hourEnd=null;
+  if(isHourly){
+    from = to = getDateVal('adminLeaveSingleDate');
+    hourStart = document.getElementById('adminLeaveHourStart').value;
+    hourEnd = document.getElementById('adminLeaveHourEnd').value;
+    if(!from || !hourStart || !hourEnd){ msg.className='msg err'; msg.textContent='กรุณากรอกวันที่และเวลาให้ครบ'; return; }
+  } else {
+    from = getDateVal('adminLeaveFrom'); to = getDateVal('adminLeaveTo');
+    if(!from || !to){ msg.className='msg err'; msg.textContent='กรุณากรอกวันที่ให้ครบ'; return; }
+  }
+  const before = `${leaveLabel(leave.kind)} ${leaveRangeText(leave)}`;
+  Object.assign(leave, {kind, from, to, hourStart, hourEnd, reason});
+  const after = `${leaveLabel(leave.kind)} ${leaveRangeText(leave)}`;
+  await saveLeaveRow(leave);
+  await logAudit('edit_by_admin', 'leave', leave.id, `HR แก้ไขข้อมูลใบลาโดยตรง: ${before} → ${after}`);
+  document.getElementById('adminLeaveEditOverlay').classList.remove('show');
+  adminEditingLeaveId = null;
+  renderLeaveLists();
+};
+
 let editingLeaveId = null;
 let requestingEditLeaveId = null;
 function openLeaveEditRequestForm(leaveId){
@@ -4436,10 +4538,12 @@ function renderLeaveLists(){
     return;
   }
   const all = db.leaves.filter(l=>empIds.has(l.employeeId) && inApprovalDateRange(dateKey(new Date(l.requestedAt)))).sort((a,b)=>new Date(b.requestedAt)-new Date(a.requestedAt));
-  document.getElementById('allLeaveList').innerHTML = all.length ? all.map(l=>{
+  const allListEl = document.getElementById('allLeaveList');
+  allListEl.innerHTML = all.length ? all.map(l=>{
     const emp = db.employees.find(e=>e.id===l.employeeId);
-    return `<div class="listrow"><div class="info"><div class="name">${emp?.name||'-'} · ${leaveLabel(l.kind)}</div><div class="meta">${leaveRangeText(l)}</div></div><span class="badge ${l.status}">${leaveStatusLabel(l.status)}</span></div>`;
+    return `<div class="listrow"><div class="info"><div class="name">${emp?.name||'-'} · ${leaveLabel(l.kind)}</div><div class="meta">${leaveRangeText(l)}</div></div><span class="badge ${l.status}">${leaveStatusLabel(l.status)}</span>${canApproveLeave() ? `<button class="btn ghost sm" data-admineditleave="${l.id}" style="margin-left:8px;">แก้ไข</button>` : ''}</div>`;
   }).join('') : '<div class="empty">ไม่มีประวัติในช่วงที่เลือก</div>';
+  allListEl.querySelectorAll('[data-admineditleave]').forEach(b=> b.onclick = ()=> openAdminLeaveEdit(b.dataset.admineditleave));
 }
 function renderLeaveEditRequests(empIds){
   const pendingEdits = db.leaves.filter(l=>l.editRequest && empIds.has(l.employeeId));
