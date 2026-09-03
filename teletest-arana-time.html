@@ -3851,6 +3851,7 @@ function renderInspectTab(){
     if(!emps.length) return;
     groomHtml += `<div style="font-weight:600;font-size:12.5px;color:var(--pink-dark);padding:10px 0 4px;">${br.name}</div>`;
     emps.forEach(e=>{
+      if(isApprovedLeaveOnDate(e.id, new Date(dateStr+'T00:00:00'))) return; // มีใบลาอนุมัติแล้ววันนี้ ไม่ต้องมาทำงาน ไม่นับ
       const log = db.logs.find(l=>l.type==='GROOM' && l.employeeId===e.id && todayKey(new Date(l.time))===dKey);
       groomHtml += `<div class="acrow"><div class="check ${log?'done':''}">${log?'✓':''}</div><div class="info"><div class="name">${e.name}</div><div class="meta">${log?`ส่งแล้วเมื่อ ${fmtTime(new Date(log.time))}`:'ยังไม่ได้ส่ง'}</div></div></div>`;
     });
