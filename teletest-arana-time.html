@@ -2874,19 +2874,22 @@ document.getElementById('submitLeaveBtn').onclick = async ()=>{
 
 // -- แนบหลักฐานการลาภายหลัง (สำหรับลาป่วย/ลากิจ ที่ยื่นไปก่อนโดยยังไม่มีรูป) --
 let lateEvidenceLeaveId = null;
+let lateEvidenceSending = false; // กันส่งซ้ำซ้อน (เช่น เผลอกดสองครั้ง/เลือกรูปสองรอบติดกัน) ไม่ให้ยิงเข้ากลุ่มซ้ำ
 const lateEvidenceInput = document.createElement('input');
 lateEvidenceInput.type='file'; lateEvidenceInput.accept='image/*'; lateEvidenceInput.id='lateEvidenceInput'; lateEvidenceInput.style.display='none';
 document.body.appendChild(lateEvidenceInput);
 function attachLeaveEvidenceLater(leaveId){
+  if(lateEvidenceSending) return;
   lateEvidenceLeaveId = leaveId;
   document.getElementById('lateEvidenceInput').click();
 }
 lateEvidenceInput.addEventListener('change', async (e)=>{
   const file = e.target.files[0]; e.target.value='';
-  if(!file || !lateEvidenceLeaveId) return;
+  if(!file || !lateEvidenceLeaveId || lateEvidenceSending) return;
+  lateEvidenceSending = true;
   const leave = db.leaves.find(l=>l.id===lateEvidenceLeaveId);
   lateEvidenceLeaveId = null;
-  if(!leave) return;
+  if(!leave){ lateEvidenceSending = false; return; }
   const emp = db.employees.find(e=>e.id===leave.employeeId);
   const br = db.branches.find(b=>b.id===emp?.branchId);
   const caption = `✅ส่งหลักฐานการลา\n${notifyName(emp)} ${ddmmyyyy(leave.from)}\nประเภทการลา : ${leaveLabel(leave.kind)}`;
@@ -2897,6 +2900,7 @@ lateEvidenceInput.addEventListener('change', async (e)=>{
   renderLeaveTab();
   await pushNotification(emp.id, r.ok ? 'ส่งหลักฐานการลาแล้ว' : 'ส่งหลักฐานการลาไม่สำเร็จ',
     r.ok ? `${leaveLabel(leave.kind)} ${ddmmyyyy(leave.from)} — ส่งเข้ากลุ่มอนุมัติเรียบร้อย` : 'ลองใหม่อีกครั้ง');
+  lateEvidenceSending = false;
 });
 
 // -- AC tab --
