@@ -2821,6 +2821,7 @@ document.getElementById('saveAdminLeaveEditBtn').onclick = async ()=>{
     if(!from || !to){ msg.className='msg err'; msg.textContent='กรุณากรอกวันที่ให้ครบ'; return; }
   }
   const before = `${leaveLabel(leave.kind)} ${leaveRangeText(leave)}`;
+  const oldFrom = leave.from, employeeId = leave.employeeId;
   Object.assign(leave, {kind, from, to, hourStart, hourEnd, reason});
   const after = `${leaveLabel(leave.kind)} ${leaveRangeText(leave)}`;
   await saveLeaveRow(leave);
@@ -2828,6 +2829,11 @@ document.getElementById('saveAdminLeaveEditBtn').onclick = async ()=>{
   document.getElementById('adminLeaveEditOverlay').classList.remove('show');
   adminEditingLeaveId = null;
   renderLeaveLists();
+  // นาทีสายที่บันทึกไว้ตอนสแกนอาจต้องเปลี่ยนตามข้อมูลใบลาที่แก้ไขใหม่ (เช่น เปลี่ยนเป็นลาเป็นชั่วโมงที่ครอบคลุมต้นกะ)
+  if(leave.status==='approved'){
+    await recalcLateForEmployeeDate(employeeId, oldFrom);
+    if(leave.from!==oldFrom) await recalcLateForEmployeeDate(employeeId, leave.from);
+  }
 };
 
 let editingLeaveId = null;
@@ -4651,6 +4657,9 @@ async function decideLeave(id, status){
   const leave = db.leaves.find(l=>l.id===id); if(!leave) return;
   leave.status = status; leave.decidedAt = new Date().toISOString(); await saveLeaveRow(leave); await markLeaveForResync(leave.id);
   await logAudit(status, 'leave', leave.id, `${status==='approved'?'อนุมัติ':'ปฏิเสธ'}ใบลาของพนักงาน (${leaveLabel(leave.kind)} ${leave.from}${leave.from!==leave.to?' – '+leave.to:''})`);
+  // ถ้าใบลานี้ยื่น/อนุมัติย้อนหลัง (หลังพนักงานเช็กอินไปแล้ว) นาทีสายที่บันทึกไว้ตอนสแกนจะยังไม่รู้จักใบลานี้
+  // ต้องคำนวณใหม่ให้ทันทีที่อนุมัติ โดยเฉพาะลาเป็นชั่วโมงที่ครอบคลุมต้นกะซึ่งมีผลเลื่อนฐานเวลาสาย
+  if(status==='approved') await recalcLateForEmployeeDate(leave.employeeId, leave.from);
   const emp = db.employees.find(e=>e.id===leave.employeeId);
   const br = db.branches.find(b=>b.id===emp?.branchId);
   const rangeText = leaveRangeText(leave);
@@ -5389,6 +5398,22 @@ async function recalcLateForOverride(overrideId, silent){
   await logAudit('recalc_late', 'shift_override', overrideId, `คำนวณนาทีสายใหม่ตามเวลาเข้างานพิเศษวันที่ ${o.date} (${targetLogs.length} รายการ ปรับ ${changed} รายการ)`);
   renderOverviewStats(); renderEmpSummary();
   if(!silent) alert(`คำนวณนาทีสายใหม่เรียบร้อย (ปรับ ${changed} จาก ${targetLogs.length} รายการ)`);
+}
+// คำนวณนาทีสายใหม่ให้พนักงานคนเดียววันเดียว — ใช้ตอนอนุมัติ/แก้ไขใบลาที่ยื่นหรือแก้ย้อนหลัง (หลังเช็กอินไปแล้ว)
+// เพื่อให้ late_minutes ที่บันทึกไว้ตอนสแกนสะท้อนใบลาล่าสุดเสมอ ไม่ใช่แค่ตอนสแกนครั้งแรก (เช่นลาเป็นชั่วโมง
+// ที่ครอบคลุมต้นกะ จะเลื่อนฐานเวลาสายให้ตาม shiftLateMinutes())
+async function recalcLateForEmployeeDate(empId, dateStr){
+  const emp = db.employees.find(e=>e.id===empId); if(!emp) return;
+  const log = db.logs.find(l=>l.employeeId===empId && l.type==='IN' && dateKey(new Date(l.time))===dateStr);
+  if(!log) return;
+  const newLate = shiftLateMinutes(emp, new Date(log.time));
+  if(newLate!==log.lateMinutes){
+    const before = log.lateMinutes;
+    log.lateMinutes = newLate;
+    await saveLogRow(log);
+    await logAudit('recalc_late', 'log', log.id, `คำนวณนาทีสายใหม่ของ ${emp.name} วันที่ ${dateStr} ตามใบลาที่อนุมัติ/แก้ไข (${before} → ${newLate} นาที)`);
+    renderOverviewStats(); renderEmpSummary();
+  }
 }
 
 const NOTIFY_TYPE_LABELS = [
