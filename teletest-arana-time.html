@@ -3878,7 +3878,18 @@ function downloadCSV(filename, rows){
   const a = document.createElement('a'); a.href = url; a.download = filename;
   document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
 }
-function filteredEmployees(){ return branchFilter==='all' ? db.employees : db.employees.filter(e=>e.branchId===branchFilter); }
+/* "ปิดการใช้งาน" โดยไม่ระบุวันพ้นสภาพ = ต้องการให้หายไปจากทุกที่ทันที
+   (ไม่มีวันอ้างอิงให้ตัดตามช่วงเวลาได้ จึงซ่อนทั้งหมด)
+   ถ้าระบุวันพ้นสภาพไว้ ประวัติก่อนถึงวันนั้นยังต้องแสดงตามปกติ ให้ hasStartedBy เป็นตัวตัดตามวันแทน
+   เดิมไม่มีการเช็คตรงนี้เลย พนักงานที่ปิดการใช้งานแล้วจึงยังโผล่ในแจ้งเตือนและรายงาน
+   จน HR ต้องกดลบถาวรเพื่อให้หายไป ซึ่งทำให้ประวัติหายตามไปด้วย */
+function isHiddenEmployee(emp){ return emp.active===false && !emp.resignDate; }
+// ประตูเดียวของทุกหน้าจอที่วนรายชื่อพนักงาน "ตามวันที่" — นับคนนี้ในวันนั้นไหม
+function countsOn(emp, date){ return !isHiddenEmployee(emp) && hasStartedBy(emp, date); }
+function filteredEmployees(){
+  const list = db.employees.filter(e=>!isHiddenEmployee(e));
+  return branchFilter==='all' ? list : list.filter(e=>e.branchId===branchFilter);
+}
 document.getElementById('exportLogsBtn').onclick = ()=>{
   const now = new Date();
   const rows = [['วันที่','เวลา','ชื่อพนักงาน','สาขา','ประเภท','สายกี่นาที','ส่งแจ้งเตือนสำเร็จ']];
@@ -4055,7 +4066,7 @@ function renderOverviewStats(){
     const dKey = d.toDateString();
     // ไม่นับพนักงานที่วันนี้ตรงกับวันหยุดประจำสัปดาห์เฉพาะบุคคลของเขาเลย (ไม่ต้องเข้างาน ไม่นับขาดงาน)
     // และไม่นับพนักงานที่มีคำขอไปทำงานสาขาอื่น/นอกสถานที่ที่อนุมัติแล้ววันนี้ (ไม่ต้องเช็กอินที่สาขาต้นสังกัด)
-    const activeEmps = emps.filter(e=>hasStartedBy(e,d) && !(e.weeklyOffDays||[]).includes(d.getDay()) && !isApprovedTransferOnDate(e.id, dateKey(d)));
+    const activeEmps = emps.filter(e=>countsOn(e,d) && !(e.weeklyOffDays||[]).includes(d.getDay()) && !isApprovedTransferOnDate(e.id, dateKey(d)));
     let leaveTodayCount = 0;
     activeEmps.forEach(e=>{ if(isApprovedLeaveOnDate(e.id, d)) leaveTodayCount++; });
     const expectedWorkToday = activeEmps.length - leaveTodayCount;
@@ -4073,7 +4084,7 @@ function renderOverviewStats(){
       if(otToday) otSent++;
     });
 
-    const activeFront = frontStoreEmps.filter(e=>hasStartedBy(e,d));
+    const activeFront = frontStoreEmps.filter(e=>countsOn(e,d));
     let frontLeaveCount = 0;
     activeFront.forEach(e=>{ if(isApprovedLeaveOnDate(e.id,d)) frontLeaveCount++; });
     groomExpTotal += (activeFront.length - frontLeaveCount);
@@ -4167,7 +4178,7 @@ document.getElementById('exportLeaveMatrixBtn').onclick = ()=>{
     const row = [e.name];
     days.forEach(d=>{
       let val = '';
-      if(!hasStartedBy(e,d)) val = '';
+      if(!countsOn(e,d)) val = '';
       else if(isHoliday(d)) val = 'OFF';
       else {
         const leave = db.leaves.find(l=>l.employeeId===e.id && l.status==='approved' && new Date(l.from+'T00:00:00')<=d && d<=new Date(l.to+'T00:00:00'));
@@ -4184,9 +4195,12 @@ document.getElementById('exportLeaveMatrixBtn').onclick = ()=>{
   downloadCSV(`arana-time-leave-matrix-${fromStr}_to_${toStr}.csv`, rows);
 };
 function renderEmpSummary(){
-  const emps = filteredEmployees();
   const el = document.getElementById('empSummaryList');
   const range = getOverviewRange();
+  // ตัดคนที่พ้นสภาพไปก่อนช่วงที่เลือก และคนที่ยังไม่เริ่มงานในช่วงนั้นออก
+  // ไม่งั้นจะขึ้นการ์ดที่ทุกตัวเลขเป็น 0 ปนมากับคนที่ทำงานอยู่จริง
+  const emps = filteredEmployees().filter(e=>
+    (!e.resignDate || e.resignDate >= range.from) && (!e.startDate || e.startDate <= range.to));
   el.innerHTML = emps.length ? emps.map(e=>{
     const m = summaryForRange(e.id, range.from, range.to);
     const br = db.branches.find(b=>b.id===e.branchId);
@@ -4292,7 +4306,7 @@ function renderInspectTab(){
   // Employee daily status
   let empHtml = '';
   branches.forEach(br=>{
-    const emps = db.employees.filter(e=>e.branchId===br.id && hasStartedBy(e, new Date(dateStr+'T00:00:00')));
+    const emps = db.employees.filter(e=>e.branchId===br.id && countsOn(e, new Date(dateStr+'T00:00:00')));
     if(!emps.length) return;
     empHtml += `<div style="font-weight:600;font-size:12.5px;color:var(--pink-dark);padding:10px 0 4px;">${br.name}</div>`;
     emps.forEach(e=>{
@@ -4356,7 +4370,7 @@ function renderInspectTab(){
   // Grooming (department = หน้าร้าน only)
   let groomHtml = '';
   branches.forEach(br=>{
-    const emps = db.employees.filter(e=>e.branchId===br.id && (e.department||'').trim()==='หน้าร้าน');
+    const emps = db.employees.filter(e=>e.branchId===br.id && (e.department||'').trim()==='หน้าร้าน' && countsOn(e, new Date(dateStr+'T00:00:00')));
     if(!emps.length) return;
     groomHtml += `<div style="font-weight:600;font-size:12.5px;color:var(--pink-dark);padding:10px 0 4px;">${br.name}</div>`;
     emps.forEach(e=>{
@@ -4596,7 +4610,11 @@ function buildMonthReport(){
   // วันนี้ยังไม่จบวัน ยังสรุปว่าขาดงานไม่ได้ นับย้อนหลังถึงเมื่อวานเท่านั้น
   const lastClosedDay = new Date(); lastClosedDay.setHours(0,0,0,0); lastClosedDay.setDate(lastClosedDay.getDate()-1);
   const groups = branches.map(br=>{
-    const emps = db.employees.filter(e=>e.branchId===br.id).sort((a,b)=>a.name.localeCompare(b.name,'th'));
+    // ตัดคนที่ไม่ได้เป็นพนักงานเลยสักวันในเดือนที่เลือก (ยังไม่เริ่มงาน หรือ พ้นสภาพไปก่อนหน้า)
+    // ไม่งั้นจะขึ้นเป็นแถวว่างทั้งแถวปนมากับคนที่ทำงานอยู่จริง
+    const emps = db.employees
+      .filter(e=>e.branchId===br.id && !isHiddenEmployee(e) && days.some(d=>countsOn(e,d)))
+      .sort((a,b)=>a.name.localeCompare(b.name,'th'));
     return { branch: br, rows: emps.map(e=>{
       const cells = days.map(d=>{
         const cell = { day:d, code:'', late:0, ot:0, off:false };
@@ -4606,7 +4624,7 @@ function buildMonthReport(){
         if(inLog) cell.late = inLog.lateMinutes||0;
         db.otRequests.filter(o=>o.employeeId===e.id && o.status==='approved' && o.date===dateKey(d)).forEach(o=>{ cell.ot += otHours(o); });
         // ก่อนถึงวันเริ่มงานจริงแต่มีการสแกนเข้างาน = ช่วงเทรนงาน (แสดง 0 สีน้ำเงินแยกจากวันทำงานปกติ)
-        if(!hasStartedBy(e, d)){
+        if(!countsOn(e, d)){
           if(inLog){ cell.code = RPT_CODE_WORK; cell.training = true; }
           else cell.na = true;
           return cell;
@@ -6197,7 +6215,7 @@ function renderOrphanWhoBox(){
   dayLogs.forEach(l=>{ if(l.employeeId) claimed.add(l.employeeId); });
   Object.values(orphanPicks).forEach(id=> claimed.add(id));
   const parts = db.branches.map(br=>{
-    const emps = db.employees.filter(e=>e.branchId===br.id && e.active!==false && hasStartedBy(e, d));
+    const emps = db.employees.filter(e=>e.branchId===br.id && countsOn(e, d));
     const missing = emps.filter(e=>{
       if(claimed.has(e.id)) return false;
       const onLeave = db.leaves.some(l=>l.employeeId===e.id && l.status==='approved'
