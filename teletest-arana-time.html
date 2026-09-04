@@ -340,6 +340,17 @@
   .miniempcard .stats span{color:var(--muted);}
   .miniempcard .stats b{font-weight:700;}
   .actionrow{display:flex;gap:8px;margin-top:8px;}
+  /* แถบอนุมัติหลายรายการพร้อมกัน — กรรมการอนุมัติ OT ทีเดียวต้นเดือน จึงมีรายการสะสมเยอะ */
+  .bulkbar{position:sticky;top:0;z-index:5;background:var(--card);border:1px solid var(--border);
+    border-radius:12px;padding:10px 12px;margin-bottom:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  .bulkbar .cnt{font-size:12.5px;font-weight:600;color:var(--pink-dark);font-family:'Prompt',sans-serif;}
+  .bulkbar .spacer{margin-left:auto;}
+  .bulkbar button{padding:7px 12px;border-radius:9px;border:none;font-size:12px;font-weight:600;cursor:pointer;}
+  .bulkbar button:disabled{opacity:.4;cursor:not-allowed;}
+  .selall{display:flex;align-items:center;gap:7px;font-size:12.5px;cursor:pointer;}
+  .otmembers{display:flex;flex-wrap:wrap;gap:5px 16px;padding:4px 0 2px 30px;}
+  .otmem{display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;}
+  .otmem input,.selall input,.otgchk{width:16px;height:16px;accent-color:var(--pink-dark);cursor:pointer;flex:0 0 auto;}
   .btn-mini{flex:1;padding:8px;border-radius:9px;border:none;font-size:12px;font-weight:600;cursor:pointer;}
   .btn-mini.approve{background:var(--green);color:#fff;}
   .btn-mini.reject{background:#F3F4F6;color:var(--text);}
@@ -913,6 +924,7 @@
       </section>
       <section>
         <div class="sectitle">คำขอ OT รออนุมัติ</div>
+        <div id="otBulkBar"></div>
         <div class="card" id="pendingOtList" style="padding:0 16px;margin-bottom:20px;"></div>
       </section>
       <section>
@@ -1148,7 +1160,7 @@
               <input type="password" id="centralToken">
               <label>Chat ID กลุ่มขอลา (ยื่นใบลารออนุมัติ)</label>
               <input type="text" id="centralChat">
-              <label>Chat ID กลุ่มขอ OT (คำขอ OT + ผลอนุมัติ OT)</label>
+              <label>Chat ID กลุ่มขอ OT (คำขอ OT + ผลอนุมัติ OT) — เว้นว่างได้ถ้าตั้งห้องชื่อมีคำว่า OT ไว้ในสมุดห้องแล้ว</label>
               <input type="text" id="otChat">
               <div class="modalfoot"><button class="btn ghost sm" id="testCentralTgBtn">ทดสอบส่งข้อความ</button></div>
               <div class="msg" id="centralTgMsg"></div>
@@ -1156,7 +1168,7 @@
             </div>
           </section>
           <section>
-            <div class="sectitle">ห้อง Telegram เพิ่มเติม (สำรองไว้ใช้ในอนาคต)</div>
+            <div class="sectitle">สมุดห้อง Telegram</div>
             <div class="card" id="telegramRoomsEditor"></div>
           </section>
           <section>
@@ -2063,6 +2075,14 @@ function getPosition(){
   });
 }
 
+/* ห้อง Telegram ของ OT — เดิมอ่านจากช่อง "Chat ID กลุ่มขอ OT" อย่างเดียว ถ้าเว้นว่างไว้
+   ระบบจะข้ามการส่งเงียบๆ ทั้งตอนยื่นและตอนอนุมัติ โดยไม่มีอะไรฟ้อง (เคยเกิดมาแล้วจริง)
+   ตอนนี้ถ้าช่องนั้นว่าง จะถอยไปหาห้องที่ตั้งชื่อว่า "OT" ไว้ในสมุดห้อง Telegram ให้แทน */
+function otRoomChatId(){
+  if(db.settings.otChatId) return db.settings.otChatId;
+  const room = (db.settings.telegramRooms||[]).find(r=>/\bot\b|โอที/i.test(r.name||''));
+  return room?.chatId || '';
+}
 async function tgSendMessage(token, chatId, text){
   if(!token||!chatId) return {ok:false, reason:'ไม่ได้ตั้งค่า Telegram'};
   try{
@@ -2602,14 +2622,13 @@ function renderEmployeeHome(){
       return `<div class="stat"><div class="t">${b.label}</div><div class="num" style="${color}">${hk.count}</div><div class="lbl">ครั้ง · รวม ${hk.hours} ชม.</div></div>`;
     }
     if(b.type==='quota'){
-      const isVac = b.key==='vacation';
-      const total = isVac ? VACATION_DAYS_PER_YEAR : traditionalLeaveQuotaForEmployee(emp);
-      const monthsNeeded = isVac ? 12 : 1;
-      const eligible = monthsSince(emp.startDate) >= monthsNeeded;
-      const used = usedLeaveDaysThisYear(emp.id, b.key);
-      const num = eligible ? `${used}/${total}` : '-';
-      const lbl = eligible ? 'วัน' : `อายุงานยังไม่ครบ ${monthsNeeded===12?'1 ปี':'1 เดือน'}`;
-      return `<div class="stat"><div class="t">${b.label}</div><div class="num" style="${color}">${num}</div><div class="lbl">${lbl}</div></div>`;
+      // แสดง "เหลือกี่วัน" เป็นตัวเลขหลัก เพราะเป็นสิ่งที่พนักงานอยากรู้ตอนจะยื่นใบลาจริงๆ
+      const q = leaveQuotaFor(emp, b.key);
+      const num = q.eligible ? String(q.remaining) : '-';
+      const lbl = q.eligible ? `วันคงเหลือ · ใช้ไป ${q.used} จาก ${q.total}`
+                             : `อายุงานยังไม่ครบ ${q.monthsNeeded===12?'1 ปี':'1 เดือน'}`;
+      const warn = q.eligible && q.remaining===0 ? 'color:var(--red);' : color;
+      return `<div class="stat"><div class="t">${b.label}</div><div class="num" style="${warn}">${num}</div><div class="lbl">${lbl}</div></div>`;
     }
     if(b.type==='count'){
       return `<div class="stat"><div class="t">${b.label}</div><div class="num" style="${color}">${m[b.key]||0}</div><div class="lbl">${b.unit}</div></div>`;
@@ -3341,7 +3360,7 @@ document.getElementById('submitOtBtn').onclick = async ()=>{
     const br = currentBranch(emp);
     const newText = `${fmtDateShort(new Date(date))} ${hourStart}-${hourEnd}`;
     const text = `🔧<b>${notifyName(emp)}</b> ขอแก้ไขคำขอ OT ที่อนุมัติแล้ว\nเดิม: ${oldText}\nใหม่: ${newText}\nเหตุผล: ${reason||'-'}`;
-    if(db.settings.notifyTypes.otSubmit && db.settings.otChatId) await tgSendMessage(db.settings.centralToken, db.settings.otChatId, text);
+    if(db.settings.notifyTypes.otSubmit && otRoomChatId()) await tgSendMessage(db.settings.centralToken, otRoomChatId(), text);
     await logAudit('request_edit', 'ot', ot.id, `ขอแก้ไข OT: ${oldText} → ${newText}`);
     setTimeout(()=>{ document.getElementById('otOverlay').classList.remove('show'); requestingEditOtId=null; }, 900);
     return;
@@ -3357,7 +3376,7 @@ document.getElementById('submitOtBtn').onclick = async ()=>{
   const br = currentBranch(emp);
   const empLines = selectedIds.map((empId,i)=>{ const e = db.employees.find(x=>x.id===empId); return `${i+1}. ${notifyName(e)}`; }).join('\n');
   const text = `▶️คำขอรออนุมัติ\nสาขา : ${br?.name||'-'}\nขอทำ OT วันที่ : ${date}\nเวลา : ${hourStart}-${hourEnd}\nรวม : ${otHoursText(hourStart,hourEnd)} ชม.\nเหตุผล : ${reason||'-'}\nพนักงานขอ OT\n${empLines}`;
-  if(db.settings.notifyTypes.otSubmit && db.settings.otChatId) await tgSendMessage(db.settings.centralToken, db.settings.otChatId, text);
+  if(db.settings.notifyTypes.otSubmit && otRoomChatId()) await tgSendMessage(db.settings.centralToken, otRoomChatId(), text);
   await Promise.all(selectedIds.map(empId => pushNotification(empId, 'ส่งคำขอ OT แล้ว', `${date} เวลา ${hourStart}-${hourEnd} กำลังรอการอนุมัติ`)));
   setTimeout(()=>{ document.getElementById('otOverlay').classList.remove('show'); }, 900);
 };
@@ -3412,20 +3431,18 @@ async function decideFaceReenroll(empId, decision){
   await pushNotification(emp.id, decision==='approved'?'คำขอเปลี่ยนใบหน้าได้รับการอนุมัติแล้ว':'คำขอเปลี่ยนใบหน้าถูกปฏิเสธ', decision==='approved'?'ใบหน้าที่ลงทะเบียนใหม่มีผลแล้ว':'ใบหน้าเดิมยังใช้สแกนเข้างานได้ตามปกติ');
   renderFaceReenrollList();
 }
-async function decideOt(id, status){
-  if(!canApproveOt()){ alert('ไม่มีสิทธิ์อนุมัติ OT ต้องเป็นเจ้าของ/HR เท่านั้น'); return; }
-  const ot = db.otRequests.find(o=>o.id===id); if(!ot) return;
-  ot.status = status; ot.decidedAt = new Date().toISOString(); await saveOtRow(ot); await markOtForResync(ot.id);
-  const emp = db.employees.find(e=>e.id===ot.employeeId);
-  const br = db.branches.find(b=>b.id===emp?.branchId);
-  if(db.settings.notifyTypes.otDecision && db.settings.otChatId) await tgSendMessage(db.settings.centralToken, db.settings.otChatId, `คำขอ OT ของ <b>${notifyName(emp)}</b> (${ot.date} ${ot.hourStart}-${ot.hourEnd}) ถูก${status==='approved'?'อนุมัติ':'ปฏิเสธ'}แล้ว`);
-  await pushNotification(emp.id, status==='approved'?'คำขอ OT ได้รับการอนุมัติ':'คำขอ OT ถูกปฏิเสธ', `${ot.date} เวลา ${ot.hourStart}-${ot.hourEnd}`);
-  renderOtLists();
-}
+// (เดิมมี decideOt() สำหรับอนุมัติ OT ทีละคน ที่ใช้ข้อความคนละรูปแบบกับแบบกลุ่ม — ถอดออกแล้ว
+//  การอนุมัติรายคนตอนนี้ใช้ติ๊กเลือกแล้วกด "อนุมัติที่เลือก" ซึ่งวิ่งผ่าน applyOtDecision ชุดเดียวกัน)
 async function decideOtGroup(groupId, status){
   if(!canApproveOt()){ alert('ไม่มีสิทธิ์อนุมัติ OT ต้องเป็นเจ้าของ/HR เท่านั้น'); return; }
   const items = db.otRequests.filter(o=>(o.groupId||o.id)===groupId && o.status==='pending');
   if(!items.length) return;
+  await applyOtDecision(groupId, items, status);
+  renderOtLists();
+}
+// เนื้อในของการอนุมัติ/ปฏิเสธ OT หนึ่งกลุ่ม — แยกออกมาเพื่อให้ทั้งปุ่ม "ทั้งรายการ"
+// และการอนุมัติหลายรายการพร้อมกัน (decideOtSelected) ใช้ตรรกะและรูปแบบข้อความชุดเดียวกัน
+async function applyOtDecision(groupId, items, status){
   const decidedAt = new Date().toISOString();
   const approverName = session.role==='admin' ? 'เจ้าของ/HR' : (currentApprover()?.name || 'ผู้บริหาร');
   for(const ot of items){ ot.status = status; ot.decidedAt = decidedAt; await saveOtRow(ot); await markOtForResync(ot.id); }
@@ -3433,14 +3450,69 @@ async function decideOtGroup(groupId, status){
   const first = items[0];
   const br = db.branches.find(b=>b.id===db.employees.find(e=>e.id===first.employeeId)?.branchId);
   const empLines = items.map((o,i)=>{ const e = db.employees.find(x=>x.id===o.employeeId); return `${i+1}. ${notifyName(e)}`; }).join('\n');
-  if(db.settings.notifyTypes.otDecision && db.settings.otChatId){
+  if(db.settings.notifyTypes.otDecision && otRoomChatId()){
     const text = status==='approved'
       ? `✅อนุมัติโอที โดย : ${approverName}\nสาขา : ${br?.name||'-'}\nขอทำ OT วันที่ : ${first.date}\nเวลา : ${first.hourStart}-${first.hourEnd}\nรวม : ${otHoursText(first.hourStart,first.hourEnd)} ชม.\nเหตุผล : ${first.reason||'-'}\nพนักงานขอ OT\n${empLines}`
       : `❌ปฏิเสธคำขอ OT โดย : ${approverName}\nสาขา : ${br?.name||'-'}\nขอทำ OT วันที่ : ${first.date}\nเวลา : ${first.hourStart}-${first.hourEnd}\nพนักงานขอ OT\n${empLines}`;
-    await tgSendMessage(db.settings.centralToken, db.settings.otChatId, text);
+    await tgSendMessage(db.settings.centralToken, otRoomChatId(), text);
   }
   await Promise.all(items.map(ot => pushNotification(ot.employeeId, status==='approved'?'คำขอ OT ได้รับการอนุมัติ':'คำขอ OT ถูกปฏิเสธ', `${first.date} เวลา ${first.hourStart}-${first.hourEnd}`)));
-  renderOtLists();
+}
+/* ===== อนุมัติ OT หลายรายการพร้อมกัน =====
+   กรรมการอนุมัติ OT ครั้งเดียวตอนต้นเดือน จึงมีคำขอค้างสะสมเยอะ การกดทีละรายการเสียเวลามาก
+   จึงให้ติ๊กเลือกได้ทั้งรายบุคคลและทั้งกลุ่ม แล้วกดอนุมัติ/ปฏิเสธทีเดียว
+   ข้อความ Telegram ยังแยกส่งตามกลุ่มเดิม (1 กลุ่ม = 1 ข้อความ) ไม่ให้กลุ่มถูกยุบรวมจนอ่านไม่รู้เรื่อง */
+function selectedOtIds(){
+  return [...document.querySelectorAll('#pendingOtList .otchk:checked')].map(c=>c.dataset.otid);
+}
+function renderOtBulkBar(pendingCount){
+  const bar = document.getElementById('otBulkBar'); if(!bar) return;
+  if(!canApproveOt() || !pendingCount){ bar.innerHTML=''; return; }
+  bar.innerHTML = `<div class="bulkbar">
+    <label class="selall"><input type="checkbox" id="otSelAll"><span>เลือกทั้งหมด</span></label>
+    <span class="cnt" id="otSelCount">เลือกแล้ว 0 รายการ</span>
+    <span class="spacer"></span>
+    <button class="approve" id="otApproveSel" disabled>อนุมัติที่เลือก</button>
+    <button class="reject" id="otRejectSel" disabled>ปฏิเสธที่เลือก</button>
+  </div>`;
+  const upd = ()=>{
+    const n = selectedOtIds().length;
+    document.getElementById('otSelCount').textContent = `เลือกแล้ว ${n} รายการ`;
+    document.getElementById('otApproveSel').disabled = !n;
+    document.getElementById('otRejectSel').disabled = !n;
+    // ติ๊กกลุ่มให้ตรงกับสมาชิกที่ถูกเลือกจริง (เลือกครบ = ติ๊ก, เลือกบางส่วน = ขีดกลาง)
+    document.querySelectorAll('#pendingOtList .otgchk').forEach(g=>{
+      const mem = [...document.querySelectorAll(`#pendingOtList .otchk[data-g="${g.dataset.otgroup}"]`)];
+      const on = mem.filter(m=>m.checked).length;
+      g.checked = on===mem.length && mem.length>0;
+      g.indeterminate = on>0 && on<mem.length;
+    });
+  };
+  document.querySelectorAll('#pendingOtList .otchk').forEach(c=> c.onchange = upd);
+  document.querySelectorAll('#pendingOtList .otgchk').forEach(g=>{
+    g.onchange = ()=>{
+      document.querySelectorAll(`#pendingOtList .otchk[data-g="${g.dataset.otgroup}"]`).forEach(m=> m.checked = g.checked);
+      upd();
+    };
+  });
+  document.getElementById('otSelAll').onchange = e=>{
+    document.querySelectorAll('#pendingOtList .otchk').forEach(c=> c.checked = e.target.checked);
+    upd();
+  };
+  document.getElementById('otApproveSel').onclick = ()=> decideOtSelected(selectedOtIds(), 'approved');
+  document.getElementById('otRejectSel').onclick = ()=> decideOtSelected(selectedOtIds(), 'rejected');
+  upd();
+}
+async function decideOtSelected(ids, status){
+  if(!canApproveOt()){ alert('ไม่มีสิทธิ์อนุมัติ OT ต้องเป็นเจ้าของ/HR เท่านั้น'); return; }
+  const items = db.otRequests.filter(o=>ids.includes(o.id) && o.status==='pending');
+  if(!items.length) return;
+  const word = status==='approved' ? 'อนุมัติ' : 'ปฏิเสธ';
+  if(!confirm(`ยืนยัน${word} OT ที่เลือกไว้ ${items.length} รายการ?`)) return;
+  const byGroup = {};
+  items.forEach(o=>{ const g = o.groupId || o.id; (byGroup[g] = byGroup[g] || []).push(o); });
+  for(const [gid, group] of Object.entries(byGroup)) await applyOtDecision(gid, group, status);
+  renderOtLists(); renderOverviewStats();
 }
 // -- ลบคำขอที่รออนุมัติ (กรณีคีย์ซ้ำ) — ลบได้ทั้งฝั่งพนักงาน (ลบของตัวเอง) และฝั่งบริหาร ไม่ส่งแจ้งเตือนเข้ากลุ่มใดๆ --
 async function deleteLeaveRequest(id){
@@ -3589,7 +3661,28 @@ function renderProfileTab(){
   document.getElementById('profAvatar').textContent = emp.name.trim()[0]||'?';
   document.getElementById('profName').textContent = emp.name;
   document.getElementById('profRole').textContent = `${br?.name||'-'} · พนักงาน`;
+  const hasHome = emp.homeLat!=null && emp.homeLng!=null;
+  document.getElementById('menuHomeLbl').textContent = hasHome ? 'แก้ไขพิกัดบ้าน' : 'ตั้งพิกัดบ้าน';
 }
+/* พิกัดบ้านพนักงาน — พนักงานกดบันทึกเองจากที่บ้าน (ต้องอยู่ที่บ้านจริงตอนกด เพราะใช้ GPS ขณะนั้น)
+   HR ใช้ดูตอนต้องออกไปเยี่ยม/ตรวจสอบกรณีลาป่วยบ่อยผิดปกติ ไม่ได้ใช้ในการคิดเวลาเข้างานใดๆ
+   ไม่มีการติดตามตำแหน่งต่อเนื่อง — บันทึกเฉพาะตอนกดปุ่มนี้ครั้งเดียวเท่านั้น */
+async function saveHomeLocation(){
+  const emp = currentEmployee(); if(!emp) return;
+  const hasHome = emp.homeLat!=null && emp.homeLng!=null;
+  if(!confirm(`${hasHome?'บันทึกพิกัดบ้านใหม่ทับของเดิม':'บันทึกพิกัดบ้าน'}?\n\nกรุณากดขณะอยู่ที่บ้าน ระบบจะบันทึกตำแหน่งปัจจุบันไว้ครั้งเดียว\nHR ใช้ข้อมูลนี้เฉพาะกรณีต้องไปเยี่ยมที่บ้าน ไม่ได้ใช้คิดเวลาเข้างาน`)) return;
+  let pos;
+  try{ pos = await getPosition(); }
+  catch(e){ alert('ไม่สามารถอ่านตำแหน่งได้ กรุณาเปิด GPS และอนุญาตให้เว็บเข้าถึงตำแหน่ง แล้วลองใหม่'); return; }
+  const prevLat = emp.homeLat, prevLng = emp.homeLng;
+  emp.homeLat = pos.coords.latitude; emp.homeLng = pos.coords.longitude;
+  const res = await saveEmployeeRow(emp);
+  if(!res || !res.ok){ emp.homeLat = prevLat; emp.homeLng = prevLng; alert('บันทึกไม่สำเร็จ กรุณาลองใหม่'); return; }
+  await logAudit('set_home_location', 'employee', emp.id, `${emp.name} บันทึกพิกัดบ้าน (${emp.homeLat.toFixed(5)}, ${emp.homeLng.toFixed(5)})`);
+  renderProfileTab();
+  alert('บันทึกพิกัดบ้านเรียบร้อย');
+}
+document.getElementById('menuHome').onclick = saveHomeLocation;
 document.getElementById('menuFace').onclick = ()=>{ const emp = currentEmployee(); openCamera('enroll', emp); };
 document.getElementById('menuBranchTransfer').onclick = ()=> openBranchTransferForm();
 function transferStatusLabel(s){ return s==='pending'?'รออนุมัติ':s==='approved'?'อนุมัติแล้ว':'ปฏิเสธ'; }
@@ -3852,10 +3945,18 @@ function usedLeaveDaysThisYear(empId, kind){
     .filter(l=>l.employeeId===empId && l.status==='approved' && l.kind===kind && new Date(l.from+'T00:00:00').getFullYear()===y)
     .reduce((sum,l)=> sum + daysBetweenInclusive(l.from, l.to), 0);
 }
-// ยอดวันลาพักร้อนคงเหลือ — null = ยังไม่ครบ 1 ปี (ไม่มีสิทธิ์)
-function vacationDaysRemaining(emp){
-  if(monthsSince(emp.startDate) < 12) return null;
-  return Math.max(0, VACATION_DAYS_PER_YEAR - usedLeaveDaysThisYear(emp.id, 'vacation'));
+/* โควต้าวันลาของพนักงานหนึ่งคน — จุดคำนวณเดียวของทั้งระบบ ทั้งหน้าหลักพนักงานและที่อื่นๆ
+   เรียกที่นี่ที่เดียว ไม่มีการเก็บยอดคงเหลือไว้ในฐานข้อมูล ทุกตัวเลขคำนวณสดจากใบลาที่อนุมัติแล้ว
+   จึงไม่มีทางที่ยอดจะค้างหรือขัดกันเอง (ปรับใบลาย้อนหลังเมื่อไหร่ ยอดขยับตามทันที)
+   รองรับ 2 ประเภทที่มีโควต้า: vacation (พักร้อน 6 วัน ครบ 1 ปีถึงใช้ได้) และ
+   traditional (ลาประเพณี = จำนวนวันหยุด "ยืดหยุ่น" ที่ตกหลังวันเริ่มงาน ครบ 1 เดือนถึงใช้ได้) */
+function leaveQuotaFor(emp, kind){
+  const isVac = kind==='vacation';
+  const monthsNeeded = isVac ? 12 : 1;
+  const total = isVac ? VACATION_DAYS_PER_YEAR : traditionalLeaveQuotaForEmployee(emp);
+  const used = usedLeaveDaysThisYear(emp.id, kind);
+  const eligible = monthsSince(emp.startDate) >= monthsNeeded;
+  return { eligible, monthsNeeded, total, used, remaining: Math.max(0, total - used) };
 }
 // โควต้าลาประเพณีทั้งปี (รวมทุกคน ไม่ผูกกับวันเริ่มงาน) = จำนวนวันหยุดประเพณีปีนี้ที่แอดมินตั้งเป็น
 // "ยืดหยุ่น" (ไม่รวมวันที่ร้านปิดตายตัว) — ใช้โชว์ตัวเลขอ้างอิงรวมในหน้าตั้งค่าเท่านั้น
@@ -3876,11 +3977,6 @@ function traditionalLeaveQuotaForEmployee(emp){
     if(start && hd < start) return false;
     return true;
   }).length;
-}
-// ยอดสิทธิ์ลาประเพณีคงเหลือ — null = ยังไม่ครบ 1 เดือน (ไม่มีสิทธิ์)
-function traditionalLeaveRemaining(emp){
-  if(monthsSince(emp.startDate) < 1) return null;
-  return Math.max(0, traditionalLeaveQuotaForEmployee(emp) - usedLeaveDaysThisYear(emp.id, 'traditional'));
 }
 function renderOverviewStats(){
   const emps = filteredEmployees();
@@ -5028,14 +5124,24 @@ function renderOtLists(){
     const first = items[0];
     const br = db.branches.find(b=>b.id===db.employees.find(e=>e.id===first.employeeId)?.branchId);
     const names = items.map(o=>{ const e = db.employees.find(x=>x.id===o.employeeId); return `${e?.name||'-'}${e?.nickname?` (${e.nickname})`:''}`; }).join(', ');
+    const canOt = canApproveOt();
+    // ติ๊กเลือกได้ทีละคน แม้จะยื่นมาเป็นกลุ่ม — บางกรณีอนุมัติบางคนในกลุ่มเท่านั้น
+    const members = items.map(o=>{
+      const e = db.employees.find(x=>x.id===o.employeeId);
+      return `<label class="otmem"><input type="checkbox" class="otchk" data-otid="${o.id}" data-g="${gid}"><span>${e?.name||'-'}${e?.nickname?` (${e.nickname})`:''}</span></label>`;
+    }).join('');
     return `<div class="listrow" style="flex-direction:column;align-items:stretch;gap:6px;">
-      <div style="display:flex;align-items:flex-start;gap:12px;"><div class="avatar">${items.length}</div><div class="info"><div class="name">${br?.name||'-'} · ${fmtDateShort(new Date(first.date))} · ${first.hourStart}–${first.hourEnd} น.</div><div class="meta">${names}</div><div class="meta">${first.reason||'-'}</div></div></div>
-      ${canApproveOt() ? `<div class="actionrow"><button class="btn-mini approve" data-otapprovegroup="${gid}">อนุมัติทั้งหมด</button><button class="btn-mini reject" data-otrejectgroup="${gid}">ปฏิเสธทั้งหมด</button><button class="btn-mini icononly" data-otdeletegroup="${gid}" title="ลบ (ไม่แจ้งเตือน)">${TRASH_ICON_SVG}</button></div>` : `<div style="font-size:11.5px;color:var(--muted);">ไม่มีสิทธิ์อนุมัติรายการนี้ (ต้องเป็นเจ้าของ/HR เท่านั้น)</div>`}
+      <div style="display:flex;align-items:flex-start;gap:10px;">
+        ${canOt ? `<input type="checkbox" class="otgchk" data-otgroup="${gid}" title="เลือกทั้งรายการนี้" style="margin-top:4px;">` : ''}
+        <div class="avatar">${items.length}</div><div class="info"><div class="name">${br?.name||'-'} · ${fmtDateShort(new Date(first.date))} · ${first.hourStart}–${first.hourEnd} น.</div><div class="meta">${items.length>1?`${items.length} คน`:names}</div><div class="meta">${first.reason||'-'}</div></div></div>
+      ${canOt ? `<div class="otmembers"${items.length>1?'':' style="display:none;"'}>${members}</div>` : ''}
+      ${canOt ? `<div class="actionrow"><button class="btn-mini approve" data-otapprovegroup="${gid}">อนุมัติทั้งรายการ</button><button class="btn-mini reject" data-otrejectgroup="${gid}">ปฏิเสธทั้งรายการ</button><button class="btn-mini icononly" data-otdeletegroup="${gid}" title="ลบ (ไม่แจ้งเตือน)">${TRASH_ICON_SVG}</button></div>` : `<div style="font-size:11.5px;color:var(--muted);">ไม่มีสิทธิ์อนุมัติรายการนี้ (ต้องเป็นเจ้าของ/HR เท่านั้น)</div>`}
     </div>`;
   }).join('') : '<div class="empty">ไม่มีคำขอ OT ที่รออนุมัติ</div>';
   pendEl.querySelectorAll('[data-otapprovegroup]').forEach(b=> b.onclick = ()=> decideOtGroup(b.dataset.otapprovegroup,'approved'));
   pendEl.querySelectorAll('[data-otrejectgroup]').forEach(b=> b.onclick = ()=> decideOtGroup(b.dataset.otrejectgroup,'rejected'));
   pendEl.querySelectorAll('[data-otdeletegroup]').forEach(b=> b.onclick = ()=> deleteOtGroup(b.dataset.otdeletegroup));
+  renderOtBulkBar(pending.length);
   renderOtEditRequests(empIds);
   if(!approvalHistorySearched){
     document.getElementById('allOtList').innerHTML = '<div class="empty">เลือกเงื่อนไข (สาขา/วันที่) แล้วกด "ค้นหาประวัติ" เพื่อแสดงข้อมูล</div>';
@@ -5090,11 +5196,11 @@ async function decideOtEdit(id, decision){
   if(decision==='approved') await markOtForResync(ot.id);
   await logAudit(decision==='approved'?'approve_edit':'reject_edit', 'ot', ot.id,
     decision==='approved' ? `อนุมัติการแก้ไข OT: ${oldText} → ${newText}` : `ปฏิเสธการแก้ไข OT (คงค่าเดิม: ${oldText})`);
-  if(db.settings.notifyTypes.otDecision && db.settings.otChatId){
+  if(db.settings.notifyTypes.otDecision && otRoomChatId()){
     const text = decision==='approved'
       ? `✅อนุมัติการแก้ไข OT ของ <b>${notifyName(emp)}</b>\nเป็น: ${newText}`
       : `❌ปฏิเสธคำขอแก้ไข OT ของ <b>${notifyName(emp)}</b>\nOT ยังคงเป็น: ${oldText}`;
-    await tgSendMessage(db.settings.centralToken, db.settings.otChatId, text);
+    await tgSendMessage(db.settings.centralToken, otRoomChatId(), text);
   }
   await pushNotification(ot.employeeId, decision==='approved'?'คำขอแก้ไข OT ได้รับการอนุมัติ':'คำขอแก้ไข OT ถูกปฏิเสธ', decision==='approved'?newText:oldText);
   renderOtLists();
@@ -5750,19 +5856,63 @@ const NOTIFY_TYPE_LABELS = [
   {key:'otDecision', name:'ผลอนุมัติ OT', meta:'แจ้งเมื่ออนุมัติ/ปฏิเสธคำขอ OT'},
   {key:'faceReenroll', name:'ขอเปลี่ยนใบหน้าที่ลงทะเบียน', meta:'แจ้งเมื่อพนักงานขอลงทะเบียนใบหน้าใหม่ (รออนุมัติ HR ก่อนมีผล)'},
 ];
+/* สมุดห้อง Telegram — รวมทุกห้องที่ระบบใช้ไว้ที่เดียว พร้อมบอกว่าห้องไหนถูกใช้ทำอะไร
+   และห้องไหนยังว่างอยู่ เพราะห้องที่ Chat ID ว่าง ระบบจะข้ามการส่งเงียบๆ โดยไม่มีอะไรฟ้อง
+   ห้องสำรองด้านล่างมีไว้ลงทะเบียนล่วงหน้าตอนเปิดสาขาใหม่/ตั้งกลุ่มใหม่ ทดสอบให้ผ่านก่อน
+   แล้วค่อยนำไปผูกกับงานจริง (ตอนนี้ผูกเป็น "กลุ่มขอ OT" ได้ ห้องอื่นๆ ผูกที่หน้าตั้งค่าสาขา) */
+function telegramRoomsInUse(){
+  const rows = [
+    {name:'กลุ่มส่วนกลาง — ยื่นใบลา', chatId:db.settings.centralChatId, where:'ใบลาที่รออนุมัติ · คำขอเปลี่ยนใบหน้า'},
+    {name:'กลุ่มขอ OT', chatId:otRoomChatId(), where:'คำขอ OT · ผลอนุมัติ OT' + (!db.settings.otChatId && otRoomChatId() ? ' (ใช้ห้องสำรองที่ชื่อมีคำว่า OT)' : '')}
+  ];
+  db.branches.forEach(b=>{
+    rows.push({name:`${b.name} — เข้า-ออกงาน`, chatId:b.chatIdCheckinout, where:'รูปสแกนเข้า-ออกงาน'});
+    rows.push({name:`${b.name} — ความสะอาด/แอร์`, chatId:b.chatIdFacility, where:'ปิดแอร์ · ความสะอาด · สรุป 11:30 และ 23:00'});
+    rows.push({name:`${b.name} — ผลอนุมัติลา`, chatId:b.chatIdLeaveApproval, where:'ใบลาที่อนุมัติแล้ว · หลักฐานการลา'});
+  });
+  return rows;
+}
 function renderTelegramRoomsEditor(){
   const el = document.getElementById('telegramRoomsEditor'); if(!el) return;
   const rooms = db.settings.telegramRooms || [];
+  const inUse = telegramRoomsInUse();
+  const missing = inUse.filter(r=>!r.chatId).length;
   el.innerHTML = `
+    ${missing ? `<div style="background:#FEF2F2;border:1px solid #FCA5A5;border-radius:10px;padding:10px 12px;margin-bottom:12px;font-size:12px;color:#991B1B;line-height:1.6;">
+      <b>⚠ มี ${missing} ห้องที่ยังไม่ได้ตั้ง Chat ID</b><br>ข้อความของห้องนั้นจะไม่ถูกส่งไปไหนเลย และระบบจะไม่ฟ้องตอนใช้งานจริง</div>` : ''}
+    <div style="font-size:11.5px;color:var(--muted);margin-bottom:8px;">ห้องที่ระบบใช้อยู่จริง — กด “ทดสอบ” เพื่อยิงข้อความเข้าห้องนั้นทันที</div>
+    ${inUse.map((r,i)=>`
+      <div class="settingsrow"><div class="info"><div class="name">${r.name}</div>
+        <div class="meta">${r.chatId ? `Chat ID: ${r.chatId}` : '<span style="color:var(--red);font-weight:600;">ยังไม่ได้ตั้ง Chat ID</span>'} · ${r.where}</div></div>
+        ${r.chatId ? `<button class="btn ghost sm" data-testroom="${i}">ทดสอบ</button>` : ''}</div>
+    `).join('')}
+    <div style="font-size:11.5px;color:var(--muted);margin:16px 0 8px;">ห้องสำรอง — ลงทะเบียนไว้ล่วงหน้าเวลาเปิดสาขาใหม่หรือตั้งกลุ่มใหม่</div>
     <div id="roomsList">${rooms.length ? rooms.map(r=>`
-      <div class="settingsrow"><div class="info"><div class="name">${r.name}</div><div class="meta">Chat ID: ${r.chatId}${r.token?' · มี Token แยก':' · ใช้ Token ส่วนกลาง'}</div></div><button class="btn ghost sm" data-rmroom="${r.id}">ลบ</button></div>
-    `).join('') : '<div class="empty">ยังไม่มีห้องเพิ่มเติม</div>'}</div>
+      <div class="settingsrow"><div class="info"><div class="name">${r.name}${otRoomChatId()===r.chatId?' <span style="color:var(--green);font-size:11px;">· ใช้เป็นกลุ่ม OT อยู่</span>':''}</div><div class="meta">Chat ID: ${r.chatId}${r.token?' · มี Token แยก':' · ใช้ Token ส่วนกลาง'}</div></div><button class="btn ghost sm" data-testextra="${r.id}">ทดสอบ</button><button class="btn ghost sm" style="margin-left:6px;" data-rmroom="${r.id}">ลบ</button></div>
+    `).join('') : '<div class="empty">ยังไม่มีห้องสำรอง</div>'}</div>
     <div style="margin-top:12px;">
       <input type="text" id="newRoomName" placeholder="ชื่อห้อง เช่น กลุ่มบัญชี" style="margin-bottom:8px;">
       <input type="text" id="newRoomChatId" placeholder="Chat ID" style="margin-bottom:8px;">
       <input type="password" id="newRoomToken" placeholder="Bot Token แยก (เว้นว่าง = ใช้ Token ส่วนกลาง)">
     </div>
-    <button class="btn sm" style="margin-top:8px;" id="addRoomBtn">เพิ่มห้อง</button>`;
+    <button class="btn sm" style="margin-top:8px;" id="addRoomBtn">เพิ่มห้อง</button>
+    <div class="msg" id="roomTestMsg"></div>`;
+  const testSend = async (btn, chatId, token, label)=>{
+    const msg = document.getElementById('roomTestMsg');
+    btn.disabled = true; const old = btn.textContent; btn.textContent = 'กำลังส่ง…';
+    const r = await tgSendMessage(token || db.settings.centralToken, chatId, `🔔 ทดสอบการเชื่อมต่อจากระบบ ARANA TIME\nห้อง: ${label}`);
+    msg.className = r.ok ? 'msg ok' : 'msg err';
+    msg.textContent = r.ok ? `ส่งเข้าห้อง "${label}" สำเร็จ` : `ส่งไม่สำเร็จ: ${r.reason || 'ตรวจสอบ Chat ID และ Bot Token'}`;
+    btn.disabled = false; btn.textContent = old;
+  };
+  el.querySelectorAll('[data-testroom]').forEach(btn=>{
+    const r = inUse[+btn.dataset.testroom];
+    btn.onclick = ()=> testSend(btn, r.chatId, null, r.name);
+  });
+  el.querySelectorAll('[data-testextra]').forEach(btn=>{
+    const r = rooms.find(x=>x.id===btn.dataset.testextra);
+    btn.onclick = ()=> testSend(btn, r.chatId, r.token, r.name);
+  });
   el.querySelectorAll('[data-rmroom]').forEach(btn=>{
     btn.onclick = async ()=>{ db.settings.telegramRooms = db.settings.telegramRooms.filter(r=>r.id!==btn.dataset.rmroom); await saveDB(); renderTelegramRoomsEditor(); };
   });
