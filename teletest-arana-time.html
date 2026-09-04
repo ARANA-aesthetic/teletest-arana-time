@@ -340,6 +340,11 @@
   .miniempcard .stats span{color:var(--muted);}
   .miniempcard .stats b{font-weight:700;}
   .actionrow{display:flex;gap:8px;margin-top:8px;}
+  /* ช่องค้นหาสำหรับรายการยาวๆ ในหน้าตั้งค่า (พนักงาน 31 คน / จุดตรวจรวมกันเกือบ 140 จุด) */
+  .listsearch{width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:10px;
+    font-family:'Sarabun',sans-serif;font-size:13px;background:var(--card);color:var(--text);margin-bottom:6px;}
+  .listsearch:focus{outline:none;border-color:var(--pink);}
+  .listcount{font-size:11.5px;color:var(--muted);margin-bottom:8px;}
   /* แถบอนุมัติหลายรายการพร้อมกัน — กรรมการอนุมัติ OT ทีเดียวต้นเดือน จึงมีรายการสะสมเยอะ */
   .bulkbar{position:sticky;top:0;z-index:5;background:var(--card);border:1px solid var(--border);
     border-radius:12px;padding:10px 12px;margin-bottom:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
@@ -1058,8 +1063,11 @@
         <div class="setgroupbody">
           <section>
             <div class="sectitle">จัดการพนักงาน</div>
-            <button class="btn block" style="margin-bottom:16px;" id="addEmpAdminBtn">+ เพิ่มพนักงาน</button>
-            <div class="branchselect" style="margin-bottom:12px;"><select id="manageEmpBranchFilter"></select></div>
+            <button class="btn block" style="margin-bottom:10px;" id="addEmpAdminBtn">+ เพิ่มพนักงาน</button>
+            <button class="btn ghost block" style="margin-bottom:16px;" id="regenEmpCodesBtn">ออกรหัสพนักงานใหม่ทั้งหมด (เรียงตามอายุงาน)</button>
+            <div class="branchselect" style="margin-bottom:8px;"><select id="manageEmpBranchFilter"></select></div>
+            <input type="search" id="adminEmpSearch" class="listsearch" placeholder="ค้นหา รหัส / ชื่อ / ชื่อเล่น / ตำแหน่ง">
+            <div class="listcount" id="adminEmpCount"></div>
             <div class="card" id="adminEmpList" style="padding:0 16px;"></div>
           </section>
           <section>
@@ -1093,6 +1101,8 @@
               <div><div id="auditLogFrom_holder"></div></div>
               <div><div id="auditLogTo_holder"></div></div>
             </div>
+            <input type="search" id="auditLogSearch" class="listsearch" placeholder="ค้นหา ชื่อผู้ทำ / การกระทำ / รายละเอียด">
+            <div class="listcount" id="auditLogCount"></div>
             <div class="card" id="auditLogViewer" style="padding:0 16px;"></div>
           </section>
           <section>
@@ -1120,10 +1130,16 @@
           </section>
           <section>
             <div class="sectitle">จุดปิดแอร์ต่อสาขา</div>
+            <div class="branchselect" style="margin-bottom:8px;"><select id="acPointBranchFilter"></select></div>
+            <input type="search" id="acPointSearch" class="listsearch" placeholder="ค้นหาชื่อจุด">
+            <div class="listcount" id="acPointCount"></div>
             <div class="card" id="acPointEditor"></div>
           </section>
           <section>
             <div class="sectitle">จุดตรวจความสะอาดต่อสาขา</div>
+            <div class="branchselect" style="margin-bottom:8px;"><select id="cleanPointBranchFilter"></select></div>
+            <input type="search" id="cleanPointSearch" class="listsearch" placeholder="ค้นหาชื่อจุด">
+            <div class="listcount" id="cleanPointCount"></div>
             <div class="card" id="cleanPointEditor"></div>
           </section>
           <section>
@@ -1177,7 +1193,8 @@
               <div style="color:var(--muted);font-size:12px;margin-bottom:10px;">กดเพื่อสั่งให้ทำงานทันที ไม่ต้องรอถึงเวลาจริง — ใช้เช็กว่าระบบตั้งไว้ถูกต้อง</div>
               <button class="btn ghost sm block" id="testDailyLeaveBtn" style="margin-bottom:8px;">ทดสอบสรุปวันลา (ปกติ 10:30 น.)</button>
               <button class="btn ghost sm block" id="testAcReminderBtn" style="margin-bottom:8px;">ทดสอบเตือนปิดแอร์ (ปกติ 23:00 น.)</button>
-              <button class="btn ghost sm block" id="testFacilityReminderBtn">ทดสอบเตือนความสะอาด/ความเรียบร้อย (ปกติ 11:30 น.)</button>
+              <button class="btn ghost sm block" id="testFacilityReminderBtn" style="margin-bottom:8px;">ทดสอบเตือนความสะอาด/ความเรียบร้อย (ปกติ 11:30 น.)</button>
+              <button class="btn ghost sm block" id="testMissingScanBtn">ทดสอบสรุปคนลืมสแกนเข้า-ออกงาน (ปกติ 21:00 น.)</button>
               <div class="msg" id="scheduledTestMsg"></div>
             </div>
           </section>
@@ -1564,6 +1581,8 @@
 <div class="overlay" id="empEditOverlay">
   <div class="modal">
     <h3 id="empEditTitle">แก้ไขพนักงาน</h3>
+    <label>รหัสพนักงาน (ใช้ผูกกับระบบเงินเดือน/ERP — ห้ามซ้ำกัน)</label>
+    <input type="text" id="editEmpCode" placeholder="เช่น 001">
     <label>ชื่อ-นามสกุล</label>
     <input type="text" id="editEmpName">
     <div class="row2">
@@ -1576,6 +1595,9 @@
     <select id="editEmpBranch"></select>
     <label>วันที่เริ่มงาน</label>
     <div id="editEmpStartDate_holder"></div>
+    <label>วันที่พ้นสภาพ / ลาออก (เว้นว่างไว้ถ้ายังทำงานอยู่)</label>
+    <div id="editEmpResignDate_holder"></div>
+    <div style="color:var(--muted);font-size:11.5px;margin:-4px 0 10px;">ใส่วันที่แล้วระบบจะไม่นับขาดงานตั้งแต่วันถัดจากวันนี้เป็นต้นไป และไม่แจ้งเตือนถึงคนนี้อีก — ประวัติเดิมยังอยู่ครบสำหรับทำเงินเดือนงวดสุดท้าย</div>
     <div class="row2">
       <div><label>เวลาเข้างาน</label><input type="time" id="editEmpShiftStart"></div>
       <div><label>เวลาออกงาน</label><input type="time" id="editEmpShiftEnd"></div>
@@ -1916,8 +1938,8 @@ async function sbUpsertRow(table, row, conflictCol='id'){
 const rowToBranch = r => ({ id:r.id, name:r.name, lat:r.lat, lng:r.lng, radius:r.radius, chatIdCheckinout:r.chat_id_checkinout||r.chat_id||'', chatIdFacility:r.chat_id_facility||r.chat_id||'', chatIdLeaveApproval:r.chat_id_leave_approval||'', weeklyOffDays:r.weekly_off_days||[], acPoints:r.ac_points||[], cleaningPoints:r.cleaning_points||[] });
 const branchToRow = b => ({ id:b.id, name:b.name, lat:b.lat, lng:b.lng, radius:b.radius, chat_id_checkinout:b.chatIdCheckinout||'', chat_id_facility:b.chatIdFacility||'', chat_id_leave_approval:b.chatIdLeaveApproval||'', weekly_off_days:b.weeklyOffDays||[], ac_points:b.acPoints||[], cleaning_points:b.cleaningPoints||[] });
 
-const rowToEmployee = r => ({ id:r.id, name:r.name, nickname:r.nickname||'', department:r.department||'', jobTitle:r.job_title||'', branchId:r.branch_id||'', startDate:r.start_date||'', shiftStart:r.shift_start||'', shiftEnd:r.shift_end||'', email:r.email||'', pin:r.pin||null, descriptor:r.descriptor||null, homeLat:r.home_lat??null, homeLng:r.home_lng??null, active:r.active!==false, pendingDescriptor:r.pending_descriptor||null, pendingDescriptorPhotoId:r.pending_descriptor_photo_id||null, pendingDescriptorAt:r.pending_descriptor_at||null, weeklyOffDays:r.weekly_off_days||[] });
-const employeeToRow = e => ({ id:e.id, name:e.name, nickname:e.nickname||null, department:e.department||null, job_title:e.jobTitle||null, branch_id:e.branchId||null, start_date:e.startDate||null, shift_start:e.shiftStart||null, shift_end:e.shiftEnd||null, email:e.email||null, pin:e.pin||null, descriptor:e.descriptor||null, home_lat:e.homeLat??null, home_lng:e.homeLng??null, active:e.active!==false, pending_descriptor:e.pendingDescriptor||null, pending_descriptor_photo_id:e.pendingDescriptorPhotoId||null, pending_descriptor_at:e.pendingDescriptorAt||null, weekly_off_days:e.weeklyOffDays||[] });
+const rowToEmployee = r => ({ id:r.id, name:r.name, employeeCode:r.employee_code||'', resignDate:r.resign_date||'', nickname:r.nickname||'', department:r.department||'', jobTitle:r.job_title||'', branchId:r.branch_id||'', startDate:r.start_date||'', shiftStart:r.shift_start||'', shiftEnd:r.shift_end||'', email:r.email||'', pin:r.pin||null, descriptor:r.descriptor||null, homeLat:r.home_lat??null, homeLng:r.home_lng??null, active:r.active!==false, pendingDescriptor:r.pending_descriptor||null, pendingDescriptorPhotoId:r.pending_descriptor_photo_id||null, pendingDescriptorAt:r.pending_descriptor_at||null, weeklyOffDays:r.weekly_off_days||[] });
+const employeeToRow = e => ({ id:e.id, name:e.name, employee_code:e.employeeCode||null, resign_date:e.resignDate||null, nickname:e.nickname||null, department:e.department||null, job_title:e.jobTitle||null, branch_id:e.branchId||null, start_date:e.startDate||null, shift_start:e.shiftStart||null, shift_end:e.shiftEnd||null, email:e.email||null, pin:e.pin||null, descriptor:e.descriptor||null, home_lat:e.homeLat??null, home_lng:e.homeLng??null, active:e.active!==false, pending_descriptor:e.pendingDescriptor||null, pending_descriptor_photo_id:e.pendingDescriptorPhotoId||null, pending_descriptor_at:e.pendingDescriptorAt||null, weekly_off_days:e.weeklyOffDays||[] });
 
 const rowToApprover = r => ({ id:r.id, name:r.name, pin:r.pin||null, role:r.role||'hr' });
 const approverToRow = a => ({ id:a.id, name:a.name, pin:a.pin||null, role:a.role||'hr' });
@@ -2333,8 +2355,8 @@ function showView(view){
 function renderEmpSelect(){
   const list = document.getElementById('empSelectList');
   const q = (document.getElementById('empSearchInput')?.value || '').trim().toLowerCase();
-  const activeEmps = db.employees.filter(e=>e.active!==false && (!q || e.name.toLowerCase().includes(q) || (e.nickname||'').toLowerCase().includes(q)));
-  if(!db.employees.some(e=>e.active!==false)){
+  const activeEmps = db.employees.filter(e=>isEmployedNow(e) && (!q || e.name.toLowerCase().includes(q) || (e.nickname||'').toLowerCase().includes(q) || (e.employeeCode||'').includes(q)));
+  if(!db.employees.some(e=>isEmployedNow(e))){
     list.innerHTML = `<div class="empty">— ยังไม่มีพนักงาน กรุณาให้ HR เพิ่มก่อน —</div>`;
   } else if(!activeEmps.length){
     list.innerHTML = `<div class="empty">ไม่พบชื่อที่ค้นหา</div>`;
@@ -3899,10 +3921,12 @@ document.getElementById('exportEmpBtn').onclick = ()=>{
   const sel = document.getElementById('employeesViewBranchFilter');
   const branchVal = sel ? (sel.dataset.current||'all') : 'all';
   const list = branchVal==='all' ? db.employees : db.employees.filter(e=>e.branchId===branchVal);
-  const rows = [['ชื่อ-นามสกุล','ชื่อเล่น','แผนก','ตำแหน่งงาน','สาขา','วันที่เริ่มงาน','อายุงาน','เวลาเข้างาน','เวลาออกงาน','อีเมล','สถานะ']];
-  list.forEach(e=>{
+  // รหัสพนักงานเป็นคอลัมน์แรก เพื่อให้ไฟล์นี้เอาไปจับคู่กับระบบเงินเดือน/ERP ได้ทันที
+  const rows = [['รหัสพนักงาน','ชื่อ-นามสกุล','ชื่อเล่น','แผนก','ตำแหน่งงาน','สาขา','วันที่เริ่มงาน','วันที่พ้นสภาพ','อายุงาน','เวลาเข้างาน','เวลาออกงาน','อีเมล','สถานะ']];
+  list.slice().sort((a,b)=>(a.employeeCode||'zzz').localeCompare(b.employeeCode||'zzz')).forEach(e=>{
     const br = db.branches.find(b=>b.id===e.branchId);
-    rows.push([e.name, e.nickname||'-', e.department||'-', e.jobTitle||'-', br?.name||'-', e.startDate||'-', tenureText(e.startDate), e.shiftStart||'-', e.shiftEnd||'-', e.email||'-', e.active===false?'ปิดการใช้งาน':'ใช้งานอยู่']);
+    const status = (e.resignDate && e.resignDate < dateKey(new Date())) ? 'พ้นสภาพ' : (e.active===false?'ปิดการใช้งาน':'ใช้งานอยู่');
+    rows.push([e.employeeCode||'-', e.name, e.nickname||'-', e.department||'-', e.jobTitle||'-', br?.name||'-', e.startDate||'-', e.resignDate||'-', tenureText(e.startDate), e.shiftStart||'-', e.shiftEnd||'-', e.email||'-', status]);
   });
   downloadCSV(`arana-time-employees-${dateKey(new Date())}.csv`, rows);
 };
@@ -3930,7 +3954,46 @@ function leaveAbbrev(kind){
   };
   return map[kind] || kind;
 }
-function hasStartedBy(emp, date){ return !emp.startDate || new Date(emp.startDate+'T00:00:00') <= date; }
+/* "อยู่ในสภาพพนักงาน ณ วันนั้นไหม" — ต้องเริ่มงานแล้ว และยังไม่พ้นสภาพ
+   วันที่พ้นสภาพนับเป็นวันทำงานวันสุดท้าย (ยังต้องมาทำงาน ยังคิดสาย/ขาดตามปกติ)
+   ตั้งแต่วันถัดไปจึงไม่นับ ไม่แจ้งเตือน และไม่ขึ้นในรายงานอีก — ประวัติเดิมยังอยู่ครบ */
+function hasStartedBy(emp, date){
+  if(emp.startDate && new Date(emp.startDate+'T00:00:00') > date) return false;
+  if(emp.resignDate && new Date(emp.resignDate+'T23:59:59') < date) return false;
+  return true;
+}
+// ยังเป็นพนักงานอยู่ ณ วันนี้ไหม — ใช้กรองหน้าเลือกชื่อเข้าสู่ระบบ คนที่พ้นสภาพแล้วจะเข้าระบบไม่ได้อีก
+function isEmployedNow(emp){
+  if(emp.active===false) return false;
+  return !emp.resignDate || emp.resignDate >= dateKey(new Date());
+}
+// รหัสพนักงานถัดไปที่ยังว่าง (ต่อจากเลขสูงสุดที่ใช้อยู่) — ใช้เติมให้อัตโนมัติตอนเพิ่มพนักงานใหม่
+function nextEmployeeCode(){
+  const nums = db.employees.map(e=>parseInt(e.employeeCode,10)).filter(n=>!isNaN(n));
+  return String((nums.length ? Math.max(...nums) : 0) + 1).padStart(3,'0');
+}
+/* ออกรหัสพนักงานใหม่ทั้งชุด เรียงตามอายุงาน (เริ่มงานก่อน = เลขน้อยกว่า)
+   คนที่ยังไม่ได้กรอกวันที่เริ่มงานจะไปต่อท้ายเรียงตามชื่อ — กรอกวันเริ่มงานให้ครบแล้วกดใหม่
+   จะได้ลำดับที่ถูกต้อง ระบบยืนยันก่อนทำเสมอ เพราะรหัสเดิมทั้งหมดจะถูกเขียนทับ */
+async function regenerateEmployeeCodes(){
+  if(!canAccessSettings()){ alert('ไม่มีสิทธิ์ ต้องเป็นเจ้าของ/HR เท่านั้น'); return; }
+  const noStart = db.employees.filter(e=>!e.startDate).length;
+  if(!confirm(`ออกรหัสพนักงานใหม่ทั้งหมด ${db.employees.length} คน เรียงตามอายุงาน?\n\n`
+    + (noStart ? `⚠ มี ${noStart} คนที่ยังไม่ได้กรอกวันที่เริ่มงาน จะถูกจัดไว้ท้ายสุดเรียงตามชื่อ\n\n` : '')
+    + 'รหัสเดิมทั้งหมดจะถูกเขียนทับ')) return;
+  const sorted = db.employees.slice().sort((a,b)=>{
+    if(a.startDate && b.startDate) return a.startDate.localeCompare(b.startDate) || a.name.localeCompare(b.name,'th');
+    if(a.startDate) return -1;
+    if(b.startDate) return 1;
+    return a.name.localeCompare(b.name,'th');
+  });
+  // ล้างรหัสเดิมก่อนทั้งหมด ไม่งั้นจะชนกับ unique index ระหว่างที่ไล่เขียนทีละคน
+  for(const e of sorted){ e.employeeCode = ''; await saveEmployeeRow(e); }
+  for(let i=0;i<sorted.length;i++){ sorted[i].employeeCode = String(i+1).padStart(3,'0'); await saveEmployeeRow(sorted[i]); }
+  await logAudit('regenerate_codes', 'employee', null, `ออกรหัสพนักงานใหม่ทั้งหมด ${sorted.length} คน เรียงตามอายุงาน`);
+  renderAdminEmpList();
+  alert(`ออกรหัสใหม่เรียบร้อย ${sorted.length} คน (001–${String(sorted.length).padStart(3,'0')})`);
+}
 
 // ===== สิทธิ์วันลาคงเหลือ (ลาพักร้อน / ลาประเพณี) — แสดงหน้าแรกพนักงาน =====
 const VACATION_DAYS_PER_YEAR = 6; // คงที่ทุกคน ให้เต็มสิทธิ์ทันทีที่อายุงานครบ 1 ปี ไม่ทบปี รีเซ็ต 1 ม.ค.
@@ -4141,17 +4204,27 @@ function renderAdminEmpList(){
   if(sel){ sel.innerHTML = `<option value="all">ทุกสาขา</option>` + db.branches.map(b=>`<option value="${b.id}">${b.name}</option>`).join(''); sel.value = sel.dataset.current||'all'; }
   const branchVal = sel ? (sel.dataset.current||'all') : 'all';
   const el = document.getElementById('adminEmpList');
-  const list = branchVal==='all' ? db.employees : db.employees.filter(e=>e.branchId===branchVal);
+  const search = document.getElementById('adminEmpSearch');
+  if(search && !search.dataset.wired){ search.dataset.wired='1'; search.oninput = renderAdminEmpList; }
+  const q = (search?.value || '').trim().toLowerCase();
+  const inBranch = branchVal==='all' ? db.employees : db.employees.filter(e=>e.branchId===branchVal);
+  const list = !q ? inBranch : inBranch.filter(e=>
+    [e.employeeCode, e.name, e.nickname, e.jobTitle, e.department].some(v=>(v||'').toLowerCase().includes(q)));
+  const cnt = document.getElementById('adminEmpCount');
+  if(cnt) cnt.textContent = q ? `พบ ${list.length} จาก ${inBranch.length} คน` : `ทั้งหมด ${list.length} คน`;
   el.innerHTML = list.length ? list.map(e=>{
     const br = db.branches.find(b=>b.id===e.branchId);
     const st = todayStatus(e.id);
+    const resigned = e.resignDate && e.resignDate < dateKey(new Date());
     let badge = st.outTime ? `<span class="badge out">ออกงานแล้ว</span>` : st.inTime ? `<span class="badge in">เข้างานแล้ว</span>` : `<span class="badge idle">ยังไม่มา</span>`;
     const homeLink = (e.homeLat!=null && e.homeLng!=null) ? ` · <a href="https://maps.google.com/?q=${e.homeLat},${e.homeLng}" target="_blank" style="color:var(--pink-dark);">แผนที่บ้าน</a>` : '';
-    if(e.active===false) badge = `<span class="badge idle" style="background:#F3F4F6;color:#9CA3AF;">ปิดการใช้งาน</span>`;
-    return `<div class="listrow" style="${e.active===false?'opacity:.55;':''}"><div class="avatar">${e.name.trim()[0]||'?'}</div>
-      <div class="info"><div class="name">${e.name}${e.jobTitle?' · '+e.jobTitle:''}</div><div class="meta">${br?.name||'ยังไม่ระบุสาขา'} · กะ ${e.shiftStart||'-'}–${e.shiftEnd||'-'} · ${e.descriptor?'ลงทะเบียนหน้าแล้ว':'ยังไม่ลงทะเบียนหน้า'}${homeLink}</div></div>
+    if(resigned) badge = `<span class="badge idle" style="background:#F3F4F6;color:#9CA3AF;">พ้นสภาพ ${ddmmyyyy(e.resignDate)}</span>`;
+    else if(e.active===false) badge = `<span class="badge idle" style="background:#F3F4F6;color:#9CA3AF;">ปิดการใช้งาน</span>`;
+    const dim = resigned || e.active===false;
+    return `<div class="listrow" style="${dim?'opacity:.55;':''}"><div class="avatar">${e.employeeCode || (e.name.trim()[0]||'?')}</div>
+      <div class="info"><div class="name">${e.employeeCode?`<span style="color:var(--muted);font-weight:600;">${e.employeeCode}</span> · `:''}${e.name}${e.jobTitle?' · '+e.jobTitle:''}</div><div class="meta">${br?.name||'ยังไม่ระบุสาขา'} · กะ ${e.shiftStart||'-'}–${e.shiftEnd||'-'} · ${e.descriptor?'ลงทะเบียนหน้าแล้ว':'ยังไม่ลงทะเบียนหน้า'}${homeLink}</div></div>
       ${badge}<button class="btn ghost sm" data-edit="${e.id}">แก้ไข</button></div>`;
-  }).join('') : '<div class="empty">ไม่มีพนักงานในสาขาที่เลือก</div>';
+  }).join('') : `<div class="empty">${q?'ไม่พบพนักงานที่ค้นหา':'ไม่มีพนักงานในสาขาที่เลือก'}</div>`;
   el.querySelectorAll('[data-edit]').forEach(btn=> btn.onclick = ()=> openEmpEditor(btn.dataset.edit));
 }
 function renderEmployeesView(){
@@ -4175,6 +4248,7 @@ function renderEmployeesView(){
   }).join('') : '<div class="empty">ไม่มีพนักงานในสาขาที่เลือก</div>';
 }
 document.getElementById('addEmpAdminBtn').onclick = ()=> openEmpEditor(null);
+document.getElementById('regenEmpCodesBtn').onclick = regenerateEmployeeCodes;
 
 function getApprovalFilteredEmpIds(){
   const branchVal = document.getElementById('approvalBranchFilter')?.value || 'all';
@@ -5236,9 +5310,12 @@ function openEmpEditor(empId){
   const sel = document.getElementById('editEmpBranch');
   sel.innerHTML = db.branches.map(b=>`<option value="${b.id}">${b.name}</option>`).join('');
   document.getElementById('empEditMsg').textContent='';
+  document.getElementById('editEmpResignDate_holder').innerHTML = dateSelectHTML('editEmpResignDate');
   if(empId){
     const e = db.employees.find(x=>x.id===empId);
     document.getElementById('empEditTitle').textContent = 'แก้ไขพนักงาน';
+    document.getElementById('editEmpCode').value = e.employeeCode||'';
+    setDateVal('editEmpResignDate', e.resignDate||'');
     document.getElementById('editEmpName').value = e.name;
     document.getElementById('editEmpNickname').value = e.nickname||'';
     document.getElementById('editEmpDept').value = e.department||'';
@@ -5266,6 +5343,8 @@ function openEmpEditor(empId){
     toggleBtn.textContent = e.active===false ? 'เปิดการใช้งาน' : 'ปิดการใช้งาน';
   } else {
     document.getElementById('empEditTitle').textContent = 'เพิ่มพนักงาน';
+    document.getElementById('editEmpCode').value = nextEmployeeCode();
+    setDateVal('editEmpResignDate', '');
     document.getElementById('editEmpName').value = '';
     document.getElementById('editEmpNickname').value = '';
     document.getElementById('editEmpDept').value = '';
@@ -5296,17 +5375,25 @@ document.getElementById('saveEmpEditBtn').onclick = async ()=>{
   const shiftEnd = document.getElementById('editEmpShiftEnd').value;
   const email = document.getElementById('editEmpEmail').value.trim();
   const pinInput = document.getElementById('editEmpPin').value.trim();
+  const employeeCode = document.getElementById('editEmpCode').value.trim();
+  const resignDate = getDateVal('editEmpResignDate') || '';
   const msg = document.getElementById('empEditMsg');
   if(!name){ msg.className='msg err'; msg.textContent='กรุณากรอกชื่อ'; return; }
   if(pinInput && !/^\d{4}$/.test(pinInput)){ msg.className='msg err'; msg.textContent='PIN ต้องเป็นตัวเลข 4 หลัก'; return; }
+  // รหัสพนักงานห้ามซ้ำ — ฐานข้อมูลกันไว้อีกชั้น แต่เช็คตรงนี้ก่อนเพื่อบอกชื่อคนที่ใช้รหัสนี้อยู่ให้ชัด
+  if(employeeCode){
+    const dup = db.employees.find(x=>x.id!==editingEmpId && (x.employeeCode||'')===employeeCode);
+    if(dup){ msg.className='msg err'; msg.textContent=`รหัส ${employeeCode} ถูกใช้กับ ${dup.name} อยู่แล้ว`; return; }
+  }
+  if(resignDate && startDate && resignDate < startDate){ msg.className='msg err'; msg.textContent='วันที่พ้นสภาพต้องไม่อยู่ก่อนวันที่เริ่มงาน'; return; }
   let empToSave;
   if(editingEmpId){
     const e = db.employees.find(x=>x.id===editingEmpId);
-    Object.assign(e, {name, nickname, department, jobTitle, branchId, startDate, shiftStart, shiftEnd, email, weeklyOffDays: editEmpWeeklyOffDays.slice()});
+    Object.assign(e, {name, nickname, department, jobTitle, branchId, startDate, shiftStart, shiftEnd, email, employeeCode, resignDate, weeklyOffDays: editEmpWeeklyOffDays.slice()});
     if(pinInput) e.pin = pinInput;
     empToSave = e;
   } else {
-    empToSave = {id:uid(), name, nickname, department, jobTitle, branchId, startDate, shiftStart, shiftEnd, email, weeklyOffDays: editEmpWeeklyOffDays.slice(), pin: pinInput||null, descriptor:null, homeLat:null, homeLng:null};
+    empToSave = {id:uid(), name, nickname, department, jobTitle, branchId, startDate, shiftStart, shiftEnd, email, employeeCode, resignDate, weeklyOffDays: editEmpWeeklyOffDays.slice(), pin: pinInput||null, descriptor:null, homeLat:null, homeLng:null};
     db.employees.push(empToSave);
   }
   await saveEmployeeRow(empToSave);
@@ -5363,16 +5450,29 @@ function renderAuditLogFilter(){
   if(!sel.dataset.wired2){ sel.dataset.wired2 = '1'; setDatePreset('auditLog', 'today', renderAuditLogViewer); }
   else { renderAuditLogViewer(); }
 }
+let auditLogCache = [];
 async function renderAuditLogViewer(){
   const el = document.getElementById('auditLogViewer'); if(!el) return;
   el.innerHTML = '<div class="empty">กำลังโหลด…</div>';
-  const rows = await fetchAuditLogInRange(getDateVal('auditLogFrom'), getDateVal('auditLogTo'));
+  auditLogCache = await fetchAuditLogInRange(getDateVal('auditLogFrom'), getDateVal('auditLogTo'));
+  paintAuditLog();
+}
+// ค้นหาทำกับผลที่โหลดมาแล้ว (ช่วงวันที่กรองมาจากฐานข้อมูลแล้ว) จึงไม่ต้องยิงใหม่ทุกตัวอักษร
+function paintAuditLog(){
+  const el = document.getElementById('auditLogViewer'); if(!el) return;
+  const search = document.getElementById('auditLogSearch');
+  if(search && !search.dataset.wired){ search.dataset.wired='1'; search.oninput = paintAuditLog; }
+  const q = (search?.value || '').trim().toLowerCase();
+  const rows = !q ? auditLogCache : auditLogCache.filter(r=>
+    [r.actor_name, r.action, r.details].some(v=>(v||'').toLowerCase().includes(q)));
+  const cnt = document.getElementById('auditLogCount');
+  if(cnt) cnt.textContent = q ? `พบ ${rows.length} จาก ${auditLogCache.length} รายการ` : `${auditLogCache.length} รายการในช่วงที่เลือก`;
   el.innerHTML = rows.length ? rows.map(r=>`
     <div class="listrow"><div class="info">
       <div class="name">${r.actor_name||'-'} — ${r.action||'-'}</div>
       <div class="meta">${r.details||'-'}</div>
       <div class="meta">${new Date(r.created_at).toLocaleString('th-TH')}</div>
-    </div></div>`).join('') : '<div class="empty">ไม่มีประวัติการแก้ไข/ลบในช่วงที่เลือก</div>';
+    </div></div>`).join('') : `<div class="empty">${q?'ไม่พบรายการที่ค้นหา':'ไม่มีประวัติการแก้ไข/ลบในช่วงที่เลือก'}</div>`;
 }
 // ===== บริษัทในเครือ (สำหรับออกเอกสาร เช่น ใบเตือน) =====
 function renderCompanyList(){
@@ -5591,16 +5691,21 @@ function updateAdminHeaderMeta(){
 
 function renderAcPointEditor(){
   const el = document.getElementById('acPointEditor');
-  el.innerHTML = db.branches.map(b=>`
+  const f = pointEditorFilter('acPoint', renderAcPointEditor);
+  const shown = f.branches.reduce((n,b)=> n + (b.acPoints||[]).filter(f.match).length, 0);
+  const total = db.branches.reduce((n,b)=> n + (b.acPoints||[]).length, 0);
+  const cnt = document.getElementById('acPointCount');
+  if(cnt) cnt.textContent = `แสดง ${shown} จุด · ทั้งบริษัทมี ${total} จุด`;
+  el.innerHTML = f.branches.map(b=>`
     <div style="padding:12px 0;border-bottom:1px solid var(--border);">
       <div style="font-weight:600;font-size:13.5px;margin-bottom:6px;">${b.name}</div>
-      ${(b.acPoints||[]).map((p,idx)=>`
+      ${(b.acPoints||[]).map((p,idx)=>({p,idx})).filter(x=>f.match(x.p)).map(({p,idx})=>`
         <div class="settingsrow" style="padding:6px 0;">
           <div class="info"><div class="name" style="font-size:13px;">${p.name}</div></div>
           <button class="btn ghost sm" data-moveuppoint="${b.id}:${p.id}" ${idx===0?'disabled':''}>▲</button>
           <button class="btn ghost sm" data-movedownpoint="${b.id}:${p.id}" ${idx===(b.acPoints.length-1)?'disabled':''}>▼</button>
           <button class="btn ghost sm" data-rmpoint="${b.id}:${p.id}">ลบ</button>
-        </div>`).join('')}
+        </div>`).join('') || '<div style="font-size:12px;color:var(--muted);padding:6px 0;">ไม่พบจุดที่ค้นหาในสาขานี้</div>'}
       <div class="row2" style="margin-top:8px;">
         <input type="text" placeholder="ชื่อจุดใหม่ เช่น ห้องทรีตเมนต์ 1" data-newpoint="${b.id}">
         <button class="btn ghost sm" data-addpoint="${b.id}">เพิ่ม</button>
@@ -5646,18 +5751,43 @@ function renderAcPointEditor(){
   });
 }
 
+/* ตัวช่วยกรองรายการจุดตรวจ — เดิมกางจุดของทุกสาขาพร้อมกัน (แอร์ 53 จุด ความสะอาด 86 จุด)
+   ทำให้ต้องเลื่อนผ่านทั้งหมดกว่าจะเจอที่ต้องการ ตอนนี้เลือกสาขาทีละสาขา + ค้นหาชื่อจุดได้
+   คืนค่ารายชื่อสาขาที่จะแสดง และฟังก์ชันกรองจุดตามคำค้น */
+function pointEditorFilter(prefix, rerender){
+  const sel = document.getElementById(`${prefix}BranchFilter`);
+  const search = document.getElementById(`${prefix}Search`);
+  if(sel && !sel.dataset.wired){
+    sel.dataset.wired = '1'; sel.dataset.current = db.branches[0]?.id || 'all';
+    sel.onchange = ()=>{ sel.dataset.current = sel.value; rerender(); };
+  }
+  if(sel){
+    sel.innerHTML = db.branches.map(b=>`<option value="${b.id}">${b.name}</option>`).join('') + `<option value="all">ทุกสาขา</option>`;
+    sel.value = sel.dataset.current || db.branches[0]?.id || 'all';
+  }
+  if(search && !search.dataset.wired){ search.dataset.wired = '1'; search.oninput = rerender; }
+  const q = (search?.value || '').trim().toLowerCase();
+  const branchVal = sel ? (sel.dataset.current || 'all') : 'all';
+  const branches = branchVal==='all' ? db.branches : db.branches.filter(b=>b.id===branchVal);
+  return { branches, q, match: p => !q || (p.name||'').toLowerCase().includes(q) };
+}
 function renderCleanPointEditor(){
   const el = document.getElementById('cleanPointEditor');
-  el.innerHTML = db.branches.map(b=>`
+  const f = pointEditorFilter('cleanPoint', renderCleanPointEditor);
+  const shown = f.branches.reduce((n,b)=> n + (b.cleaningPoints||[]).filter(f.match).length, 0);
+  const total = db.branches.reduce((n,b)=> n + (b.cleaningPoints||[]).length, 0);
+  const cnt = document.getElementById('cleanPointCount');
+  if(cnt) cnt.textContent = `แสดง ${shown} จุด · ทั้งบริษัทมี ${total} จุด`;
+  el.innerHTML = f.branches.map(b=>`
     <div style="padding:12px 0;border-bottom:1px solid var(--border);">
       <div style="font-weight:600;font-size:13.5px;margin-bottom:6px;">${b.name}</div>
-      ${(b.cleaningPoints||[]).map((p,idx)=>`
+      ${(b.cleaningPoints||[]).map((p,idx)=>({p,idx})).filter(x=>f.match(x.p)).map(({p,idx})=>`
         <div class="settingsrow" style="padding:6px 0;">
           <div class="info"><div class="name" style="font-size:13px;">${p.name}</div></div>
           <button class="btn ghost sm" data-moveupcpoint="${b.id}:${p.id}" ${idx===0?'disabled':''}>▲</button>
           <button class="btn ghost sm" data-movedowncpoint="${b.id}:${p.id}" ${idx===(b.cleaningPoints.length-1)?'disabled':''}>▼</button>
           <button class="btn ghost sm" data-rmcpoint="${b.id}:${p.id}">ลบ</button>
-        </div>`).join('')}
+        </div>`).join('') || '<div style="font-size:12px;color:var(--muted);padding:6px 0;">ไม่พบจุดที่ค้นหาในสาขานี้</div>'}
       <div class="row2" style="margin-top:8px;">
         <input type="text" placeholder="ชื่อจุดใหม่ เช่น ห้องน้ำ" data-newcpoint="${b.id}">
         <button class="btn ghost sm" data-addcpoint="${b.id}">เพิ่ม</button>
@@ -6199,6 +6329,7 @@ async function runScheduledTest(btn, fnName, label){
 document.getElementById('testDailyLeaveBtn').onclick = (e)=> runScheduledTest(e.target, 'send_daily_leave_summary', 'สรุปวันลา');
 document.getElementById('testAcReminderBtn').onclick = (e)=> runScheduledTest(e.target, 'send_ac_missing_reminder', 'เตือนปิดแอร์');
 document.getElementById('testFacilityReminderBtn').onclick = (e)=> runScheduledTest(e.target, 'send_facility_missing_reminder', 'เตือนความสะอาด/ความเรียบร้อย');
+document.getElementById('testMissingScanBtn').onclick = (e)=> runScheduledTest(e.target, 'send_missing_scan_reminder', 'สรุปคนลืมสแกนเข้า-ออกงาน');
 
 function renderGsheetLastSync(){
   const el = document.getElementById('gsheetLastSync');
