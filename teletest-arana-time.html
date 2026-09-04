@@ -115,6 +115,7 @@
   .btn.block{width:100%;}
   .btn.ghost{background:none;border:1.5px solid var(--pink);color:var(--pink-dark);}
   .btn.gray{background:#F3F4F6;color:var(--text);}
+  .btn.danger{background:var(--red);color:#fff;}
   .btn.amber{background:var(--amber);color:#fff;}
   .btn.sm{padding:7px 12px;font-size:12.5px;border-radius:8px;}
   .btn:disabled{opacity:.5;cursor:not-allowed;}
@@ -903,7 +904,7 @@
         <div class="card" id="pendingLeaveList" style="padding:0 16px;margin-bottom:20px;"></div>
       </section>
       <section>
-        <div class="sectitle">ประวัติใบลาทั้งหมด<button class="btn ghost sm" style="margin-left:auto;" id="exportLeaveReportBtn">Report</button></div>
+        <div class="sectitle">ประวัติใบลาทั้งหมด<button class="btn ghost sm" style="margin-left:auto;" id="adminAddLeaveBtn">+ เพิ่มใบลา</button><button class="btn ghost sm" style="margin-left:6px;" id="exportLeaveReportBtn">Report</button></div>
         <div class="card" id="allLeaveList" style="padding:0 16px;"></div>
       </section>
       <section>
@@ -915,7 +916,7 @@
         <div class="card" id="pendingOtList" style="padding:0 16px;margin-bottom:20px;"></div>
       </section>
       <section>
-        <div class="sectitle">ประวัติ OT ทั้งหมด<button class="btn ghost sm" style="margin-left:auto;" id="exportOtReportBtn">Report</button></div>
+        <div class="sectitle">ประวัติ OT ทั้งหมด<button class="btn ghost sm" style="margin-left:auto;" id="adminAddOtBtn">+ เพิ่ม OT</button><button class="btn ghost sm" style="margin-left:6px;" id="exportOtReportBtn">Report</button></div>
         <div class="card" id="allOtList" style="padding:0 16px;"></div>
       </section>
       <section>
@@ -1305,6 +1306,18 @@
   <div class="modal">
     <h3>แก้ไขข้อมูลใบลา (HR)</h3>
     <div style="color:var(--muted);font-size:11.5px;margin-bottom:10px;">แก้ไขแล้วมีผลทันที ไม่ต้องรออนุมัติซ้ำ เหมาะกับกรณีพนักงานยื่นข้อมูลผิด (เช่น เลือกประเภทลาผิด) — จะไม่ส่งแจ้งเตือนซ้ำเข้ากลุ่ม Telegram ใดๆ</div>
+    <div id="adminLeaveEmpWrap" class="hidden">
+      <label>พนักงาน</label>
+      <select id="adminLeaveEmp"></select>
+    </div>
+    <div id="adminLeaveStatusWrap" class="hidden">
+      <label>สถานะ</label>
+      <select id="adminLeaveStatus">
+        <option value="approved">อนุมัติแล้ว</option>
+        <option value="pending">รออนุมัติ</option>
+        <option value="rejected">ปฏิเสธ</option>
+      </select>
+    </div>
     <label>ประเภทการลา</label>
     <select id="adminLeaveType">
       <option value="sick_cert">ลาป่วย (มีใบรับรองแพทย์)</option>
@@ -1340,6 +1353,58 @@
       <button class="btn gray" id="closeAdminLeaveEditBtn">ยกเลิก</button>
     </div>
     <div class="msg" id="adminLeaveEditMsg"></div>
+  </div>
+</div>
+
+<!-- HR: แก้ไข/ลบ บันทึกที่ระบบเก็บไว้แล้ว (เวลาเข้า-ออกงาน / ปิดแอร์ / ความสะอาด / ความเรียบร้อย) -->
+<div class="overlay" id="logEditOverlay">
+  <div class="modal">
+    <h3 id="logEditTitle">แก้ไขบันทึกเวลา</h3>
+    <div style="color:var(--muted);font-size:11.5px;margin-bottom:10px;">แก้ไข/ลบข้อมูลที่บันทึกไว้แล้ว มีผลทันที และไม่ส่งแจ้งเตือนเข้ากลุ่ม Telegram ใดๆ</div>
+    <div id="logEditWho" style="font-weight:600;font-size:13px;margin-bottom:10px;"></div>
+    <label>เวลา</label>
+    <input type="time" id="logEditTime">
+    <div id="logEditLateWrap">
+      <label>สาย (นาที) — เว้นว่างไว้ให้ระบบคำนวณใหม่จากเวลาเข้ากะ</label>
+      <input type="number" id="logEditLate" min="0" placeholder="คำนวณอัตโนมัติ">
+    </div>
+    <div class="modalfoot">
+      <button class="btn block" id="saveLogEditBtn">บันทึก</button>
+      <button class="btn danger block" id="deleteLogEditBtn">ลบบันทึกนี้</button>
+      <button class="btn gray" id="closeLogEditBtn">ยกเลิก</button>
+    </div>
+    <div class="msg" id="logEditMsg"></div>
+  </div>
+</div>
+
+<!-- HR: เพิ่ม/แก้ไข คำขอ OT โดยตรง -->
+<div class="overlay" id="adminOtEditOverlay">
+  <div class="modal">
+    <h3 id="adminOtEditTitle">แก้ไขข้อมูล OT (HR)</h3>
+    <div style="color:var(--muted);font-size:11.5px;margin-bottom:10px;">แก้ไขแล้วมีผลทันที ไม่ต้องรออนุมัติซ้ำ และไม่ส่งแจ้งเตือนเข้ากลุ่ม Telegram ใดๆ</div>
+    <div id="adminOtEmpWrap" class="hidden">
+      <label>พนักงาน</label>
+      <select id="adminOtEmp"></select>
+    </div>
+    <label>วันที่</label>
+    <div id="adminOtDate_holder"></div>
+    <div class="row2">
+      <div><label>เวลาเริ่ม</label><input type="time" id="adminOtHourStart"></div>
+      <div><label>เวลาสิ้นสุด</label><input type="time" id="adminOtHourEnd"></div>
+    </div>
+    <label>สถานะ</label>
+    <select id="adminOtStatus">
+      <option value="approved">อนุมัติแล้ว</option>
+      <option value="pending">รออนุมัติ</option>
+      <option value="rejected">ปฏิเสธ</option>
+    </select>
+    <label>เหตุผล</label>
+    <textarea id="adminOtReason" placeholder="ระบุเหตุผลการทำ OT"></textarea>
+    <div class="modalfoot">
+      <button class="btn block" id="saveAdminOtEditBtn">บันทึก</button>
+      <button class="btn gray" id="closeAdminOtEditBtn">ยกเลิก</button>
+    </div>
+    <div class="msg" id="adminOtEditMsg"></div>
   </div>
 </div>
 
@@ -2774,10 +2839,38 @@ document.getElementById('leaveType').addEventListener('change', ()=>{
 
 // -- แก้ไขข้อมูลใบลาโดยตรงจากฝั่ง HR (ไม่ผ่านขั้นตอนขออนุมัติ) — กรณีพนักงานยื่นข้อมูลผิด/ระบบผิด --
 let adminEditingLeaveId = null;
+// เพิ่มใบลาแทนพนักงาน (กรณีพนักงานยังใช้ระบบไม่เป็น / ลาไปแล้วแต่ไม่ได้ยื่นในระบบ)
+// ใช้โมดัลตัวเดียวกับการแก้ไข แต่เปิดช่อง "พนักงาน" กับ "สถานะ" เพิ่ม
+function openAdminLeaveCreate(){
+  if(!canApproveLeave()){ alert('ไม่มีสิทธิ์เพิ่มใบลา ต้องเป็นเจ้าของ/HR/ผู้จัดการ'); return; }
+  adminEditingLeaveId = null;
+  document.querySelector('#adminLeaveEditOverlay h3').textContent = 'เพิ่มใบลาแทนพนักงาน (HR)';
+  document.getElementById('adminLeaveEmpWrap').classList.remove('hidden');
+  document.getElementById('adminLeaveStatusWrap').classList.remove('hidden');
+  document.getElementById('adminLeaveEmp').innerHTML = db.employees
+    .slice().sort((a,b)=>a.name.localeCompare(b.name,'th'))
+    .map(e=>`<option value="${e.id}">${e.name}${e.nickname?` (${e.nickname})`:''}</option>`).join('');
+  document.getElementById('adminLeaveStatus').value = 'approved';
+  document.getElementById('adminLeaveEditMsg').textContent = '';
+  document.getElementById('adminLeaveType').value = 'sick_nocert';
+  document.getElementById('adminLeaveFrom_holder').innerHTML = dateSelectHTML('adminLeaveFrom');
+  document.getElementById('adminLeaveTo_holder').innerHTML = dateSelectHTML('adminLeaveTo');
+  document.getElementById('adminLeaveSingleDate_holder').innerHTML = dateSelectHTML('adminLeaveSingleDate');
+  document.getElementById('adminLeaveDateRangeFields').classList.remove('hidden');
+  document.getElementById('adminLeaveHourlyFields').classList.add('hidden');
+  const today = dateKey(new Date());
+  setDateVal('adminLeaveFrom', today); setDateVal('adminLeaveTo', today); setDateVal('adminLeaveSingleDate', today);
+  document.getElementById('adminLeaveHourStart').value=''; document.getElementById('adminLeaveHourEnd').value='';
+  document.getElementById('adminLeaveReason').value = '';
+  document.getElementById('adminLeaveEditOverlay').classList.add('show');
+}
 function openAdminLeaveEdit(leaveId){
   if(!canApproveLeave()){ alert('ไม่มีสิทธิ์แก้ไข ต้องเป็นเจ้าของ/HR/ผู้จัดการ'); return; }
   const leave = db.leaves.find(l=>l.id===leaveId); if(!leave) return;
   adminEditingLeaveId = leaveId;
+  document.querySelector('#adminLeaveEditOverlay h3').textContent = 'แก้ไขข้อมูลใบลา (HR)';
+  document.getElementById('adminLeaveEmpWrap').classList.add('hidden');
+  document.getElementById('adminLeaveStatusWrap').classList.add('hidden');
   document.getElementById('adminLeaveEditMsg').textContent = '';
   document.getElementById('adminLeaveType').value = leave.kind;
   document.getElementById('adminLeaveFrom_holder').innerHTML = dateSelectHTML('adminLeaveFrom');
@@ -2805,7 +2898,9 @@ document.getElementById('adminLeaveType').addEventListener('change', ()=>{
   document.getElementById('adminLeaveHourlyFields').classList.toggle('hidden', !isHourly);
 });
 document.getElementById('saveAdminLeaveEditBtn').onclick = async ()=>{
-  const leave = db.leaves.find(l=>l.id===adminEditingLeaveId); if(!leave) return;
+  const creating = !adminEditingLeaveId;
+  const leave = creating ? null : db.leaves.find(l=>l.id===adminEditingLeaveId);
+  if(!creating && !leave) return;
   const msg = document.getElementById('adminLeaveEditMsg');
   const kind = document.getElementById('adminLeaveType').value;
   const isHourly = HOURLY_KINDS.includes(kind);
@@ -2819,6 +2914,25 @@ document.getElementById('saveAdminLeaveEditBtn').onclick = async ()=>{
   } else {
     from = getDateVal('adminLeaveFrom'); to = getDateVal('adminLeaveTo');
     if(!from || !to){ msg.className='msg err'; msg.textContent='กรุณากรอกวันที่ให้ครบ'; return; }
+  }
+  if(creating){
+    const employeeId = document.getElementById('adminLeaveEmp').value;
+    const emp = db.employees.find(e=>e.id===employeeId);
+    if(!emp){ msg.className='msg err'; msg.textContent='กรุณาเลือกพนักงาน'; return; }
+    const status = document.getElementById('adminLeaveStatus').value;
+    const nowIso = new Date().toISOString();
+    const row = {
+      id:uid(), employeeId, kind, from, to, hourStart, hourEnd, reason,
+      status, requestedAt:nowIso, decidedAt: status==='pending' ? null : nowIso,
+      evidenceSent:null, evidenceFileId:null
+    };
+    db.leaves.push(row);
+    await saveLeaveRow(row);
+    await logAudit('create_by_admin', 'leave', row.id, `HR เพิ่มใบลาแทนพนักงาน ${emp.name}: ${leaveLabel(kind)} ${leaveRangeText(row)} (สถานะ ${leaveStatusLabel(status)})`);
+    document.getElementById('adminLeaveEditOverlay').classList.remove('show');
+    renderLeaveLists(); renderOverviewStats();
+    if(status==='approved') await recalcLateForEmployeeDate(employeeId, from);
+    return;
   }
   const before = `${leaveLabel(leave.kind)} ${leaveRangeText(leave)}`;
   const oldFrom = leave.from, employeeId = leave.employeeId;
@@ -3354,6 +3468,99 @@ async function deleteOtGroup(groupId){
   await logAudit('delete', 'ot_group', groupId, `ลบคำขอ OT กลุ่ม ${items.length} คน วันที่ ${items[0].date}`);
   renderOtTab(); renderOtLists();
 }
+
+/* ===== HR แก้ไข/ลบข้อมูลที่บันทึกไว้แล้วได้เอง (ทุกสถานะ ไม่จำกัดแค่ "รออนุมัติ") =====
+   ต่างจาก deleteLeaveRequest/deleteOtRequest ด้านบน ตรงที่ลบใบที่อนุมัติ/ปฏิเสธไปแล้วได้ด้วย
+   ไว้ใช้กรณีข้อมูลผิดจนแก้ไม่ได้ ต้องล้างทิ้งแล้วบันทึกใหม่ — ทุกฟังก์ชันในกลุ่มนี้ไม่ส่ง Telegram
+   แต่บันทึก audit log ทุกครั้ง เพื่อให้ย้อนดูได้ว่าใครลบ/แก้อะไรเมื่อไหร่ */
+async function adminDeleteLeave(id){
+  if(!canApproveLeave()){ alert('ไม่มีสิทธิ์ลบ ต้องเป็นเจ้าของ/HR/ผู้จัดการ'); return; }
+  const leave = db.leaves.find(l=>l.id===id); if(!leave) return;
+  const emp = db.employees.find(e=>e.id===leave.employeeId);
+  if(!confirm(`ยืนยันลบใบลานี้ถาวร?\n${emp?.name||'-'} · ${leaveLabel(leave.kind)} ${leaveRangeText(leave)} (${leaveStatusLabel(leave.status)})\n\nลบแล้วกู้คืนไม่ได้ และไม่มีการแจ้งเตือนเข้ากลุ่มใดๆ`)) return;
+  const wasApproved = leave.status==='approved', empId = leave.employeeId, from = leave.from;
+  db.leaves = db.leaves.filter(l=>l.id!==id);
+  await sbDeleteRow('leaves', id);
+  await logAudit('delete_by_admin', 'leave', id, `HR ลบใบลาของ ${emp?.name||'-'}: ${leaveLabel(leave.kind)} ${leaveRangeText(leave)} (${leaveStatusLabel(leave.status)})`);
+  renderLeaveLists(); renderOverviewStats();
+  // ใบลาที่อนุมัติแล้วอาจเคยเลื่อนจุดเริ่มนับสายของวันนั้นไว้ ต้องคำนวณกลับเป็นตามเวลาเข้ากะปกติ
+  if(wasApproved) await recalcLateForEmployeeDate(empId, from);
+}
+async function adminDeleteOt(id){
+  if(!canApproveOt()){ alert('ไม่มีสิทธิ์ลบ ต้องเป็นเจ้าของ/HR เท่านั้น'); return; }
+  const ot = db.otRequests.find(o=>o.id===id); if(!ot) return;
+  const emp = db.employees.find(e=>e.id===ot.employeeId);
+  if(!confirm(`ยืนยันลบรายการ OT นี้ถาวร?\n${emp?.name||'-'} · ${ddmmyyyy(ot.date)} ${ot.hourStart}–${ot.hourEnd} (${otStatusLabel(ot.status)})\n\nลบแล้วกู้คืนไม่ได้ และไม่มีการแจ้งเตือนเข้ากลุ่มใดๆ`)) return;
+  db.otRequests = db.otRequests.filter(o=>o.id!==id);
+  await sbDeleteRow('ot_requests', id);
+  await logAudit('delete_by_admin', 'ot', id, `HR ลบรายการ OT ของ ${emp?.name||'-'} วันที่ ${ddmmyyyy(ot.date)} ${ot.hourStart}-${ot.hourEnd} (${otStatusLabel(ot.status)})`);
+  renderOtLists(); renderOverviewStats();
+}
+
+let adminEditingOtId = null;
+function openAdminOtCreate(){
+  if(!canApproveOt()){ alert('ไม่มีสิทธิ์เพิ่ม OT ต้องเป็นเจ้าของ/HR เท่านั้น'); return; }
+  adminEditingOtId = null;
+  document.getElementById('adminOtEditTitle').textContent = 'เพิ่ม OT แทนพนักงาน (HR)';
+  document.getElementById('adminOtEmpWrap').classList.remove('hidden');
+  document.getElementById('adminOtEmp').innerHTML = db.employees
+    .slice().sort((a,b)=>a.name.localeCompare(b.name,'th'))
+    .map(e=>`<option value="${e.id}">${e.name}${e.nickname?` (${e.nickname})`:''}</option>`).join('');
+  document.getElementById('adminOtDate_holder').innerHTML = dateSelectHTML('adminOtDate');
+  setDateVal('adminOtDate', dateKey(new Date()));
+  document.getElementById('adminOtHourStart').value = '';
+  document.getElementById('adminOtHourEnd').value = '';
+  document.getElementById('adminOtStatus').value = 'approved';
+  document.getElementById('adminOtReason').value = '';
+  document.getElementById('adminOtEditMsg').textContent = '';
+  document.getElementById('adminOtEditOverlay').classList.add('show');
+}
+function openAdminOtEdit(otId){
+  if(!canApproveOt()){ alert('ไม่มีสิทธิ์แก้ไข ต้องเป็นเจ้าของ/HR เท่านั้น'); return; }
+  const ot = db.otRequests.find(o=>o.id===otId); if(!ot) return;
+  adminEditingOtId = otId;
+  const emp = db.employees.find(e=>e.id===ot.employeeId);
+  document.getElementById('adminOtEditTitle').textContent = `แก้ไข OT — ${emp?.name||'-'}`;
+  document.getElementById('adminOtEmpWrap').classList.add('hidden');
+  document.getElementById('adminOtDate_holder').innerHTML = dateSelectHTML('adminOtDate');
+  setDateVal('adminOtDate', ot.date);
+  document.getElementById('adminOtHourStart').value = ot.hourStart||'';
+  document.getElementById('adminOtHourEnd').value = ot.hourEnd||'';
+  document.getElementById('adminOtStatus').value = ot.status;
+  document.getElementById('adminOtReason').value = ot.reason||'';
+  document.getElementById('adminOtEditMsg').textContent = '';
+  document.getElementById('adminOtEditOverlay').classList.add('show');
+}
+document.getElementById('closeAdminOtEditBtn').onclick = ()=> document.getElementById('adminOtEditOverlay').classList.remove('show');
+document.getElementById('saveAdminOtEditBtn').onclick = async ()=>{
+  const msg = document.getElementById('adminOtEditMsg');
+  const date = getDateVal('adminOtDate');
+  const hourStart = document.getElementById('adminOtHourStart').value;
+  const hourEnd = document.getElementById('adminOtHourEnd').value;
+  const status = document.getElementById('adminOtStatus').value;
+  const reason = document.getElementById('adminOtReason').value.trim();
+  if(!date || !hourStart || !hourEnd){ msg.className='msg err'; msg.textContent='กรุณากรอกวันที่และเวลาให้ครบ'; return; }
+  if(adminEditingOtId){
+    const ot = db.otRequests.find(o=>o.id===adminEditingOtId); if(!ot) return;
+    const before = `${ddmmyyyy(ot.date)} ${ot.hourStart}-${ot.hourEnd} (${otStatusLabel(ot.status)})`;
+    Object.assign(ot, {date, hourStart, hourEnd, reason, status, decidedAt: status==='pending' ? null : (ot.decidedAt||new Date().toISOString())});
+    await saveOtRow(ot);
+    await markOtForResync(ot.id);
+    await logAudit('edit_by_admin', 'ot', ot.id, `HR แก้ไขรายการ OT โดยตรง: ${before} → ${ddmmyyyy(date)} ${hourStart}-${hourEnd} (${otStatusLabel(status)})`);
+  } else {
+    const employeeId = document.getElementById('adminOtEmp').value;
+    const emp = db.employees.find(e=>e.id===employeeId);
+    if(!emp){ msg.className='msg err'; msg.textContent='กรุณาเลือกพนักงาน'; return; }
+    const nowIso = new Date().toISOString();
+    const row = {id:uid(), employeeId, date, hourStart, hourEnd, reason, status, requestedAt:nowIso, decidedAt: status==='pending'?null:nowIso, groupId:null};
+    db.otRequests.push(row);
+    await saveOtRow(row);
+    await logAudit('create_by_admin', 'ot', row.id, `HR เพิ่มรายการ OT แทนพนักงาน ${emp.name}: ${ddmmyyyy(date)} ${hourStart}-${hourEnd} (${otStatusLabel(status)})`);
+  }
+  document.getElementById('adminOtEditOverlay').classList.remove('show');
+  adminEditingOtId = null;
+  renderOtLists(); renderOverviewStats();
+};
 
 // -- Notifications tab --
 function renderNotiTab(){
@@ -3929,14 +4136,26 @@ function renderInspectTab(){
       else if(st.offsiteTransfer){ const tb = db.branches.find(b=>b.id===st.offsiteTransfer.branchId); statusText = `ทำงาน${tb?'สาขา '+tb.name:'นอกสถานที่'}`; badgeClass='offsite'; }
       else if(st.inLog){ statusText = st.inLog.lateMinutes>0 ? `สาย ${st.inLog.lateMinutes} นาที (เข้า ${fmtTime(new Date(st.inLog.time))})` : `ตรงเวลา (เข้า ${fmtTime(new Date(st.inLog.time))})`; if(st.inLog.manualEntry) statusText += ' (แอดมินเพิ่มให้)'; badgeClass = st.inLog.lateMinutes>0?'late':'approved'; }
       else { statusText = 'ยังไม่เข้างาน'; badgeClass='rejected'; }
-      const canManualAdd = !st.leave && !st.isHol && !st.inLog && !st.offsiteTransfer && dateStr<=dateKey(new Date()) && canManageApprovers();
+      if(st.outLog) statusText += ` · ออก ${fmtTime(new Date(st.outLog.time))}`;
+      const isAdmin = canManageApprovers();
+      const canManualAdd = !st.leave && !st.isHol && !st.inLog && !st.offsiteTransfer && dateStr<=dateKey(new Date()) && isAdmin;
+      // ปุ่มแก้ไข/ลบข้อมูลที่บันทึกไว้แล้ว — HR ใช้เองได้ ไม่ต้องรอทีมพัฒนา
+      let editBtns = '';
+      if(isAdmin){
+        if(st.inLog) editBtns += `<button class="btn ghost sm" data-logedit="${st.inLog.id}" style="margin-left:6px;">แก้เวลาเข้า</button>`;
+        if(st.outLog) editBtns += `<button class="btn ghost sm" data-logedit="${st.outLog.id}" style="margin-left:6px;">แก้เวลาออก</button>`;
+        else if(st.inLog) editBtns += `<button class="btn ghost sm" data-logaddout="${e.id}" style="margin-left:6px;">เพิ่มเวลาออก</button>`;
+        if(st.offsiteTransfer) editBtns += `<button class="btn-mini icononly" data-offsitedel="${st.offsiteTransfer.id}" title="ลบบันทึกนอกสถานที่" style="margin-left:6px;">${TRASH_ICON_SVG}</button>`;
+      }
       const manualBtn = canManualAdd ? `<button class="btn ghost sm" data-manualcheckin="${e.id}" style="margin-left:8px;">ลืมสแกน</button><button class="btn ghost sm" data-offsiteadd="${e.id}" style="margin-left:6px;">ทำงานนอกสถานที่</button>` : '';
-      empHtml += `<div class="listrow"><div class="avatar">${e.name.trim()[0]||'?'}</div><div class="info"><div class="name">${e.name}</div><div class="meta">${statusText}</div></div><span class="badge ${badgeClass}">${badgeClass==='late'?'สาย':badgeClass==='approved'?'ตรงเวลา':badgeClass==='pending'?'ลา':badgeClass==='idle'?'หยุด':badgeClass==='offsite'?'นอกสถานที่':'ขาด'}</span>${manualBtn}</div>`;
+      empHtml += `<div class="listrow" style="flex-wrap:wrap;"><div class="avatar">${e.name.trim()[0]||'?'}</div><div class="info"><div class="name">${e.name}</div><div class="meta">${statusText}</div></div><span class="badge ${badgeClass}">${badgeClass==='late'?'สาย':badgeClass==='approved'?'ตรงเวลา':badgeClass==='pending'?'ลา':badgeClass==='idle'?'หยุด':badgeClass==='offsite'?'นอกสถานที่':'ขาด'}</span>${manualBtn}${editBtns}</div>`;
     });
   });
   document.getElementById('inspectEmpStatusList').innerHTML = empHtml || '<div class="empty">ไม่มีพนักงานในสาขาที่เลือก</div>';
   document.querySelectorAll('[data-manualcheckin]').forEach(b=> b.onclick = ()=> openManualCheckinForm(b.dataset.manualcheckin, dateStr));
   document.querySelectorAll('[data-offsiteadd]').forEach(b=> b.onclick = ()=> addRetroactiveOffsite(b.dataset.offsiteadd, dateStr));
+  document.querySelectorAll('[data-logaddout]').forEach(b=> b.onclick = ()=> openLogAdd(b.dataset.logaddout, dateStr, 'OUT'));
+  document.querySelectorAll('[data-offsitedel]').forEach(b=> b.onclick = ()=> deleteOffsiteRecord(b.dataset.offsitedel));
 
   // AC points
   let acHtml = '';
@@ -3946,7 +4165,7 @@ function renderInspectTab(){
     points.forEach(p=>{
       const log = db.logs.find(l=>l.type==='AC' && l.branchId===br.id && l.acPointId===p.id && todayKey(new Date(l.time))===dKey);
       const doer = log ? db.employees.find(e=>e.id===log.employeeId) : null;
-      acHtml += `<div class="acrow"><div class="check ${log?'done':''}">${log?'✓':''}</div><div class="info"><div class="name">${p.name}</div><div class="meta">${log?`ส่งแล้วเมื่อ ${fmtTime(new Date(log.time))} โดย ${doer?.name||'-'}`:'ยังไม่ได้ส่ง'}</div></div></div>`;
+      acHtml += `<div class="acrow"><div class="check ${log?'done':''}">${log?'✓':''}</div><div class="info"><div class="name">${p.name}</div><div class="meta">${log?`ส่งแล้วเมื่อ ${fmtTime(new Date(log.time))} โดย ${doer?.name||'-'}`:'ยังไม่ได้ส่ง'}</div></div>${log&&canManageApprovers()?`<button class="btn-mini icononly" data-logedit="${log.id}" title="แก้ไข/ลบบันทึกนี้">${TRASH_ICON_SVG}</button>`:''}</div>`;
     });
   });
   document.getElementById('inspectAcList').innerHTML = acHtml || '<div class="empty">ไม่มีจุดปิดแอร์ในสาขาที่เลือก</div>';
@@ -3959,7 +4178,7 @@ function renderInspectTab(){
     points.forEach(p=>{
       const log = db.logs.find(l=>l.type==='CLEAN' && l.branchId===br.id && l.cleanPointId===p.id && todayKey(new Date(l.time))===dKey);
       const doer = log ? db.employees.find(e=>e.id===log.employeeId) : null;
-      cleanHtml += `<div class="acrow"><div class="check ${log?'done':''}">${log?'✓':''}</div><div class="info"><div class="name">${p.name}</div><div class="meta">${log?`ส่งแล้วเมื่อ ${fmtTime(new Date(log.time))} โดย ${doer?.name||'-'}`:'ยังไม่ได้ส่ง'}</div></div></div>`;
+      cleanHtml += `<div class="acrow"><div class="check ${log?'done':''}">${log?'✓':''}</div><div class="info"><div class="name">${p.name}</div><div class="meta">${log?`ส่งแล้วเมื่อ ${fmtTime(new Date(log.time))} โดย ${doer?.name||'-'}`:'ยังไม่ได้ส่ง'}</div></div>${log&&canManageApprovers()?`<button class="btn-mini icononly" data-logedit="${log.id}" title="แก้ไข/ลบบันทึกนี้">${TRASH_ICON_SVG}</button>`:''}</div>`;
     });
   });
   document.getElementById('inspectCleanList').innerHTML = cleanHtml || '<div class="empty">ไม่มีจุดตรวจความสะอาดในสาขาที่เลือก</div>';
@@ -3973,10 +4192,13 @@ function renderInspectTab(){
     emps.forEach(e=>{
       if(isApprovedLeaveOnDate(e.id, new Date(dateStr+'T00:00:00'))) return; // มีใบลาอนุมัติแล้ววันนี้ ไม่ต้องมาทำงาน ไม่นับ
       const log = db.logs.find(l=>l.type==='GROOM' && l.employeeId===e.id && todayKey(new Date(l.time))===dKey);
-      groomHtml += `<div class="acrow"><div class="check ${log?'done':''}">${log?'✓':''}</div><div class="info"><div class="name">${e.name}</div><div class="meta">${log?`ส่งแล้วเมื่อ ${fmtTime(new Date(log.time))}`:'ยังไม่ได้ส่ง'}</div></div></div>`;
+      groomHtml += `<div class="acrow"><div class="check ${log?'done':''}">${log?'✓':''}</div><div class="info"><div class="name">${e.name}</div><div class="meta">${log?`ส่งแล้วเมื่อ ${fmtTime(new Date(log.time))}`:'ยังไม่ได้ส่ง'}</div></div>${log&&canManageApprovers()?`<button class="btn-mini icononly" data-logedit="${log.id}" title="แก้ไข/ลบบันทึกนี้">${TRASH_ICON_SVG}</button>`:''}</div>`;
     });
   });
   document.getElementById('inspectGroomList').innerHTML = groomHtml || '<div class="empty">ไม่มีพนักงานแผนกหน้าร้านในสาขาที่เลือก</div>';
+
+  // ผูกปุ่มแก้ไข/ลบ log ท้ายสุด เพราะปุ่มนี้กระจายอยู่ทั้ง 4 ลิสต์ (เข้า-ออกงาน/แอร์/ความสะอาด/ความเรียบร้อย)
+  document.querySelectorAll('[data-logedit]').forEach(b=> b.onclick = ()=> openLogEdit(b.dataset.logedit));
 }
 
 // ===== เพิ่มเวลาเข้างานย้อนหลัง (พนักงานลืมสแกน มีหลักฐานว่ามาทำงานจริง) =====
@@ -4026,6 +4248,100 @@ async function addRetroactiveOffsite(empId, dateStr){
   await logAudit('manual_offsite', 'branch_transfer', transfer.id, `เพิ่มบันทึกทำงานนอกสถานที่ย้อนหลังให้ ${emp.name} วันที่ ${ddmmyyyy(dateStr)} (โดย ${manualBy})`);
   renderInspectTab(); renderOverviewStats();
 }
+async function deleteOffsiteRecord(transferId){
+  if(!canManageApprovers()){ alert('ไม่มีสิทธิ์ ต้องเป็นเจ้าของ/HR เท่านั้น'); return; }
+  const t = db.branchTransfers.find(x=>x.id===transferId); if(!t) return;
+  const emp = db.employees.find(e=>e.id===t.employeeId);
+  if(!confirm(`ยืนยันลบบันทึกไปทำงานสาขาอื่น/นอกสถานที่ของ ${emp?.name||'-'} (${ddmmyyyy(t.fromDate)}–${ddmmyyyy(t.toDate)}) ถาวร?\n\nลบแล้วกู้คืนไม่ได้ และไม่มีการแจ้งเตือนเข้ากลุ่มใดๆ`)) return;
+  db.branchTransfers = db.branchTransfers.filter(x=>x.id!==transferId);
+  await sbDeleteRow('branch_transfers', transferId);
+  await logAudit('delete_by_admin', 'branch_transfer', transferId, `HR ลบบันทึกไปทำงานสาขาอื่น/นอกสถานที่ของ ${emp?.name||'-'} (${ddmmyyyy(t.fromDate)}–${ddmmyyyy(t.toDate)})`);
+  renderInspectTab(); renderOverviewStats();
+}
+
+/* ===== HR แก้ไข/ลบ/เพิ่ม บันทึกที่ระบบเก็บไว้แล้ว (logs) =====
+   ครอบคลุมทั้งเวลาเข้า-ออกงาน และการส่งตรวจ (ปิดแอร์/ความสะอาด/ความเรียบร้อย)
+   เดิมข้อมูลพวกนี้แก้ไม่ได้เลยหลังสแกน ต้องให้ทีมพัฒนาเข้าไปแก้ในฐานข้อมูลให้
+   ไม่ส่ง Telegram (ไม่ใช่การสแกนจริง ณ เวลานั้น) แต่บันทึก audit log ทุกครั้ง */
+const LOG_TYPE_LABEL = { IN:'เวลาเข้างาน', OUT:'เวลาออกงาน', AC:'ส่งปิดแอร์', CLEAN:'ส่งความสะอาด', GROOM:'ส่งความเรียบร้อย' };
+let logEditTarget = null;   // {mode:'edit', logId} | {mode:'add', empId, dateStr, type}
+function openLogEdit(logId){
+  if(!canManageApprovers()){ alert('ไม่มีสิทธิ์แก้ไข ต้องเป็นเจ้าของ/HR เท่านั้น'); return; }
+  const log = db.logs.find(l=>l.id===logId); if(!log) return;
+  const emp = db.employees.find(e=>e.id===log.employeeId);
+  const d = new Date(log.time);
+  logEditTarget = { mode:'edit', logId };
+  document.getElementById('logEditTitle').textContent = `แก้ไข${LOG_TYPE_LABEL[log.type]||'บันทึก'}`;
+  document.getElementById('logEditWho').textContent = `${emp?.name||'-'} · ${ddmmyyyy(dateKey(d))}`;
+  document.getElementById('logEditTime').value = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+  document.getElementById('logEditLateWrap').classList.toggle('hidden', log.type!=='IN');
+  document.getElementById('logEditLate').value = log.type==='IN' ? (log.lateMinutes||0) : '';
+  document.getElementById('deleteLogEditBtn').classList.remove('hidden');
+  document.getElementById('logEditMsg').textContent = '';
+  document.getElementById('logEditOverlay').classList.add('show');
+}
+function openLogAdd(empId, dateStr, type){
+  if(!canManageApprovers()){ alert('ไม่มีสิทธิ์เพิ่ม ต้องเป็นเจ้าของ/HR เท่านั้น'); return; }
+  const emp = db.employees.find(e=>e.id===empId); if(!emp) return;
+  logEditTarget = { mode:'add', empId, dateStr, type };
+  document.getElementById('logEditTitle').textContent = `เพิ่ม${LOG_TYPE_LABEL[type]||'บันทึก'}ย้อนหลัง`;
+  document.getElementById('logEditWho').textContent = `${emp.name} · ${ddmmyyyy(dateStr)}`;
+  document.getElementById('logEditTime').value = type==='OUT' ? (emp.shiftEnd || '18:00') : (emp.shiftStart || '09:00');
+  document.getElementById('logEditLateWrap').classList.toggle('hidden', type!=='IN');
+  document.getElementById('logEditLate').value = '';
+  document.getElementById('deleteLogEditBtn').classList.add('hidden');
+  document.getElementById('logEditMsg').textContent = '';
+  document.getElementById('logEditOverlay').classList.add('show');
+}
+document.getElementById('closeLogEditBtn').onclick = ()=>{ document.getElementById('logEditOverlay').classList.remove('show'); logEditTarget = null; };
+document.getElementById('saveLogEditBtn').onclick = async ()=>{
+  if(!logEditTarget) return;
+  const msg = document.getElementById('logEditMsg');
+  const time = document.getElementById('logEditTime').value;
+  if(!time){ msg.className='msg err'; msg.textContent='กรุณาระบุเวลา'; return; }
+  const lateRaw = document.getElementById('logEditLate').value.trim();
+  if(logEditTarget.mode==='edit'){
+    const log = db.logs.find(l=>l.id===logEditTarget.logId); if(!log) return;
+    const emp = db.employees.find(e=>e.id===log.employeeId);
+    const oldTime = fmtTime(new Date(log.time)), oldLate = log.lateMinutes||0;
+    const dateStr = dateKey(new Date(log.time));
+    log.time = new Date(`${dateStr}T${time}:00`).toISOString();
+    if(log.type==='IN'){
+      // เว้นช่องนาทีสายว่างไว้ = ให้ระบบคำนวณใหม่จากเวลาเข้ากะ/ใบลาของวันนั้น
+      log.lateMinutes = lateRaw==='' ? shiftLateMinutes(emp, new Date(log.time)) : Math.max(0, parseInt(lateRaw,10)||0);
+    }
+    await saveLogRow(log);
+    await logAudit('edit_by_admin', 'log', log.id, `HR แก้ไข${LOG_TYPE_LABEL[log.type]||'บันทึก'}ของ ${emp?.name||'-'} วันที่ ${ddmmyyyy(dateStr)}: ${oldTime}${log.type==='IN'?` (สาย ${oldLate} นาที)`:''} → ${time}${log.type==='IN'?` (สาย ${log.lateMinutes} นาที)`:''}`);
+  } else {
+    const { empId, dateStr, type } = logEditTarget;
+    const emp = db.employees.find(e=>e.id===empId);
+    const br = currentBranch(emp);
+    const iso = new Date(`${dateStr}T${time}:00`).toISOString();
+    const manualBy = session.role==='admin' ? 'เจ้าของ/HR' : (currentApprover()?.name || 'ผู้บริหาร');
+    const entry = { id:uid(), employeeId:empId, type, time:iso, branchId:br?.id||null,
+      lateMinutes: type==='IN' ? (lateRaw==='' ? shiftLateMinutes(emp, new Date(iso)) : Math.max(0, parseInt(lateRaw,10)||0)) : 0,
+      sent:false, manualEntry:true, manualBy };
+    db.logs.unshift(entry);
+    await saveLogRow(entry);
+    await logAudit('create_by_admin', 'log', entry.id, `HR เพิ่ม${LOG_TYPE_LABEL[type]||'บันทึก'}ย้อนหลังให้ ${emp?.name||'-'} วันที่ ${ddmmyyyy(dateStr)} เวลา ${time}`);
+  }
+  document.getElementById('logEditOverlay').classList.remove('show');
+  logEditTarget = null;
+  renderInspectTab(); renderOverviewStats();
+};
+document.getElementById('deleteLogEditBtn').onclick = async ()=>{
+  if(!logEditTarget || logEditTarget.mode!=='edit') return;
+  const log = db.logs.find(l=>l.id===logEditTarget.logId); if(!log) return;
+  const emp = db.employees.find(e=>e.id===log.employeeId);
+  const dateStr = dateKey(new Date(log.time));
+  if(!confirm(`ยืนยันลบ${LOG_TYPE_LABEL[log.type]||'บันทึก'}นี้ถาวร?\n${emp?.name||'-'} · ${ddmmyyyy(dateStr)} ${fmtTime(new Date(log.time))}\n\nลบแล้วกู้คืนไม่ได้ และไม่มีการแจ้งเตือนเข้ากลุ่มใดๆ`)) return;
+  db.logs = db.logs.filter(l=>l.id!==log.id);
+  await sbDeleteRow('logs', log.id);
+  await logAudit('delete_by_admin', 'log', log.id, `HR ลบ${LOG_TYPE_LABEL[log.type]||'บันทึก'}ของ ${emp?.name||'-'} วันที่ ${ddmmyyyy(dateStr)} เวลา ${fmtTime(new Date(log.time))}`);
+  document.getElementById('logEditOverlay').classList.remove('show');
+  logEditTarget = null;
+  renderInspectTab(); renderOverviewStats();
+};
 
 /* ================= Reports tab ================= */
 const THAI_MONTHS = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
@@ -4543,6 +4859,8 @@ function renderApprovalBranchFilter(){
   }
 }
 let approvalHistorySearched = false;
+document.getElementById('adminAddLeaveBtn').onclick = ()=> openAdminLeaveCreate();
+document.getElementById('adminAddOtBtn').onclick = ()=> openAdminOtCreate();
 function renderApprovalLists(){ renderLeaveLists(); renderOtLists(); }
 function renderLeaveLists(){
   const empIds = getApprovalFilteredEmpIds();
@@ -4577,9 +4895,10 @@ function renderLeaveLists(){
   const allListEl = document.getElementById('allLeaveList');
   allListEl.innerHTML = all.length ? all.map(l=>{
     const emp = db.employees.find(e=>e.id===l.employeeId);
-    return `<div class="listrow"><div class="info"><div class="name">${emp?.name||'-'} · ${leaveLabel(l.kind)}</div><div class="meta">${leaveRangeText(l)}</div></div><span class="badge ${l.status}">${leaveStatusLabel(l.status)}</span>${canApproveLeave() ? `<button class="btn ghost sm" data-admineditleave="${l.id}" style="margin-left:8px;">แก้ไข</button>` : ''}</div>`;
+    return `<div class="listrow"><div class="info"><div class="name">${emp?.name||'-'} · ${leaveLabel(l.kind)}</div><div class="meta">${leaveRangeText(l)}</div></div><span class="badge ${l.status}">${leaveStatusLabel(l.status)}</span>${canApproveLeave() ? `<button class="btn ghost sm" data-admineditleave="${l.id}" style="margin-left:8px;">แก้ไข</button><button class="btn-mini icononly" data-admindeleteleave="${l.id}" title="ลบถาวร (ไม่แจ้งเตือน)" style="margin-left:6px;">${TRASH_ICON_SVG}</button>` : ''}</div>`;
   }).join('') : '<div class="empty">ไม่มีประวัติในช่วงที่เลือก</div>';
   allListEl.querySelectorAll('[data-admineditleave]').forEach(b=> b.onclick = ()=> openAdminLeaveEdit(b.dataset.admineditleave));
+  allListEl.querySelectorAll('[data-admindeleteleave]').forEach(b=> b.onclick = ()=> adminDeleteLeave(b.dataset.admindeleteleave));
 }
 function renderLeaveEditRequests(empIds){
   const pendingEdits = db.leaves.filter(l=>l.editRequest && empIds.has(l.employeeId));
@@ -4725,8 +5044,11 @@ function renderOtLists(){
   const all = db.otRequests.filter(o=>empIds.has(o.employeeId) && inApprovalDateRange(o.date)).sort((a,b)=>new Date(b.requestedAt)-new Date(a.requestedAt));
   document.getElementById('allOtList').innerHTML = all.length ? all.map(o=>{
     const emp = db.employees.find(e=>e.id===o.employeeId);
-    return `<div class="listrow"><div class="info"><div class="name">${emp?.name||'-'} · ${fmtDateShort(new Date(o.date))}</div><div class="meta">${o.hourStart}–${o.hourEnd} น.</div></div><span class="badge ${o.status}">${otStatusLabel(o.status)}</span></div>`;
+    return `<div class="listrow"><div class="info"><div class="name">${emp?.name||'-'} · ${fmtDateShort(new Date(o.date))}</div><div class="meta">${o.hourStart}–${o.hourEnd} น.</div></div><span class="badge ${o.status}">${otStatusLabel(o.status)}</span>${canApproveOt() ? `<button class="btn ghost sm" data-admineditot="${o.id}" style="margin-left:8px;">แก้ไข</button><button class="btn-mini icononly" data-admindeleteot="${o.id}" title="ลบถาวร (ไม่แจ้งเตือน)" style="margin-left:6px;">${TRASH_ICON_SVG}</button>` : ''}</div>`;
   }).join('') : '<div class="empty">ไม่มีประวัติในช่วงที่เลือก</div>';
+  const allOtEl = document.getElementById('allOtList');
+  allOtEl.querySelectorAll('[data-admineditot]').forEach(b=> b.onclick = ()=> openAdminOtEdit(b.dataset.admineditot));
+  allOtEl.querySelectorAll('[data-admindeleteot]').forEach(b=> b.onclick = ()=> adminDeleteOt(b.dataset.admindeleteot));
 }
 function renderOtEditRequests(empIds){
   const pendingEdits = db.otRequests.filter(o=>o.editRequest && empIds.has(o.employeeId));
@@ -5899,8 +6221,9 @@ function shiftLateMinutes(emp, now){
   // เวลาผ่อนผันมีไว้เผื่อการเดินทางมาเข้างานตอนต้นวันเท่านั้น กรณีกลับจากลาเป็นชั่วโมง
   // พนักงานเป็นผู้ระบุเวลากลับเองในใบลา จึงต้องกลับตรงเวลานั้น ไม่ได้รับผ่อนผันซ้ำอีกรอบ
   const grace = backFromLeave ? 0 : (db.settings.graceMinutes||0);
-  const shiftDate = new Date(now); shiftDate.setHours(0, baseMin + grace, 0, 0);
-  const diffMin = Math.round((now - shiftDate)/60000);
+  // นับสายเป็นหน่วย "นาที" ล้วน ไม่คิดเศษวินาที — เข้างาน 09:30:45 ขณะกะเริ่ม 09:30 ถือว่ายังไม่สาย
+  const nowMin = now.getHours()*60 + now.getMinutes();
+  const diffMin = nowMin - (baseMin + grace);
   return diffMin > 0 ? diffMin : 0;
 }
 async function finalizeScan(emp, confidence, pos, distance){
