@@ -6065,7 +6065,7 @@ async function renderSendHealth(){
   try{
     const since = new Date(Date.now() - 7*86400000).toISOString();
     const [res, beatRes] = await Promise.all([
-      fetch(`${SUPABASE_URL}/rest/v1/telegram_send_log?select=fn_name,branch_name,created_at,resolved,gave_up,status_code,retry_count&created_at=gte.${since}&order=created_at.desc&limit=500`, { headers: sbHeaders() }),
+      fetch(`${SUPABASE_URL}/rest/v1/telegram_send_log?select=fn_name,branch_name,created_at,resolved,gave_up,status_code,retry_count,error_msg&created_at=gte.${since}&order=created_at.desc&limit=500`, { headers: sbHeaders() }),
       fetch(`${SUPABASE_URL}/rest/v1/system_heartbeat?select=*&name=eq.resolve_telegram_send_log`, { headers: sbHeaders() })
     ]);
     if(!res.ok) throw new Error('โหลดไม่สำเร็จ');
@@ -6099,7 +6099,7 @@ async function renderSendHealth(){
     </div>
     ${lost.length ? `<div style="border-top:1px solid var(--border);padding-top:10px;">
       <div style="font-size:11.5px;color:var(--red);font-weight:600;margin-bottom:6px;">ข้อความที่ส่งไม่สำเร็จ (ลองซ้ำครบ 3 ครั้งแล้ว)</div>
-      ${lost.slice(0,10).map(r=>`<div style="font-size:12px;padding:4px 0;border-bottom:1px solid var(--border);">${LABEL[r.fn_name]||r.fn_name} · ${r.branch_name||'-'} · ${new Date(r.created_at).toLocaleString('th-TH')}${r.status_code?` · รหัส ${r.status_code}`:''}</div>`).join('')}
+      ${lost.slice(0,10).map(r=>`<div style="font-size:12px;padding:4px 0;border-bottom:1px solid var(--border);">${LABEL[r.fn_name]||r.fn_name} · ${r.branch_name||'-'} · ${new Date(r.created_at).toLocaleString('th-TH')}${r.status_code?` · รหัส ${r.status_code}`:''}${/timeout/i.test(r.error_msg||'')?' · เชื่อมต่อ Telegram ไม่ติด':''}</div>`).join('')}
     </div>` : '<div style="font-size:11.5px;color:var(--green);border-top:1px solid var(--border);padding-top:10px;">ไม่มีข้อความสูญหายใน 7 วันที่ผ่านมา</div>'}
     ${beatHtml}`;
 }
