@@ -1045,9 +1045,9 @@
           <button class="sethub" data-gopane="rules"><span class="ic">◷</span><span class="t">กฎเวลาทำงาน</span><span class="s">เกณฑ์สาย · เข้างานพิเศษ</span><span class="n" id="hubn-rules"></span></button>
           <button class="sethub" data-gopane="holiday"><span class="ic">▤</span><span class="t">วันหยุด</span><span class="s">วันหยุดบริษัททั้งปี</span><span class="n" id="hubn-holiday"></span></button>
           <button class="sethub" data-gopane="notify"><span class="ic">◈</span><span class="t">แจ้งเตือน</span><span class="s">Telegram · สถานะการส่ง</span><span class="n" id="hubn-notify"></span></button>
-          <button class="sethub" data-gopane="access"><span class="ic">◎</span><span class="t">สิทธิ์ผู้ใช้</span><span class="s">ผู้บริหาร · รหัสผ่าน</span><span class="n" id="hubn-access"></span></button>
+          <button class="sethub" data-gopane="access"><span class="ic">◎</span><span class="t">สิทธิ์ผู้ใช้</span><span class="s">ผู้บริหาร · รหัสผ่าน · บริษัทในเครือ</span><span class="n" id="hubn-access"></span></button>
           <button class="sethub" data-gopane="audit"><span class="ic">≡</span><span class="t">ประวัติการแก้ไข</span><span class="s">ใครแก้อะไร เมื่อไหร่</span><span class="n" id="hubn-audit"></span></button>
-          <button class="sethub" data-gopane="system"><span class="ic">⛁</span><span class="t">ระบบ &amp; ข้อมูล</span><span class="s">สำรองข้อมูล · บริษัท · เครื่องมือ</span><span class="n" id="hubn-system"></span></button>
+          <button class="sethub" data-gopane="system"><span class="ic">⛁</span><span class="t">ระบบ &amp; ข้อมูล</span><span class="s">สถานะเชื่อมต่อ · สำรองข้อมูล · เครื่องมือ</span><span class="n" id="hubn-system"></span></button>
         </div>
       </div>
 
@@ -1104,7 +1104,7 @@
             <div class="sectitle">จัดการบัญชีผู้บริหาร</div>
             <div class="card" id="approverEditor"></div>
           </section>
-          <section data-pane="system">
+          <section data-pane="access">
             <div class="sectitle">บริษัทในเครือ (สำหรับออกเอกสาร เช่น ใบเตือน)</div>
             <div class="card" id="companyList" style="margin-bottom:10px;"></div>
             <div class="card">
@@ -3947,9 +3947,9 @@ function openSetPane(name){
     points: ()=>{ renderAcPointEditor(); renderCleanPointEditor(); },
     rules: renderShiftOverrideEditor, holiday: renderHolidayEditor,
     notify: ()=>{ renderTelegramRoomsEditor(); renderNotifyTypesEditor(); },
-    access: ()=>{ renderApproverEditor(); },
+    access: ()=>{ renderApproverEditor(); renderCompanyList(); },
     audit: renderAuditLogFilter,
-    system: ()=>{ renderDbStatus(); renderCompanyList(); renderGsheetLastSync(); }
+    system: ()=>{ renderDbStatus(); renderGsheetLastSync(); }
   };
   try{ R[name] && R[name](); }catch(e){ console.error('openSetPane', name, e); }
 }
@@ -3972,7 +3972,7 @@ function renderSettingsHubCounts(){
   set('branch', `${db.branches.length} สาขา`);
   set('points', `${acN+clN} จุด`);
   set('holiday', `${db.settings.holidays.length} วัน`);
-  set('access', `${db.approvers.length} บัญชี`);
+  set('access', `${db.approvers.length} บัญชี · ${(db.companies||[]).length} บริษัท`);
   set('notify', noChat ? `⚠ ยังไม่ตั้ง ${noChat} ห้อง` : `${rooms.length} ห้อง`);
   const ov = (db.settings.shiftOverrides||[]).length;
   set('rules', ov ? `เข้างานพิเศษ ${ov} วัน` : `ผ่อนผัน ${db.settings.graceMinutes||0} นาที`);
