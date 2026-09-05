@@ -1213,6 +1213,11 @@
           <div class="setchev">⌄</div>
         </div>
         <div class="setgroupbody">
+          <!-- เครื่องมือสองตัวนี้ใช้เฉพาะตอนย้ายข้อมูลหรือตอนข้อมูลเสียหาย ไม่ใช่งานประจำวัน
+               และกดผิดแล้วข้อมูลเพี้ยนได้ จึงพับเก็บไว้ ไม่ให้เกะกะและไม่ให้กดโดนโดยบังเอิญ -->
+          <button class="btn ghost block" id="advToolsToggle" style="margin-bottom:4px;">⚙ เครื่องมือขั้นสูง (ใช้เฉพาะตอนย้าย/ซ่อมข้อมูล)</button>
+          <div style="color:var(--muted);font-size:11.5px;margin-bottom:12px;" id="advToolsHint">ปกติไม่ต้องใช้ — กดเปิดเมื่อต้องนำเข้าข้อมูลเก่า หรือมีรายการที่ชื่อพนักงานหลุด</div>
+          <div id="advToolsBody" class="hidden">
           <section>
             <div class="sectitle">นำเข้าข้อมูลเก่า (ประวัติเข้า-ออกงาน)</div>
             <div class="card">
@@ -1266,6 +1271,7 @@
               <div class="msg" id="orphanMsg"></div>
             </div>
           </section>
+          </div>
         </div>
       </div>
 
@@ -1935,7 +1941,7 @@ async function sbUpsertRow(table, row, conflictCol='id'){
 // (ฝั่งฐานข้อมูลมีด่านกันซ้ำอีกชั้นแล้ว ดู sql/self-heal-guards.sql ส่วนที่ 3)
 
 // ---- row <-> app-object mappers (snake_case DB columns <-> camelCase JS objects) ----
-const rowToBranch = r => ({ id:r.id, name:r.name, lat:r.lat, lng:r.lng, radius:r.radius, chatIdCheckinout:r.chat_id_checkinout||r.chat_id||'', chatIdFacility:r.chat_id_facility||r.chat_id||'', chatIdLeaveApproval:r.chat_id_leave_approval||'', weeklyOffDays:r.weekly_off_days||[], acPoints:r.ac_points||[], cleaningPoints:r.cleaning_points||[] });
+const rowToBranch = r => ({ id:r.id, name:r.name, lat:r.lat, lng:r.lng, radius:r.radius, chatIdCheckinout:r.chat_id_checkinout||'', chatIdFacility:r.chat_id_facility||'', chatIdLeaveApproval:r.chat_id_leave_approval||'', weeklyOffDays:r.weekly_off_days||[], acPoints:r.ac_points||[], cleaningPoints:r.cleaning_points||[] });
 const branchToRow = b => ({ id:b.id, name:b.name, lat:b.lat, lng:b.lng, radius:b.radius, chat_id_checkinout:b.chatIdCheckinout||'', chat_id_facility:b.chatIdFacility||'', chat_id_leave_approval:b.chatIdLeaveApproval||'', weekly_off_days:b.weeklyOffDays||[], ac_points:b.acPoints||[], cleaning_points:b.cleaningPoints||[] });
 
 const rowToEmployee = r => ({ id:r.id, name:r.name, employeeCode:r.employee_code||'', resignDate:r.resign_date||'', nickname:r.nickname||'', department:r.department||'', jobTitle:r.job_title||'', branchId:r.branch_id||'', startDate:r.start_date||'', shiftStart:r.shift_start||'', shiftEnd:r.shift_end||'', email:r.email||'', pin:r.pin||null, descriptor:r.descriptor||null, homeLat:r.home_lat??null, homeLng:r.home_lng??null, active:r.active!==false, pendingDescriptor:r.pending_descriptor||null, pendingDescriptorPhotoId:r.pending_descriptor_photo_id||null, pendingDescriptorAt:r.pending_descriptor_at||null, weeklyOffDays:r.weekly_off_days||[] });
@@ -3848,6 +3854,13 @@ function toggleSetGroup(name){
   const g = document.querySelector(`.setgroup[data-setgroup="${name}"]`);
   if(g) g.classList.toggle('open');
 }
+document.getElementById('advToolsToggle').onclick = ()=>{
+  const body = document.getElementById('advToolsBody');
+  const open = body.classList.toggle('hidden') === false;
+  document.getElementById('advToolsToggle').textContent = open
+    ? '⚙ ซ่อนเครื่องมือขั้นสูง' : '⚙ เครื่องมือขั้นสูง (ใช้เฉพาะตอนย้าย/ซ่อมข้อมูล)';
+  document.getElementById('advToolsHint').classList.toggle('hidden', open);
+};
 function jumpToSetGroup(name){
   document.querySelectorAll('.setjumpchip').forEach(c=>c.classList.remove('active'));
   const chip = [...document.querySelectorAll('.setjumpchip')].find(c=>c.getAttribute('onclick')?.includes(`'${name}'`));
@@ -3855,7 +3868,23 @@ function jumpToSetGroup(name){
   const g = document.querySelector(`.setgroup[data-setgroup="${name}"]`);
   if(g){ g.classList.add('open'); g.scrollIntoView({behavior:'smooth', block:'start'}); }
 }
+/* ตัวเลขบนหัวข้อกลุ่มตั้งค่า — ให้รู้ปริมาณก่อนกดเปิด จะได้ไม่ต้องเปิดไล่หาทีละกลุ่ม
+   (มาจากข้อเสนอปรับหน้าตั้งค่า: หัวข้อควรบอกล่วงหน้าว่าข้างในมีเท่าไหร่) */
+function renderSettingsGroupCounts(){
+  const acN = db.branches.reduce((n,b)=>n+(b.acPoints||[]).length,0);
+  const clN = db.branches.reduce((n,b)=>n+(b.cleaningPoints||[]).length,0);
+  const counts = {
+    people: `พนักงาน ${db.employees.filter(isEmployedNow).length} · ผู้บริหาร ${db.approvers.length} · บริษัท ${(db.companies||[]).length}`,
+    branch: `${db.branches.length} สาขา · จุดปิดแอร์ ${acN} · จุดความสะอาด ${clN} · วันหยุด ${db.settings.holidays.length}`,
+    notify: `${telegramRoomsInUse().length} ห้อง` + (telegramRoomsInUse().filter(r=>!r.chatId).length ? ` · ยังไม่ตั้ง ${telegramRoomsInUse().filter(r=>!r.chatId).length}` : '')
+  };
+  Object.entries(counts).forEach(([g, text])=>{
+    const el = document.querySelector(`.setgroup[data-setgroup="${g}"] .gs`);
+    if(el) el.textContent = text;
+  });
+}
 function updateSettingsFlags(){
+  renderSettingsGroupCounts();
   const notifyFlag = document.getElementById('setflag-notify');
   if(notifyFlag){
     const missing = db.branches.filter(b=>!b.chatIdCheckinout || !b.chatIdFacility).length;
@@ -3892,7 +3921,7 @@ function filteredEmployees(){
 }
 document.getElementById('exportLogsBtn').onclick = ()=>{
   const now = new Date();
-  const rows = [['วันที่','เวลา','ชื่อพนักงาน','สาขา','ประเภท','สายกี่นาที','ส่งแจ้งเตือนสำเร็จ']];
+  const rows = [['รหัสพนักงาน','วันที่','เวลา','ชื่อพนักงาน','สาขา','ประเภท','สายกี่นาที','ส่งแจ้งเตือนสำเร็จ']];
   const empIds = new Set(filteredEmployees().map(e=>e.id));
   db.logs.filter(l=>{ const t=new Date(l.time); return t.getMonth()===now.getMonth() && t.getFullYear()===now.getFullYear() && empIds.has(l.employeeId); })
     .sort((a,b)=>new Date(a.time)-new Date(b.time)).forEach(l=>{
@@ -3900,17 +3929,17 @@ document.getElementById('exportLogsBtn').onclick = ()=>{
       const br = db.branches.find(b=>b.id===l.branchId);
       const t = new Date(l.time);
       const typeLabel = l.type==='IN'?'เช็กอิน':l.type==='OUT'?'เช็กเอาท์':'แจ้งปิดแอร์';
-      rows.push([t.toLocaleDateString('th-TH'), fmtTime(t), emp?.name||'-', br?.name||'-', typeLabel, l.lateMinutes||0, l.sent?'ใช่':'ไม่']);
+      rows.push([emp?.employeeCode||'-', t.toLocaleDateString('th-TH'), fmtTime(t), emp?.name||'-', br?.name||'-', typeLabel, l.lateMinutes||0, l.sent?'ใช่':'ไม่']);
     });
   downloadCSV(`arana-time-log-${now.getFullYear()}-${now.getMonth()+1}.csv`, rows);
 };
 document.getElementById('exportSummaryBtn').onclick = ()=>{
   const now = new Date();
-  const rows = [['ชื่อพนักงาน','สาขา','ตรงเวลา (วัน)','มาสาย (วัน)','ขาด (วัน)','ลา (วัน)']];
+  const rows = [['รหัสพนักงาน','ชื่อพนักงาน','สาขา','ตรงเวลา (วัน)','มาสาย (วัน)','ขาด (วัน)','ลา (วัน)']];
   filteredEmployees().forEach(e=>{
     const m = monthlySummary(e.id);
     const br = db.branches.find(b=>b.id===e.branchId);
-    rows.push([e.name, br?.name||'-', m.onTime, m.late, m.absent, m.leaveDays]);
+    rows.push([e.employeeCode||'-', e.name, br?.name||'-', m.onTime, m.late, m.absent, m.leaveDays]);
   });
   downloadCSV(`arana-time-summary-${now.getFullYear()}-${now.getMonth()+1}.csv`, rows);
 };
@@ -4156,9 +4185,9 @@ document.getElementById('exportLateMatrixBtn').onclick = ()=>{
   const toStr = getDateVal('overviewTo') || fromStr;
   const days = dateRangeArray(fromStr, toStr);
   const emps = filteredEmployees();
-  const rows = [['ชื่อพนักงาน', ...days.map(d=>d.toLocaleDateString('th-TH'))]];
+  const rows = [['รหัสพนักงาน','ชื่อพนักงาน', ...days.map(d=>d.toLocaleDateString('th-TH'))]];
   emps.forEach(e=>{
-    const row = [e.name];
+    const row = [e.employeeCode||'-', e.name];
     days.forEach(d=>{
       const inLog = db.logs.find(l=>l.employeeId===e.id && l.type==='IN' && todayKey(new Date(l.time))===d.toDateString());
       row.push(inLog ? (inLog.lateMinutes||0) : '');
@@ -4173,9 +4202,9 @@ document.getElementById('exportLeaveMatrixBtn').onclick = ()=>{
   const days = dateRangeArray(fromStr, toStr);
   const emps = filteredEmployees();
   const today = new Date();
-  const rows = [['ชื่อพนักงาน', ...days.map(d=>d.toLocaleDateString('th-TH'))]];
+  const rows = [['รหัสพนักงาน','ชื่อพนักงาน', ...days.map(d=>d.toLocaleDateString('th-TH'))]];
   emps.forEach(e=>{
-    const row = [e.name];
+    const row = [e.employeeCode||'-', e.name];
     days.forEach(d=>{
       let val = '';
       if(!countsOn(e,d)) val = '';
@@ -4349,7 +4378,7 @@ function renderInspectTab(){
     points.forEach(p=>{
       const log = db.logs.find(l=>l.type==='AC' && l.branchId===br.id && l.acPointId===p.id && todayKey(new Date(l.time))===dKey);
       const doer = log ? db.employees.find(e=>e.id===log.employeeId) : null;
-      acHtml += `<div class="acrow"><div class="check ${log?'done':''}">${log?'✓':''}</div><div class="info"><div class="name">${p.name}</div><div class="meta">${log?`ส่งแล้วเมื่อ ${fmtTime(new Date(log.time))} โดย ${doer?.name||'-'}`:'ยังไม่ได้ส่ง'}</div></div>${log&&canManageApprovers()?`<button class="btn-mini icononly" data-logedit="${log.id}" title="แก้ไข/ลบบันทึกนี้">${TRASH_ICON_SVG}</button>`:''}</div>`;
+      acHtml += `<div class="acrow"><div class="check ${log?'done':''}">${log?'✓':''}</div><div class="info"><div class="name">${p.name}</div><div class="meta">${log?`ส่งแล้วเมื่อ ${fmtTime(new Date(log.time))} โดย ${doer?.name||'-'}${log.corrected?' · ♻️ ถ่ายรูปใหม่ทับของเดิม':''}`:'ยังไม่ได้ส่ง'}</div></div>${log&&canManageApprovers()?`<button class="btn-mini icononly" data-logedit="${log.id}" title="แก้ไข/ลบบันทึกนี้">${TRASH_ICON_SVG}</button>`:''}</div>`;
     });
   });
   document.getElementById('inspectAcList').innerHTML = acHtml || '<div class="empty">ไม่มีจุดปิดแอร์ในสาขาที่เลือก</div>';
@@ -4362,7 +4391,7 @@ function renderInspectTab(){
     points.forEach(p=>{
       const log = db.logs.find(l=>l.type==='CLEAN' && l.branchId===br.id && l.cleanPointId===p.id && todayKey(new Date(l.time))===dKey);
       const doer = log ? db.employees.find(e=>e.id===log.employeeId) : null;
-      cleanHtml += `<div class="acrow"><div class="check ${log?'done':''}">${log?'✓':''}</div><div class="info"><div class="name">${p.name}</div><div class="meta">${log?`ส่งแล้วเมื่อ ${fmtTime(new Date(log.time))} โดย ${doer?.name||'-'}`:'ยังไม่ได้ส่ง'}</div></div>${log&&canManageApprovers()?`<button class="btn-mini icononly" data-logedit="${log.id}" title="แก้ไข/ลบบันทึกนี้">${TRASH_ICON_SVG}</button>`:''}</div>`;
+      cleanHtml += `<div class="acrow"><div class="check ${log?'done':''}">${log?'✓':''}</div><div class="info"><div class="name">${p.name}</div><div class="meta">${log?`ส่งแล้วเมื่อ ${fmtTime(new Date(log.time))} โดย ${doer?.name||'-'}${log.corrected?' · ♻️ ถ่ายรูปใหม่ทับของเดิม':''}`:'ยังไม่ได้ส่ง'}</div></div>${log&&canManageApprovers()?`<button class="btn-mini icononly" data-logedit="${log.id}" title="แก้ไข/ลบบันทึกนี้">${TRASH_ICON_SVG}</button>`:''}</div>`;
     });
   });
   document.getElementById('inspectCleanList').innerHTML = cleanHtml || '<div class="empty">ไม่มีจุดตรวจความสะอาดในสาขาที่เลือก</div>';
@@ -4989,16 +5018,18 @@ function reportSheetPayload(rpt){
   rpt.groups.forEach(g=> g.rows.forEach(r=> flat.push({ br:g.branch.name, ...r })));
   const mk = (name, headers, rowFn) => ({ name, headers, rows: flat.map(rowFn) });
   return [
-    mk(`รายงานลา ${tag}`, ['สาขา','ชื่อพนักงาน','ชื่อเล่น',...dayHeaders,'ขาด (วัน)','ลา (วัน)'],
-      r=>[r.br, r.emp.name, r.emp.nickname||'', ...r.cells.map(c=>c.code), r.summary.absent, r.summary.leaveDays]),
-    mk(`รายงานสาย ${tag}`, ['สาขา','ชื่อพนักงาน','ชื่อเล่น',...dayHeaders,'สาย (ครั้ง)','รวมนาที'],
-      r=>[r.br, r.emp.name, r.emp.nickname||'', ...r.cells.map(c=>c.late||''), r.summary.lateCount, r.summary.lateMinutes]),
-    mk(`รายงาน OT ${tag}`, ['สาขา','ชื่อพนักงาน','ชื่อเล่น',...dayHeaders,'รวม ชม.'],
-      r=>[r.br, r.emp.name, r.emp.nickname||'', ...r.cells.map(c=>c.ot||''), r.summary.otHours]),
+    // รหัสพนักงานเป็นคอลัมน์แรกของทุกชีต เพื่อให้ระบบเงินเดือน/ERP จับคู่คนด้วยรหัส ไม่ใช่ชื่อไทย
+    // (ชื่อซ้ำหรือสะกดต่างนิดเดียวก็จับคู่ผิดได้ และชื่อเปลี่ยนได้ แต่รหัสไม่เปลี่ยน)
+    mk(`รายงานลา ${tag}`, ['รหัสพนักงาน','สาขา','ชื่อพนักงาน','ชื่อเล่น',...dayHeaders,'ขาด (วัน)','ลา (วัน)'],
+      r=>[r.emp.employeeCode||'', r.br, r.emp.name, r.emp.nickname||'', ...r.cells.map(c=>c.code), r.summary.absent, r.summary.leaveDays]),
+    mk(`รายงานสาย ${tag}`, ['รหัสพนักงาน','สาขา','ชื่อพนักงาน','ชื่อเล่น',...dayHeaders,'สาย (ครั้ง)','รวมนาที'],
+      r=>[r.emp.employeeCode||'', r.br, r.emp.name, r.emp.nickname||'', ...r.cells.map(c=>c.late||''), r.summary.lateCount, r.summary.lateMinutes]),
+    mk(`รายงาน OT ${tag}`, ['รหัสพนักงาน','สาขา','ชื่อพนักงาน','ชื่อเล่น',...dayHeaders,'รวม ชม.'],
+      r=>[r.emp.employeeCode||'', r.br, r.emp.name, r.emp.nickname||'', ...r.cells.map(c=>c.ot||''), r.summary.otHours]),
     mk(`สรุปเดือน ${tag}`,
-      ['สาขา','ชื่อพนักงาน','ชื่อเล่น','มาทำงาน','เทรนงาน','สาย (ครั้ง)','รวมนาทีสาย','ขาดงาน', ...RPT_SUMMARY_KINDS.map(leaveLabel),
+      ['รหัสพนักงาน','สาขา','ชื่อพนักงาน','ชื่อเล่น','วันที่พ้นสภาพ','มาทำงาน','เทรนงาน','สาย (ครั้ง)','รวมนาทีสาย','ขาดงาน', ...RPT_SUMMARY_KINDS.map(leaveLabel),
        'ลาเป็นชม. (ป่วย) ครั้ง','ลาชั่วโมง ป่วย (ชม.) ไม่หักเงิน','ลาเป็นชม. (กิจ) ครั้ง','ลาชั่วโมง กิจ (ชม.) หักเงิน','OT (ชม.)'],
-      r=>[r.br, r.emp.name, r.emp.nickname||'', r.summary.present, r.summary.training, r.summary.lateCount, r.summary.lateMinutes, r.summary.absent,
+      r=>[r.emp.employeeCode||'', r.br, r.emp.name, r.emp.nickname||'', r.emp.resignDate||'', r.summary.present, r.summary.training, r.summary.lateCount, r.summary.lateMinutes, r.summary.absent,
           ...RPT_SUMMARY_KINDS.map(k=>r.summary.byKind[k]||0),
           r.summary.hourSickCount, r.summary.hourSick, r.summary.hourPersonalCount, r.summary.hourPersonal, r.summary.otHours])
   ];
