@@ -393,6 +393,23 @@
   }
 
   /* ---------- ตั้งค่า: จัดกลุ่มหัวข้อเป็นหมวดพับ/กางได้ (setgroup) ---------- */
+  /* ลากจัดลำดับจุดตรวจ — เดิมต้องกด ▲▼ ทีละขั้น ย้ายจากท้ายมาต้นแถวคือกด 20 กว่าครั้ง
+     ใช้ pointer events เพื่อให้ลากได้ทั้งเมาส์บนคอมและนิ้วบนมือถือด้วยโค้ดชุดเดียว */
+  .sortrow{display:flex;align-items:center;gap:8px;padding:8px 4px;border-bottom:1px solid var(--border);
+    background:var(--card);border-radius:8px;}
+  .sortrow:last-child{border-bottom:none;}
+  .sortrow.dragging{opacity:.45;}
+  .sortrow.dropzone{box-shadow:0 0 0 2px var(--pink) inset;}
+  .draghandle{flex:0 0 auto;width:30px;height:30px;border:none;background:none;cursor:grab;
+    color:var(--muted);font-size:15px;line-height:1;touch-action:none;border-radius:7px;}
+  .draghandle:hover{background:var(--pink-pale);color:var(--pink-dark);}
+  .draghandle:active{cursor:grabbing;}
+  .draghandle:focus-visible{outline:2px solid var(--pink);outline-offset:1px;}
+  .draghandle[disabled]{opacity:.3;cursor:not-allowed;}
+  .sortrow .num{flex:0 0 auto;min-width:22px;font-size:11px;color:var(--muted);
+    font-variant-numeric:tabular-nums;text-align:right;}
+  .sortrow .info{flex:1;min-width:0;}
+  .sorthint{font-size:11.5px;color:var(--muted);margin-bottom:6px;}
   /* หน้ารวมหัวข้อตั้งค่า (hub) — การ์ดหัวข้อพร้อมตัวเลขบอกปริมาณข้างใน */
   .sethubgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
   .sethub{display:block;width:100%;text-align:left;font:inherit;color:inherit;cursor:pointer;
@@ -5835,34 +5852,18 @@ function renderAcPointEditor(){
   el.innerHTML = f.branches.map(b=>`
     <div style="padding:12px 0;border-bottom:1px solid var(--border);">
       <div style="font-weight:600;font-size:13.5px;margin-bottom:6px;">${b.name}</div>
-      ${(b.acPoints||[]).map((p,idx)=>({p,idx})).filter(x=>f.match(x.p)).map(({p,idx})=>`
-        <div class="settingsrow" style="padding:6px 0;">
-          <div class="info"><div class="name" style="font-size:13px;">${p.name}</div></div>
-          <button class="btn ghost sm" data-moveuppoint="${b.id}:${p.id}" ${idx===0?'disabled':''}>▲</button>
-          <button class="btn ghost sm" data-movedownpoint="${b.id}:${p.id}" ${idx===(b.acPoints.length-1)?'disabled':''}>▼</button>
-          <button class="btn ghost sm" data-rmpoint="${b.id}:${p.id}">ลบ</button>
-        </div>`).join('') || '<div style="font-size:12px;color:var(--muted);padding:6px 0;">ไม่พบจุดที่ค้นหาในสาขานี้</div>'}
+      ${pointSortHintHTML(f.q)}
+      <div class="sortlist" data-bid="${b.id}">
+      ${(b.acPoints||[]).filter(f.match).map((p,i)=>pointRowHTML(p, i, f.q, 'rmpoint', b.id)).join('')
+        || '<div style="font-size:12px;color:var(--muted);padding:6px 0;">ไม่พบจุดที่ค้นหาในสาขานี้</div>'}
+      </div>
       <div class="row2" style="margin-top:8px;">
         <input type="text" placeholder="ชื่อจุดใหม่ เช่น ห้องทรีตเมนต์ 1" data-newpoint="${b.id}">
         <button class="btn ghost sm" data-addpoint="${b.id}">เพิ่ม</button>
       </div>
     </div>`).join('') + '<div class="msg" id="acPointMsg"></div>';
-  el.querySelectorAll('[data-moveuppoint]').forEach(btn=>{
-    btn.onclick = async ()=>{
-      const [bid,pid] = btn.dataset.moveuppoint.split(':');
-      const b = db.branches.find(x=>x.id===bid);
-      const idx = b.acPoints.findIndex(p=>p.id===pid);
-      if(idx>0){ [b.acPoints[idx-1], b.acPoints[idx]] = [b.acPoints[idx], b.acPoints[idx-1]]; await saveBranchRow(b); renderAcPointEditor(); }
-    };
-  });
-  el.querySelectorAll('[data-movedownpoint]').forEach(btn=>{
-    btn.onclick = async ()=>{
-      const [bid,pid] = btn.dataset.movedownpoint.split(':');
-      const b = db.branches.find(x=>x.id===bid);
-      const idx = b.acPoints.findIndex(p=>p.id===pid);
-      if(idx<b.acPoints.length-1){ [b.acPoints[idx+1], b.acPoints[idx]] = [b.acPoints[idx], b.acPoints[idx+1]]; await saveBranchRow(b); renderAcPointEditor(); }
-    };
-  });
+  if(!f.q) el.querySelectorAll('.sortlist').forEach(list=>
+    enableDragSort(list, ids => savePointOrder(list.dataset.bid, 'acPoints', ids, renderAcPointEditor, 'acPointMsg')));
   el.querySelectorAll('[data-rmpoint]').forEach(btn=>{
     btn.onclick = async ()=>{
       const [bid,pid] = btn.dataset.rmpoint.split(':');
@@ -5887,6 +5888,99 @@ function renderAcPointEditor(){
   });
 }
 
+/* ===== ลากจัดลำดับรายการ =====
+   ใช้ pointer events ตัวเดียวคุมทั้งเมาส์และการลากด้วยนิ้ว (HTML5 drag-and-drop ใช้บนมือถือไม่ได้)
+   ระหว่างลากจะสลับตำแหน่งใน DOM ให้เห็นผลทันที แล้วค่อย "บันทึกครั้งเดียว" ตอนปล่อย
+   ต่างจากปุ่ม ▲▼ เดิมที่บันทึกฐานข้อมูลใหม่ทุกครั้งที่ขยับ 1 ขั้น
+   รองรับคีย์บอร์ดด้วย: โฟกัสที่จุดจับแล้วกดลูกศรขึ้น/ลง เพื่อความแม่นยำและการเข้าถึง */
+function enableDragSort(listEl, onReorder){
+  if(!listEl || listEl.dataset.sortWired) return;
+  listEl.dataset.sortWired = '1';
+  let dragging = null, startY = 0, moved = false;
+
+  const rowsOf = () => [...listEl.querySelectorAll('.sortrow')];
+  const finish = async ()=>{
+    if(!dragging) return;
+    const row = dragging; dragging = null;
+    row.classList.remove('dragging');
+    rowsOf().forEach(r=> r.classList.remove('dropzone'));
+    if(moved) await onReorder(rowsOf().map(r=> r.dataset.pid));
+  };
+
+  listEl.addEventListener('pointerdown', e=>{
+    const handle = e.target.closest('.draghandle');
+    if(!handle || handle.disabled) return;
+    dragging = handle.closest('.sortrow'); if(!dragging) return;
+    moved = false; startY = e.clientY;
+    dragging.classList.add('dragging');
+    handle.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  });
+
+  listEl.addEventListener('pointermove', e=>{
+    if(!dragging) return;
+    if(!moved && Math.abs(e.clientY - startY) < 4) return;
+    moved = true;
+    // หาแถวที่ตัวชี้อยู่เหนืออยู่ตอนนี้ แล้วสลับที่กับแถวที่กำลังลาก
+    const target = rowsOf().find(r=>{
+      if(r === dragging) return false;
+      const b = r.getBoundingClientRect();
+      return e.clientY >= b.top && e.clientY <= b.bottom;
+    });
+    if(!target) return;
+    const box = target.getBoundingClientRect();
+    const after = e.clientY > box.top + box.height/2;
+    target.parentNode.insertBefore(dragging, after ? target.nextSibling : target);
+    rowsOf().forEach(r=> r.classList.toggle('dropzone', r === dragging));
+  });
+
+  listEl.addEventListener('pointerup', finish);
+  listEl.addEventListener('pointercancel', finish);
+
+  listEl.addEventListener('keydown', async e=>{
+    const handle = e.target.closest('.draghandle'); if(!handle) return;
+    if(e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+    e.preventDefault();
+    const row = handle.closest('.sortrow');
+    const sib = e.key === 'ArrowUp' ? row.previousElementSibling : row.nextElementSibling;
+    if(!sib || !sib.classList.contains('sortrow')) return;
+    row.parentNode.insertBefore(e.key === 'ArrowUp' ? row : sib, e.key === 'ArrowUp' ? sib : row);
+    handle.focus();
+    await onReorder(rowsOf().map(r=> r.dataset.pid));
+  });
+}
+// แถวจุดตรวจหนึ่งแถว — มีเลขลำดับให้เห็นชัดว่าอยู่ลำดับที่เท่าไหร่ และจุดจับสำหรับลาก
+function pointRowHTML(p, i, q, rmKey, bid){
+  return `<div class="sortrow" data-pid="${p.id}">
+    <button class="draghandle" title="ลากเพื่อย้ายลำดับ (หรือกดลูกศรขึ้น/ลง)" ${q?'disabled':''} aria-label="ย้ายลำดับ ${p.name}">⠿</button>
+    <span class="num">${q ? '' : (i+1)+'.'}</span>
+    <div class="info"><div class="name" style="font-size:13px;">${p.name}</div></div>
+    <button class="btn ghost sm" data-${rmKey}="${bid}:${p.id}">ลบ</button>
+  </div>`;
+}
+function pointSortHintHTML(q){
+  return q ? '<div class="sorthint">ระหว่างค้นหาจะย้ายลำดับไม่ได้ — ล้างคำค้นหาก่อน</div>'
+           : '<div class="sorthint">ลากที่ ⠿ เพื่อจัดลำดับ · ลำดับนี้คือลำดับที่พนักงานเห็นตอนส่งตรวจ</div>';
+}
+/* บันทึกลำดับใหม่ "ครั้งเดียว" ตอนปล่อยเมาส์ ไม่ใช่ทุกครั้งที่ขยับ 1 ขั้นแบบปุ่ม ▲▼ เดิม
+   เรียงจาก id ที่ได้จากลำดับใน DOM จริง จุดที่ id ไม่อยู่ในรายการจะถูกต่อท้ายไว้ ไม่ให้ข้อมูลหาย */
+async function savePointOrder(bid, field, ids, rerender, msgId){
+  const b = db.branches.find(x=>x.id===bid); if(!b) return;
+  const list = b[field] || [];
+  const byId = new Map(list.map(p=>[p.id, p]));
+  const next = ids.map(id=>byId.get(id)).filter(Boolean);
+  list.forEach(p=>{ if(!ids.includes(p.id)) next.push(p); });
+  if(next.length !== list.length) return;
+  const before = list.slice();
+  b[field] = next;
+  const r = await saveBranchRow(b);
+  if(!r.ok){
+    b[field] = before;
+    const m = document.getElementById(msgId);
+    if(m){ m.className='msg err'; m.textContent='บันทึกลำดับไม่สำเร็จ: '+r.error; }
+  }
+  rerender();
+}
 /* ตัวช่วยกรองรายการจุดตรวจ — เดิมกางจุดของทุกสาขาพร้อมกัน (แอร์ 53 จุด ความสะอาด 86 จุด)
    ทำให้ต้องเลื่อนผ่านทั้งหมดกว่าจะเจอที่ต้องการ ตอนนี้เลือกสาขาทีละสาขา + ค้นหาชื่อจุดได้
    คืนค่ารายชื่อสาขาที่จะแสดง และฟังก์ชันกรองจุดตามคำค้น */
@@ -5917,34 +6011,19 @@ function renderCleanPointEditor(){
   el.innerHTML = f.branches.map(b=>`
     <div style="padding:12px 0;border-bottom:1px solid var(--border);">
       <div style="font-weight:600;font-size:13.5px;margin-bottom:6px;">${b.name}</div>
-      ${(b.cleaningPoints||[]).map((p,idx)=>({p,idx})).filter(x=>f.match(x.p)).map(({p,idx})=>`
-        <div class="settingsrow" style="padding:6px 0;">
-          <div class="info"><div class="name" style="font-size:13px;">${p.name}</div></div>
-          <button class="btn ghost sm" data-moveupcpoint="${b.id}:${p.id}" ${idx===0?'disabled':''}>▲</button>
-          <button class="btn ghost sm" data-movedowncpoint="${b.id}:${p.id}" ${idx===(b.cleaningPoints.length-1)?'disabled':''}>▼</button>
-          <button class="btn ghost sm" data-rmcpoint="${b.id}:${p.id}">ลบ</button>
-        </div>`).join('') || '<div style="font-size:12px;color:var(--muted);padding:6px 0;">ไม่พบจุดที่ค้นหาในสาขานี้</div>'}
+      ${pointSortHintHTML(f.q)}
+      <div class="sortlist" data-bid="${b.id}">
+      ${(b.cleaningPoints||[]).filter(f.match).map((p,i)=>pointRowHTML(p, i, f.q, 'rmcpoint', b.id)).join('')
+        || '<div style="font-size:12px;color:var(--muted);padding:6px 0;">ไม่พบจุดที่ค้นหาในสาขานี้</div>'}
+      </div>
       <div class="row2" style="margin-top:8px;">
         <input type="text" placeholder="ชื่อจุดใหม่ เช่น ห้องน้ำ" data-newcpoint="${b.id}">
         <button class="btn ghost sm" data-addcpoint="${b.id}">เพิ่ม</button>
       </div>
     </div>`).join('') + '<div class="msg" id="cleanPointMsg"></div>';
-  el.querySelectorAll('[data-moveupcpoint]').forEach(btn=>{
-    btn.onclick = async ()=>{
-      const [bid,pid] = btn.dataset.moveupcpoint.split(':');
-      const b = db.branches.find(x=>x.id===bid);
-      const idx = b.cleaningPoints.findIndex(p=>p.id===pid);
-      if(idx>0){ [b.cleaningPoints[idx-1], b.cleaningPoints[idx]] = [b.cleaningPoints[idx], b.cleaningPoints[idx-1]]; await saveBranchRow(b); renderCleanPointEditor(); }
-    };
-  });
-  el.querySelectorAll('[data-movedowncpoint]').forEach(btn=>{
-    btn.onclick = async ()=>{
-      const [bid,pid] = btn.dataset.movedowncpoint.split(':');
-      const b = db.branches.find(x=>x.id===bid);
-      const idx = b.cleaningPoints.findIndex(p=>p.id===pid);
-      if(idx<b.cleaningPoints.length-1){ [b.cleaningPoints[idx+1], b.cleaningPoints[idx]] = [b.cleaningPoints[idx], b.cleaningPoints[idx+1]]; await saveBranchRow(b); renderCleanPointEditor(); }
-    };
-  });
+  // ลากได้เฉพาะตอนไม่ได้ค้นหา เพราะระหว่างค้นหาจะเห็นไม่ครบ ลำดับที่ลากได้จึงไม่ใช่ลำดับจริง
+  if(!f.q) el.querySelectorAll('.sortlist').forEach(list=>
+    enableDragSort(list, ids => savePointOrder(list.dataset.bid, 'cleaningPoints', ids, renderCleanPointEditor, 'cleanPointMsg')));
   el.querySelectorAll('[data-rmcpoint]').forEach(btn=>{
     btn.onclick = async ()=>{
       const [bid,pid] = btn.dataset.rmcpoint.split(':');
