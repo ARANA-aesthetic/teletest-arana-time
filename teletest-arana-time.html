@@ -393,6 +393,23 @@
   }
 
   /* ---------- ตั้งค่า: จัดกลุ่มหัวข้อเป็นหมวดพับ/กางได้ (setgroup) ---------- */
+  /* หน้ารวมหัวข้อตั้งค่า (hub) — การ์ดหัวข้อพร้อมตัวเลขบอกปริมาณข้างใน */
+  .sethubgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .sethub{display:block;width:100%;text-align:left;font:inherit;color:inherit;cursor:pointer;
+    background:var(--card);border:1px solid var(--border);border-radius:16px;padding:14px 13px;
+    transition:border-color .14s, transform .14s;}
+  .sethub:hover,.sethub:focus-visible{border-color:var(--pink);transform:translateY(-1px);}
+  .sethub:focus-visible{outline:2px solid var(--pink);outline-offset:2px;}
+  .sethub .ic{display:block;font-size:17px;color:var(--pink-dark);margin-bottom:7px;line-height:1;}
+  .sethub .t{display:block;font-family:'Prompt',sans-serif;font-weight:600;font-size:13.5px;line-height:1.35;}
+  .sethub .s{display:block;font-size:11px;color:var(--muted);margin-top:3px;line-height:1.45;}
+  .sethub .n{display:inline-block;margin-top:8px;font-size:10.5px;font-weight:600;
+    background:var(--pink-pale);color:var(--pink-dark);border-radius:999px;padding:2px 9px;}
+  .sethub .n:empty{display:none;}
+  .setback{background:none;border:none;color:var(--pink-dark);font-family:'Prompt',sans-serif;
+    font-weight:600;font-size:13px;cursor:pointer;padding:0 0 6px;}
+  .setback:focus-visible{outline:2px solid var(--pink);outline-offset:2px;border-radius:4px;}
+  @media(min-width:560px){ .sethubgrid{grid-template-columns:repeat(3,1fr);} }
   .setjumpbar{display:flex;gap:6px;overflow-x:auto;padding-bottom:10px;margin-bottom:2px;scrollbar-width:none;}
   .setjumpbar::-webkit-scrollbar{display:none;}
   .setjumpchip{
@@ -1018,12 +1035,25 @@
 
     <!-- Settings -->
     <div id="atabSettings" class="hidden">
-      <div class="setjumpbar">
-        <button class="setjumpchip active" onclick="jumpToSetGroup('overview')" type="button">ภาพรวม</button>
-        <button class="setjumpchip" onclick="jumpToSetGroup('people')" type="button">คนและสิทธิ์</button>
-        <button class="setjumpchip" onclick="jumpToSetGroup('branch')" type="button">สาขา &amp; จุดตรวจ</button>
-        <button class="setjumpchip" onclick="jumpToSetGroup('notify')" type="button">แจ้งเตือน</button>
-        <button class="setjumpchip" onclick="jumpToSetGroup('data')" type="button">ข้อมูล &amp; สำรอง</button>
+      <!-- หน้ารวมหัวข้อตั้งค่า — เห็นครบทุกหัวข้อในจอเดียวไม่ต้องเลื่อน แล้วกดเข้าไปทีละเรื่อง
+           แทนแบบเดิมที่กดเปิดกลุ่มเดียวแล้วรายการข้างในกางออกพร้อมกันเป็นร้อยแถว -->
+      <div id="setHub">
+        <div class="sethubgrid">
+          <button class="sethub" data-gopane="emp"><span class="ic">◍</span><span class="t">พนักงาน</span><span class="s">ข้อมูล · กะ · วันหยุดรายคน</span><span class="n" id="hubn-emp"></span></button>
+          <button class="sethub" data-gopane="branch"><span class="ic">▦</span><span class="t">สาขา</span><span class="s">พิกัด · รัศมี · ห้องแจ้งเตือน</span><span class="n" id="hubn-branch"></span></button>
+          <button class="sethub" data-gopane="points"><span class="ic">✦</span><span class="t">จุดตรวจ</span><span class="s">ปิดแอร์ · ความสะอาด</span><span class="n" id="hubn-points"></span></button>
+          <button class="sethub" data-gopane="rules"><span class="ic">◷</span><span class="t">กฎเวลาทำงาน</span><span class="s">เกณฑ์สาย · เข้างานพิเศษ</span><span class="n" id="hubn-rules"></span></button>
+          <button class="sethub" data-gopane="holiday"><span class="ic">▤</span><span class="t">วันหยุด</span><span class="s">วันหยุดบริษัททั้งปี</span><span class="n" id="hubn-holiday"></span></button>
+          <button class="sethub" data-gopane="notify"><span class="ic">◈</span><span class="t">แจ้งเตือน</span><span class="s">Telegram · สถานะการส่ง</span><span class="n" id="hubn-notify"></span></button>
+          <button class="sethub" data-gopane="access"><span class="ic">◎</span><span class="t">สิทธิ์ผู้ใช้</span><span class="s">ผู้บริหาร · รหัสผ่าน</span><span class="n" id="hubn-access"></span></button>
+          <button class="sethub" data-gopane="audit"><span class="ic">≡</span><span class="t">ประวัติการแก้ไข</span><span class="s">ใครแก้อะไร เมื่อไหร่</span><span class="n" id="hubn-audit"></span></button>
+          <button class="sethub" data-gopane="system"><span class="ic">⛁</span><span class="t">ระบบ &amp; ข้อมูล</span><span class="s">สำรองข้อมูล · บริษัท · เครื่องมือ</span><span class="n" id="hubn-system"></span></button>
+        </div>
+      </div>
+
+      <div id="setDetail" class="hidden">
+        <button class="setback" id="setBackBtn" type="button">‹ กลับหน้าตั้งค่า</button>
+        <div id="setPaneHost"></div>
       </div>
 
       <div class="setgroup open" data-setgroup="overview">
@@ -1034,10 +1064,10 @@
           <div class="setchev">⌄</div>
         </div>
         <div class="setgroupbody">
-          <section>
+          <section data-pane="system">
             <div class="card" id="dbStatusCard" style="display:flex;align-items:center;gap:10px;"></div>
           </section>
-          <section>
+          <section data-pane="system">
             <div class="sectitle">Backup ข้อมูลไป Google Sheets</div>
             <div class="card">
               <div style="color:var(--muted);font-size:12px;margin-bottom:10px;">ระบบจะส่งข้อมูลขาดลา/มาสาย/OT ที่อนุมัติแล้ว/เวลาเข้า-ออกงาน ไปสำรองไว้ที่ Google Sheets อัตโนมัติทุก 15 นาที (เฉพาะรายการใหม่ที่ยังไม่เคยส่ง)</div>
@@ -1061,7 +1091,7 @@
           <div class="setchev">⌄</div>
         </div>
         <div class="setgroupbody">
-          <section>
+          <section data-pane="emp">
             <div class="sectitle">จัดการพนักงาน</div>
             <button class="btn block" style="margin-bottom:10px;" id="addEmpAdminBtn">+ เพิ่มพนักงาน</button>
             <button class="btn ghost block" style="margin-bottom:16px;" id="regenEmpCodesBtn">ออกรหัสพนักงานใหม่ทั้งหมด (เรียงตามอายุงาน)</button>
@@ -1070,11 +1100,11 @@
             <div class="listcount" id="adminEmpCount"></div>
             <div class="card" id="adminEmpList" style="padding:0 16px;"></div>
           </section>
-          <section>
+          <section data-pane="access">
             <div class="sectitle">จัดการบัญชีผู้บริหาร</div>
             <div class="card" id="approverEditor"></div>
           </section>
-          <section>
+          <section data-pane="system">
             <div class="sectitle">บริษัทในเครือ (สำหรับออกเอกสาร เช่น ใบเตือน)</div>
             <div class="card" id="companyList" style="margin-bottom:10px;"></div>
             <div class="card">
@@ -1087,7 +1117,7 @@
               <div class="msg" id="companyMsg"></div>
             </div>
           </section>
-          <section>
+          <section data-pane="audit">
             <div class="sectitle">ประวัติการแก้ไข/ลบ (Audit Log)</div>
             <label style="margin-top:0;">ช่วงวันที่ดูข้อมูล</label>
             <select id="auditLogPreset" style="margin-bottom:10px;">
@@ -1105,7 +1135,7 @@
             <div class="listcount" id="auditLogCount"></div>
             <div class="card" id="auditLogViewer" style="padding:0 16px;"></div>
           </section>
-          <section>
+          <section data-pane="access">
             <div class="sectitle">รหัสผ่านเจ้าของ/HR</div>
             <div class="card">
               <label>รหัสผ่านใหม่</label>
@@ -1124,29 +1154,29 @@
           <div class="setchev">⌄</div>
         </div>
         <div class="setgroupbody">
-          <section>
+          <section data-pane="branch">
             <div class="sectitle">สาขา</div>
             <div class="card" id="branchEditor" style="margin-bottom:0;"></div>
           </section>
-          <section>
+          <section data-pane="points">
             <div class="sectitle">จุดปิดแอร์ต่อสาขา</div>
             <div class="branchselect" style="margin-bottom:8px;"><select id="acPointBranchFilter"></select></div>
             <input type="search" id="acPointSearch" class="listsearch" placeholder="ค้นหาชื่อจุด">
             <div class="listcount" id="acPointCount"></div>
             <div class="card" id="acPointEditor"></div>
           </section>
-          <section>
+          <section data-pane="points">
             <div class="sectitle">จุดตรวจความสะอาดต่อสาขา</div>
             <div class="branchselect" style="margin-bottom:8px;"><select id="cleanPointBranchFilter"></select></div>
             <input type="search" id="cleanPointSearch" class="listsearch" placeholder="ค้นหาชื่อจุด">
             <div class="listcount" id="cleanPointCount"></div>
             <div class="card" id="cleanPointEditor"></div>
           </section>
-          <section>
+          <section data-pane="holiday">
             <div class="sectitle">วันหยุดบริษัท</div>
             <div class="card" id="holidayEditor"></div>
           </section>
-          <section>
+          <section data-pane="rules">
             <div class="sectitle">เกณฑ์สาย / ขาด</div>
             <div class="card">
               <label>มาสาย = เลยเวลาเข้างานเกินกี่นาที</label>
@@ -1154,7 +1184,7 @@
               <button class="btn sm" style="margin-top:10px;" id="saveRulesBtn">บันทึกเกณฑ์</button>
             </div>
           </section>
-          <section>
+          <section data-pane="rules">
             <div class="sectitle">เข้างานพิเศษเฉพาะวัน</div>
             <div class="card" id="shiftOverrideEditor" style="padding:16px;"></div>
           </section>
@@ -1169,7 +1199,7 @@
           <div class="setchev">⌄</div>
         </div>
         <div class="setgroupbody">
-          <section>
+          <section data-pane="notify">
             <div class="sectitle">Telegram Bot Token (ใช้ร่วมกันทุกกลุ่ม)</div>
             <div class="card">
               <label>Bot Token</label>
@@ -1183,15 +1213,15 @@
               <button class="btn sm" style="margin-top:10px;" id="saveCentralBtn">บันทึก</button>
             </div>
           </section>
-          <section>
+          <section data-pane="notify">
             <div class="sectitle">สมุดห้อง Telegram</div>
             <div class="card" id="telegramRoomsEditor"></div>
           </section>
-          <section>
+          <section data-pane="notify">
             <div class="sectitle">สถานะการส่งข้อความ 7 วันล่าสุด<button class="btn ghost sm" style="margin-left:auto;" id="reloadSendHealthBtn">รีเฟรช</button></div>
             <div class="card" id="sendHealthPanel" style="padding:14px 16px;"></div>
           </section>
-          <section>
+          <section data-pane="notify">
             <div class="sectitle">ทดสอบระบบแจ้งเตือนอัตโนมัติ</div>
             <div class="card">
               <div style="color:var(--muted);font-size:12px;margin-bottom:10px;">กดเพื่อสั่งให้ทำงานทันที ไม่ต้องรอถึงเวลาจริง — ใช้เช็กว่าระบบตั้งไว้ถูกต้อง</div>
@@ -1202,7 +1232,7 @@
               <div class="msg" id="scheduledTestMsg"></div>
             </div>
           </section>
-          <section>
+          <section data-pane="notify">
             <div class="sectitle">การแจ้งเตือน (Telegram)</div>
             <div class="card" id="notifyTypesEditor"></div>
           </section>
@@ -3851,55 +3881,108 @@ function switchATab(tab){
   if(tab==='Leaves'){ renderApprovalBranchFilter(); renderLeaveLists(); renderOtLists(); renderTransferList(); renderFaceReenrollList(); }
   if(tab==='Inspect'){ initInspectTab(); renderInspectTab(); }
   if(tab==='Reports'){ initReportsTab(); renderReportsTab(); }
-  if(tab==='Settings'){ renderDbStatus(); renderAdminEmpList(); renderApproverEditor(); renderCompanyList(); renderBranchEditor(); renderAcPointEditor(); renderCleanPointEditor(); renderHolidayEditor(); renderShiftOverrideEditor(); renderNotifyTypesEditor(); renderTelegramRoomsEditor(); renderAuditLogFilter(); renderOrphanTab(); updateSettingsFlags(); }
+  // เข้าหน้าตั้งค่าแล้วเริ่มที่หน้ารวมเสมอ และเรนเดอร์เฉพาะตอนกดเข้าหน้าย่อยจริง (ดู openSetPane)
+  // เดิมวาดรายการทั้งหมดทุกครั้งที่เปิดแท็บ ทั้งที่ส่วนใหญ่ไม่ได้ถูกมอง
+  if(tab==='Settings'){ buildSettingsPanes(); closeSetPane(); updateSettingsFlags(); }
 }
 
-function toggleSetGroup(name){
-  const g = document.querySelector(`.setgroup[data-setgroup="${name}"]`);
-  if(g) g.classList.toggle('open');
-}
 document.getElementById('advToolsToggle').onclick = ()=>{
   const body = document.getElementById('advToolsBody');
   const open = body.classList.toggle('hidden') === false;
+  if(open) renderOrphanTab();   // วาดรายการซ่อมข้อมูลตอนเปิดใช้จริงเท่านั้น
   document.getElementById('advToolsToggle').textContent = open
     ? '⚙ ซ่อนเครื่องมือขั้นสูง' : '⚙ เครื่องมือขั้นสูง (ใช้เฉพาะตอนย้าย/ซ่อมข้อมูล)';
   document.getElementById('advToolsHint').classList.toggle('hidden', open);
 };
-function jumpToSetGroup(name){
-  document.querySelectorAll('.setjumpchip').forEach(c=>c.classList.remove('active'));
-  const chip = [...document.querySelectorAll('.setjumpchip')].find(c=>c.getAttribute('onclick')?.includes(`'${name}'`));
-  if(chip) chip.classList.add('active');
-  const g = document.querySelector(`.setgroup[data-setgroup="${name}"]`);
-  if(g){ g.classList.add('open'); g.scrollIntoView({behavior:'smooth', block:'start'}); }
+/* ===== หน้าตั้งค่าแบบ "หน้ารวม → หน้าย่อย" =====
+   ของเดิมเป็นกลุ่มพับ-กาง 5 กลุ่ม พอกดเปิดกลุ่มหนึ่ง ทุกหัวข้อในกลุ่มกางออกพร้อมกันหมด
+   กลุ่ม "สาขา & จุดตรวจ" กลุ่มเดียวยาว 150+ แถว จนหาของไม่เจอ
+   ตอนนี้ย้ายแต่ละ <section> เดิม (ที่ติดป้าย data-pane ไว้) มาไว้ในหน้าย่อยของมัน
+   โดยย้ายทั้งโหนด ปุ่มและตัวจัดการเหตุการณ์เดิมจึงยังผูกอยู่ครบ ไม่ต้องเขียนใหม่ */
+const SET_PANES = {
+  emp:     'พนักงาน',
+  branch:  'สาขา',
+  points:  'จุดตรวจ',
+  rules:   'กฎเวลาทำงาน',
+  holiday: 'วันหยุด',
+  notify:  'การแจ้งเตือน',
+  access:  'สิทธิ์ผู้ใช้',
+  audit:   'ประวัติการแก้ไข',
+  system:  'ระบบ & ข้อมูล'
+};
+let setPanesBuilt = false;
+function buildSettingsPanes(){
+  if(setPanesBuilt) return;
+  const host = document.getElementById('setPaneHost'); if(!host) return;
+  Object.keys(SET_PANES).forEach(k=>{
+    const box = document.createElement('div');
+    box.id = 'setPane_' + k; box.className = 'hidden';
+    host.appendChild(box);
+  });
+  document.querySelectorAll('#atabSettings section[data-pane]').forEach(sec=>{
+    const box = document.getElementById('setPane_' + sec.dataset.pane);
+    if(box) box.appendChild(sec);
+  });
+  // เครื่องมือขั้นสูงเป็นปุ่ม+กล่อง ไม่ได้อยู่ในรูป <section> จึงย้ายแยกตาม id
+  const sysBox = document.getElementById('setPane_system');
+  ['advToolsToggle','advToolsHint','advToolsBody'].forEach(id=>{
+    const el = document.getElementById(id); if(el && sysBox) sysBox.appendChild(el);
+  });
+  // เปลือกกลุ่มแบบพับ-กางเดิมไม่ใช้แล้ว เอาออกไม่ให้เหลือกล่องเปล่าค้างหน้าจอ
+  document.querySelectorAll('#atabSettings .setgroup').forEach(g=> g.remove());
+  setPanesBuilt = true;
 }
-/* ตัวเลขบนหัวข้อกลุ่มตั้งค่า — ให้รู้ปริมาณก่อนกดเปิด จะได้ไม่ต้องเปิดไล่หาทีละกลุ่ม
-   (มาจากข้อเสนอปรับหน้าตั้งค่า: หัวข้อควรบอกล่วงหน้าว่าข้างในมีเท่าไหร่) */
-function renderSettingsGroupCounts(){
+function openSetPane(name){
+  buildSettingsPanes();
+  if(!SET_PANES[name]) return;
+  Object.keys(SET_PANES).forEach(k=>
+    document.getElementById('setPane_'+k)?.classList.toggle('hidden', k!==name));
+  document.getElementById('setHub').classList.add('hidden');
+  document.getElementById('setDetail').classList.remove('hidden');
+  document.getElementById('adminPageTitle').textContent = 'ตั้งค่า · ' + SET_PANES[name];
+  window.scrollTo({top:0});
+  // เรนเดอร์เฉพาะรายการของหน้าที่เปิด จะได้ไม่ต้องวาดรายการทั้งหมดทุกครั้งที่เข้าหน้าตั้งค่า
+  const R = {
+    emp: renderAdminEmpList, branch: renderBranchEditor,
+    points: ()=>{ renderAcPointEditor(); renderCleanPointEditor(); },
+    rules: renderShiftOverrideEditor, holiday: renderHolidayEditor,
+    notify: ()=>{ renderTelegramRoomsEditor(); renderNotifyTypesEditor(); },
+    access: ()=>{ renderApproverEditor(); },
+    audit: renderAuditLogFilter,
+    system: ()=>{ renderDbStatus(); renderCompanyList(); renderGsheetLastSync(); }
+  };
+  try{ R[name] && R[name](); }catch(e){ console.error('openSetPane', name, e); }
+}
+function closeSetPane(){
+  document.getElementById('setDetail').classList.add('hidden');
+  document.getElementById('setHub').classList.remove('hidden');
+  document.getElementById('adminPageTitle').textContent = 'ตั้งค่าระบบ';
+  renderSettingsHubCounts();
+  window.scrollTo({top:0});
+}
+// ตัวเลขบนการ์ด — รู้ปริมาณก่อนกดเข้าไป
+function renderSettingsHubCounts(){
+  if(!document.getElementById('hubn-emp')) return;
   const acN = db.branches.reduce((n,b)=>n+(b.acPoints||[]).length,0);
   const clN = db.branches.reduce((n,b)=>n+(b.cleaningPoints||[]).length,0);
-  const counts = {
-    people: `พนักงาน ${db.employees.filter(isEmployedNow).length} · ผู้บริหาร ${db.approvers.length} · บริษัท ${(db.companies||[]).length}`,
-    branch: `${db.branches.length} สาขา · จุดปิดแอร์ ${acN} · จุดความสะอาด ${clN} · วันหยุด ${db.settings.holidays.length}`,
-    notify: `${telegramRoomsInUse().length} ห้อง` + (telegramRoomsInUse().filter(r=>!r.chatId).length ? ` · ยังไม่ตั้ง ${telegramRoomsInUse().filter(r=>!r.chatId).length}` : '')
-  };
-  Object.entries(counts).forEach(([g, text])=>{
-    const el = document.querySelector(`.setgroup[data-setgroup="${g}"] .gs`);
-    if(el) el.textContent = text;
-  });
+  const rooms = telegramRoomsInUse();
+  const noChat = rooms.filter(r=>!r.chatId).length;
+  const set = (k,v)=>{ const el = document.getElementById('hubn-'+k); if(el) el.textContent = v; };
+  set('emp', `${db.employees.filter(isEmployedNow).length} คน`);
+  set('branch', `${db.branches.length} สาขา`);
+  set('points', `${acN+clN} จุด`);
+  set('holiday', `${db.settings.holidays.length} วัน`);
+  set('access', `${db.approvers.length} บัญชี`);
+  set('notify', noChat ? `⚠ ยังไม่ตั้ง ${noChat} ห้อง` : `${rooms.length} ห้อง`);
+  const ov = (db.settings.shiftOverrides||[]).length;
+  set('rules', ov ? `เข้างานพิเศษ ${ov} วัน` : `ผ่อนผัน ${db.settings.graceMinutes||0} นาที`);
+  set('system', '');
+  set('audit', '');
 }
-function updateSettingsFlags(){
-  renderSettingsGroupCounts();
-  const notifyFlag = document.getElementById('setflag-notify');
-  if(notifyFlag){
-    const missing = db.branches.filter(b=>!b.chatIdCheckinout || !b.chatIdFacility).length;
-    notifyFlag.className = 'setgroupflag' + (missing ? ' show warn' : '');
-  }
-  const dataFlag = document.getElementById('setflag-data');
-  if(dataFlag){
-    const orphanCount = db.logs.filter(l=>!l.employeeId).length;
-    dataFlag.className = 'setgroupflag' + (orphanCount ? ' show err' : '');
-  }
-}
+document.querySelectorAll('[data-gopane]').forEach(b=> b.onclick = ()=> openSetPane(b.dataset.gopane));
+document.getElementById('setBackBtn').onclick = closeSetPane;
+// เปลือกกลุ่มพับ-กางเดิมถูกแทนด้วยหน้ารวมการ์ดแล้ว ตัวเลขทั้งหมดย้ายไปอยู่บนการ์ดแทน (renderSettingsHubCounts)
+function updateSettingsFlags(){ renderSettingsHubCounts(); }
 
 function downloadCSV(filename, rows){
   const csv = rows.map(row => row.map(cell=>{
