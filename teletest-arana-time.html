@@ -6061,13 +6061,24 @@ function telegramRoomsInUse(){
 async function renderSendHealth(){
   const el = document.getElementById('sendHealthPanel'); if(!el) return;
   el.innerHTML = '<div class="empty">กำลังโหลด…</div>';
-  let rows = [];
+  let rows = [], beat = null;
   try{
     const since = new Date(Date.now() - 7*86400000).toISOString();
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/telegram_send_log?select=fn_name,branch_name,created_at,resolved,gave_up,status_code,retry_count&created_at=gte.${since}&order=created_at.desc&limit=500`, { headers: sbHeaders() });
+    const [res, beatRes] = await Promise.all([
+      fetch(`${SUPABASE_URL}/rest/v1/telegram_send_log?select=fn_name,branch_name,created_at,resolved,gave_up,status_code,retry_count&created_at=gte.${since}&order=created_at.desc&limit=500`, { headers: sbHeaders() }),
+      fetch(`${SUPABASE_URL}/rest/v1/system_heartbeat?select=*&name=eq.resolve_telegram_send_log`, { headers: sbHeaders() })
+    ]);
     if(!res.ok) throw new Error('โหลดไม่สำเร็จ');
     rows = await res.json();
+    if(beatRes.ok) beat = (await beatRes.json())[0] || null;
   }catch(e){ el.innerHTML = '<div class="empty">โหลดสถานะไม่สำเร็จ</div>'; return; }
+  // ตัวส่งซ้ำเป็นจุดตายจุดเดียวของระบบกู้คืน ถ้ามันหยุดไปเองจะไม่มีอะไรฟ้อง จึงต้องเฝ้าดูมันด้วย
+  const beatMin = beat ? Math.round((Date.now() - new Date(beat.last_run_at))/60000) : null;
+  const beatBad = beatMin===null || beatMin > 30;
+  const beatHtml = `<div style="border-top:1px solid var(--border);margin-top:10px;padding-top:10px;font-size:11.5px;color:${beatBad?'var(--red)':'var(--muted)'};">
+    ${beatBad ? '⚠️ ระบบส่งซ้ำอัตโนมัติอาจหยุดทำงาน — ' + (beatMin===null?'ไม่เคยมีบันทึกการทำงาน':`ทำงานล่าสุดเมื่อ ${beatMin} นาทีที่แล้ว (ปกติทุก 10 นาที)`)
+                : `ระบบส่งซ้ำอัตโนมัติทำงานปกติ · ตรวจล่าสุดเมื่อ ${beatMin} นาทีที่แล้ว`}
+  </div>`;
   if(!rows.length){ el.innerHTML = '<div class="empty">ยังไม่มีการส่งใน 7 วันล่าสุด</div>'; return; }
   const ok = rows.filter(r=>r.status_code===200).length;
   const lost = rows.filter(r=>r.gave_up && r.status_code!==200);
@@ -6089,7 +6100,8 @@ async function renderSendHealth(){
     ${lost.length ? `<div style="border-top:1px solid var(--border);padding-top:10px;">
       <div style="font-size:11.5px;color:var(--red);font-weight:600;margin-bottom:6px;">ข้อความที่ส่งไม่สำเร็จ (ลองซ้ำครบ 3 ครั้งแล้ว)</div>
       ${lost.slice(0,10).map(r=>`<div style="font-size:12px;padding:4px 0;border-bottom:1px solid var(--border);">${LABEL[r.fn_name]||r.fn_name} · ${r.branch_name||'-'} · ${new Date(r.created_at).toLocaleString('th-TH')}${r.status_code?` · รหัส ${r.status_code}`:''}</div>`).join('')}
-    </div>` : '<div style="font-size:11.5px;color:var(--green);border-top:1px solid var(--border);padding-top:10px;">ไม่มีข้อความสูญหายใน 7 วันที่ผ่านมา</div>'}`;
+    </div>` : '<div style="font-size:11.5px;color:var(--green);border-top:1px solid var(--border);padding-top:10px;">ไม่มีข้อความสูญหายใน 7 วันที่ผ่านมา</div>'}
+    ${beatHtml}`;
 }
 document.getElementById('reloadSendHealthBtn').onclick = renderSendHealth;
 function renderTelegramRoomsEditor(){
