@@ -1312,6 +1312,24 @@
             </div>
           </section>
           <section>
+            <div class="sectitle">นำเข้าใบลาย้อนหลัง</div>
+            <div class="card">
+              <div style="color:var(--muted);font-size:12px;margin-bottom:10px;line-height:1.7;">
+                สำหรับใบลาที่พนักงานเคยส่งทางช่องทางเดิม (ไลน์ / กระดาษ / Excel) แล้วต้องการย้ายเข้าระบบ<br>
+                คอลัมน์: <b>รหัสพนักงานหรือชื่อ, ประเภทการลา, วันที่เริ่ม, วันที่สิ้นสุด, เวลาเริ่ม, เวลาสิ้นสุด, เหตุผล</b><br>
+                <span style="color:var(--pink-dark);">เต็มวัน:</span> <code>012,ลาป่วย (มีใบรับรองแพทย์),2026-07-01,2026-07-02,,,ไข้หวัด</code><br>
+                <span style="color:var(--pink-dark);">เป็นชั่วโมง:</span> <code>012,ลาเป็นชั่วโมง (กิจ),2026-07-05,2026-07-05,13:00,15:00,ธุระ</code><br>
+                ใส่ได้ทั้งชื่อประเภทภาษาไทยตามที่ระบบใช้ หรือรหัส เช่น <code>sick_cert</code> ·
+                บันทึกเป็น <b>อนุมัติแล้ว</b> · <b>ไม่ส่งแจ้งเตือนเข้ากลุ่มใดๆ</b>
+                <button class="btn ghost sm block" style="margin-top:8px;" id="downloadLeaveTemplateBtn">ดาวน์โหลดไฟล์ตัวอย่าง (พร้อมรหัสพนักงานจริง)</button>
+              </div>
+              <input type="file" id="importLeaveFile" accept=".csv">
+              <button class="btn sm block" style="margin-top:10px;" id="checkLeaveImportBtn">ตรวจไฟล์ก่อนนำเข้า</button>
+              <div id="leaveImportPreview"></div>
+              <div class="msg" id="importLeaveMsg"></div>
+            </div>
+          </section>
+          <section>
             <div class="sectitle">ซ่อมรายการที่ไม่มีชื่อพนักงาน</div>
             <div class="card">
               <div style="color:var(--muted);font-size:12px;margin-bottom:12px;">
@@ -6396,6 +6414,123 @@ document.getElementById('testCentralTgBtn').onclick = async ()=>{
   const chatId = document.getElementById('centralChat').value.trim();
   const r = await tgSendMessage(token, chatId, 'ทดสอบการเชื่อมต่อ ARANA TIME (ส่วนกลาง) สำเร็จ');
   msg.className = 'msg ' + (r.ok?'ok':'err'); msg.textContent = r.ok ? 'ส่งสำเร็จ' : 'ส่งไม่สำเร็จ: '+r.reason;
+};
+/* ===== นำเข้าใบลาย้อนหลังจากช่องทางเดิม =====
+   ใบลาที่พนักงานเคยส่งทางไลน์/กระดาษก่อนมีระบบนี้ ต้องย้ายเข้ามาให้รายงานและการคิดสายถูกต้อง
+   ทำเป็น 2 จังหวะเสมอ: "ตรวจไฟล์" ให้เห็นก่อนว่าจะเข้ากี่รายการ ผิดตรงไหน แล้วค่อยกดยืนยัน
+   เพราะการนำเข้าทีละหลายสิบแถวถ้าผิดแล้วตามลบทีหลังเหนื่อยมาก */
+function parseLeaveCsvLine(cols, rowNo){
+  const [who, kindRaw, fromRaw, toRaw, hStart, hEnd, ...rest] = cols;
+  const reason = rest.join(',').trim();
+  const err = m => ({ error: `แถว ${rowNo}: ${m}` });
+  if(!who) return err('ไม่ได้ระบุพนักงาน');
+  // จับคู่ด้วยรหัสพนักงานก่อน แล้วค่อยชื่อ — รหัสไม่มีปัญหาเรื่องเว้นวรรค/สะกดต่าง
+  const key = who.trim();
+  const emp = db.employees.find(e=>(e.employeeCode||'')===key)
+           || db.employees.find(e=>e.name.trim()===key)
+           || db.employees.find(e=>(e.nickname||'').trim()===key);
+  if(!emp) return err(`ไม่พบพนักงาน "${key}" (ใช้รหัสพนักงานจะแม่นที่สุด)`);
+  const k = (kindRaw||'').trim();
+  const kind = LEAVE_KIND_LABELS[k] ? k
+             : Object.keys(LEAVE_KIND_LABELS).find(code=>LEAVE_KIND_LABELS[code]===k);
+  if(!kind) return err(`ไม่รู้จักประเภทการลา "${k}"`);
+  const okDate = s => /^\d{4}-\d{2}-\d{2}$/.test((s||'').trim());
+  if(!okDate(fromRaw)) return err('วันที่เริ่มต้องเป็นรูปแบบ YYYY-MM-DD');
+  const from = fromRaw.trim();
+  const to = okDate(toRaw) ? toRaw.trim() : from;
+  if(to < from) return err('วันที่สิ้นสุดอยู่ก่อนวันที่เริ่ม');
+  const hourly = HOURLY_KINDS.includes(kind);
+  let hourStart = null, hourEnd = null;
+  if(hourly){
+    const okTime = s => /^\d{1,2}:\d{2}$/.test((s||'').trim());
+    if(!okTime(hStart) || !okTime(hEnd)) return err('ลาเป็นชั่วโมงต้องระบุเวลาเริ่มและเวลาสิ้นสุด (เช่น 13:00)');
+    hourStart = hStart.trim(); hourEnd = hEnd.trim();
+    if(hourEnd <= hourStart) return err('เวลาสิ้นสุดต้องหลังเวลาเริ่ม');
+    if(to !== from) return err('ลาเป็นชั่วโมงต้องเป็นวันเดียว');
+  }
+  if(emp.startDate && from < emp.startDate) return err(`วันที่ลาอยู่ก่อนวันเริ่มงานของ ${emp.name}`);
+  return { emp, kind, from, to, hourStart, hourEnd, reason };
+}
+function readLeaveCsv(text){
+  const lines = text.split(/\r?\n/).map(l=>l.trim()).filter(l=>l);
+  const start = /รหัส|ชื่อ|employee/i.test(lines[0]||'') ? 1 : 0;
+  const rows = [], errors = [];
+  for(let i=start;i<lines.length;i++){
+    const cols = lines[i].split(',').map(c=>c.trim());
+    if(cols.length < 3){ errors.push(`แถว ${i+1}: ข้อมูลไม่ครบ`); continue; }
+    const r = parseLeaveCsvLine(cols, i+1);
+    if(r.error) errors.push(r.error); else rows.push(r);
+  }
+  // กันนำเข้าซ้ำกับใบลาที่มีอยู่แล้ว (พนักงาน + ประเภท + วันเริ่ม ตรงกัน)
+  const dupes = [];
+  const keep = rows.filter(r=>{
+    const dup = db.leaves.some(l=>l.employeeId===r.emp.id && l.kind===r.kind && l.from===r.from);
+    if(dup) dupes.push(`${r.emp.name} · ${leaveLabel(r.kind)} · ${ddmmyyyy(r.from)}`);
+    return !dup;
+  });
+  return { rows: keep, errors, dupes };
+}
+let pendingLeaveImport = null;
+document.getElementById('checkLeaveImportBtn').onclick = async ()=>{
+  const msg = document.getElementById('importLeaveMsg');
+  const box = document.getElementById('leaveImportPreview');
+  const file = document.getElementById('importLeaveFile').files[0];
+  if(!file){ msg.className='msg err'; msg.textContent='กรุณาเลือกไฟล์ CSV ก่อน'; box.innerHTML=''; return; }
+  const { rows, errors, dupes } = readLeaveCsv(await file.text());
+  pendingLeaveImport = rows;
+  msg.textContent = ''; msg.className = 'msg';
+  const byEmp = {};
+  rows.forEach(r=>{ byEmp[r.emp.name] = (byEmp[r.emp.name]||0)+1; });
+  box.innerHTML = `
+    <div style="border:1px solid var(--border);border-radius:12px;padding:12px;margin-top:10px;font-size:12px;line-height:1.7;">
+      <div style="font-weight:600;color:${rows.length?'var(--green)':'var(--red)'};">พร้อมนำเข้า ${rows.length} รายการ</div>
+      ${dupes.length?`<div style="color:var(--amber);margin-top:6px;">ข้าม ${dupes.length} รายการที่มีอยู่แล้ว:<br>${dupes.slice(0,5).join('<br>')}${dupes.length>5?'<br>…':''}</div>`:''}
+      ${errors.length?`<div style="color:var(--red);margin-top:6px;">มีปัญหา ${errors.length} แถว (จะไม่ถูกนำเข้า):<br>${errors.slice(0,8).join('<br>')}${errors.length>8?'<br>…':''}</div>`:''}
+      ${rows.length?`<div style="margin-top:8px;color:var(--muted);">${Object.entries(byEmp).slice(0,8).map(([n,c])=>`${n} ${c} ใบ`).join(' · ')}${Object.keys(byEmp).length>8?' …':''}</div>
+      <button class="btn sm block" style="margin-top:10px;" id="doLeaveImportBtn">ยืนยันนำเข้า ${rows.length} รายการ</button>`:''}
+    </div>`;
+  const go = document.getElementById('doLeaveImportBtn');
+  if(go) go.onclick = runLeaveImport;
+};
+async function runLeaveImport(){
+  const msg = document.getElementById('importLeaveMsg');
+  const rows = pendingLeaveImport || [];
+  if(!rows.length) return;
+  const btn = document.getElementById('doLeaveImportBtn');
+  if(btn){ btn.disabled = true; btn.textContent = 'กำลังนำเข้า…'; }
+  const nowIso = new Date().toISOString();
+  let ok = 0; const failed = [];
+  for(const r of rows){
+    const row = { id:uid(), employeeId:r.emp.id, kind:r.kind, from:r.from, to:r.to,
+      hourStart:r.hourStart, hourEnd:r.hourEnd, reason:r.reason || 'นำเข้าจากระบบเดิม',
+      status:'approved', requestedAt:nowIso, decidedAt:nowIso, evidenceSent:null, evidenceFileId:null };
+    const res = await sbUpsertRow('leaves', leaveToRow(row));
+    if(res && res.ok){ db.leaves.push(row); ok++; }
+    else failed.push(`${r.emp.name} ${ddmmyyyy(r.from)}`);
+  }
+  await logAudit('import', 'leave', null, `นำเข้าใบลาย้อนหลัง ${ok} รายการ${failed.length?` (ล้มเหลว ${failed.length})`:''}`);
+  // ใบลาที่เพิ่งเข้ามาอาจเปลี่ยนการคิดนาทีสายของวันนั้น ต้องคำนวณใหม่ให้ตรง
+  for(const r of rows) await recalcLateForEmployeeDate(r.emp.id, r.from);
+  msg.className = failed.length ? 'msg err' : 'msg ok';
+  msg.innerHTML = `นำเข้าสำเร็จ ${ok} รายการ` + (failed.length?`<br>ไม่สำเร็จ ${failed.length}: ${failed.slice(0,5).join(', ')}`:'');
+  document.getElementById('leaveImportPreview').innerHTML = '';
+  document.getElementById('importLeaveFile').value = '';
+  pendingLeaveImport = null;
+  renderLeaveLists(); renderOverviewStats();
+}
+document.getElementById('downloadLeaveTemplateBtn').onclick = ()=>{
+  const sample = db.employees.filter(isEmployedNow).slice(0,3);
+  const rows = [['รหัสพนักงาน','ประเภทการลา','วันที่เริ่ม','วันที่สิ้นสุด','เวลาเริ่ม','เวลาสิ้นสุด','เหตุผล']];
+  sample.forEach((e,i)=> rows.push([
+    e.employeeCode || e.name,
+    i===0 ? 'ลาเป็นชั่วโมง (กิจ)' : 'ลาป่วย (ไม่มีใบรับรองแพทย์)',
+    '2026-07-0'+(i+1), '2026-07-0'+(i+1),
+    i===0 ? '13:00' : '', i===0 ? '15:00' : '',
+    'ตัวอย่าง — ลบแถวนี้ออกก่อนใช้จริง'
+  ]));
+  rows.push(['','','','','','','']);
+  rows.push(['# ประเภทที่ใช้ได้: ' + Object.values(LEAVE_KIND_LABELS).join(' / '),'','','','','','']);
+  downloadCSV('arana-time-leave-import-template.csv', rows);
 };
 document.getElementById('importAttendanceBtn').onclick = async ()=>{
   const fileInput = document.getElementById('importAttendanceFile');
