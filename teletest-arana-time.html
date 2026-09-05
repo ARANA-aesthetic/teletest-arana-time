@@ -1188,6 +1188,10 @@
             <div class="card" id="telegramRoomsEditor"></div>
           </section>
           <section>
+            <div class="sectitle">สถานะการส่งข้อความ 7 วันล่าสุด<button class="btn ghost sm" style="margin-left:auto;" id="reloadSendHealthBtn">รีเฟรช</button></div>
+            <div class="card" id="sendHealthPanel" style="padding:14px 16px;"></div>
+          </section>
+          <section>
             <div class="sectitle">ทดสอบระบบแจ้งเตือนอัตโนมัติ</div>
             <div class="card">
               <div style="color:var(--muted);font-size:12px;margin-bottom:10px;">กดเพื่อสั่งให้ทำงานทันที ไม่ต้องรอถึงเวลาจริง — ใช้เช็กว่าระบบตั้งไว้ถูกต้อง</div>
@@ -6051,7 +6055,45 @@ function telegramRoomsInUse(){
   });
   return rows;
 }
+/* สถานะการส่งข้อความ — เดิมไม่มีหน้าจอไหนบอกเลยว่าข้อความหลุดไปกี่ครั้ง
+   กว่าจะรู้ก็ตอนมีคนสังเกตว่ากลุ่มไม่ได้รับสรุปประจำวัน ซึ่งมักผ่านไปหลายวันแล้ว
+   ตอนนี้ระบบส่งซ้ำให้อัตโนมัติสูงสุด 3 ครั้ง ตารางนี้ไว้ยืนยันว่ายังทำงานปกติดี */
+async function renderSendHealth(){
+  const el = document.getElementById('sendHealthPanel'); if(!el) return;
+  el.innerHTML = '<div class="empty">กำลังโหลด…</div>';
+  let rows = [];
+  try{
+    const since = new Date(Date.now() - 7*86400000).toISOString();
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/telegram_send_log?select=fn_name,branch_name,created_at,resolved,gave_up,status_code,retry_count&created_at=gte.${since}&order=created_at.desc&limit=500`, { headers: sbHeaders() });
+    if(!res.ok) throw new Error('โหลดไม่สำเร็จ');
+    rows = await res.json();
+  }catch(e){ el.innerHTML = '<div class="empty">โหลดสถานะไม่สำเร็จ</div>'; return; }
+  if(!rows.length){ el.innerHTML = '<div class="empty">ยังไม่มีการส่งใน 7 วันล่าสุด</div>'; return; }
+  const ok = rows.filter(r=>r.status_code===200).length;
+  const lost = rows.filter(r=>r.gave_up && r.status_code!==200);
+  const retried = rows.filter(r=>r.retry_count>0 && r.status_code===200).length;
+  const pending = rows.filter(r=>!r.resolved && !r.gave_up).length;
+  const pct = Math.round(100*ok/rows.length);
+  const LABEL = {
+    send_daily_leave_summary:'สรุปลา/สาย 10:30', send_facility_missing_reminder:'ความสะอาด 11:30',
+    send_hourly_leave_checkin_summary:'ลาชั่วโมง 14:00', send_missing_scan_reminder:'ลืมสแกน 21:00',
+    send_ac_missing_reminder:'ปิดแอร์ 23:00', send_missing_leave_evidence_reminder:'หลักฐานลา 23:30'
+  };
+  el.innerHTML = `
+    <div style="display:flex;gap:18px;flex-wrap:wrap;margin-bottom:${lost.length?'12px':'0'};">
+      <div><div style="font-size:22px;font-weight:700;font-family:'Prompt',sans-serif;color:${pct>=99?'var(--green)':pct>=95?'var(--amber)':'var(--red)'};">${pct}%</div><div style="font-size:11.5px;color:var(--muted);">ส่งสำเร็จ (${ok}/${rows.length})</div></div>
+      <div><div style="font-size:22px;font-weight:700;font-family:'Prompt',sans-serif;color:var(--blue);">${retried}</div><div style="font-size:11.5px;color:var(--muted);">กู้คืนด้วยการส่งซ้ำ</div></div>
+      <div><div style="font-size:22px;font-weight:700;font-family:'Prompt',sans-serif;color:${lost.length?'var(--red)':'var(--green)'};">${lost.length}</div><div style="font-size:11.5px;color:var(--muted);">ส่งไม่สำเร็จถาวร</div></div>
+      ${pending?`<div><div style="font-size:22px;font-weight:700;font-family:'Prompt',sans-serif;color:var(--muted);">${pending}</div><div style="font-size:11.5px;color:var(--muted);">กำลังรอผล</div></div>`:''}
+    </div>
+    ${lost.length ? `<div style="border-top:1px solid var(--border);padding-top:10px;">
+      <div style="font-size:11.5px;color:var(--red);font-weight:600;margin-bottom:6px;">ข้อความที่ส่งไม่สำเร็จ (ลองซ้ำครบ 3 ครั้งแล้ว)</div>
+      ${lost.slice(0,10).map(r=>`<div style="font-size:12px;padding:4px 0;border-bottom:1px solid var(--border);">${LABEL[r.fn_name]||r.fn_name} · ${r.branch_name||'-'} · ${new Date(r.created_at).toLocaleString('th-TH')}${r.status_code?` · รหัส ${r.status_code}`:''}</div>`).join('')}
+    </div>` : '<div style="font-size:11.5px;color:var(--green);border-top:1px solid var(--border);padding-top:10px;">ไม่มีข้อความสูญหายใน 7 วันที่ผ่านมา</div>'}`;
+}
+document.getElementById('reloadSendHealthBtn').onclick = renderSendHealth;
 function renderTelegramRoomsEditor(){
+  renderSendHealth();
   const el = document.getElementById('telegramRoomsEditor'); if(!el) return;
   const rooms = db.settings.telegramRooms || [];
   const inUse = telegramRoomsInUse();
