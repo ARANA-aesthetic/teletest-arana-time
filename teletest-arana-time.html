@@ -457,6 +457,23 @@
      แล้วจัดตัวกรองไว้คอลัมน์ซ้าย เนื้อหา/ตารางอยู่คอลัมน์ขวา ดูเทียบกันได้ในจอเดียว
      ทั้งบล็อกนี้เป็นกฎ "เพิ่ม" ที่มีผลเฉพาะจอ ≥1100px และเฉพาะตอนอยู่หน้าผู้ดูแลเท่านั้น
      หน้าพนักงานและการแสดงผลบนมือถือไม่ถูกแตะเลย */
+  /* ---------- แท็บเล็ต (760–1099px) ----------
+     เดิมมีแค่ 2 แบบคือมือถือกับคอม จอแท็บเล็ตจึงถูกบีบเหลือคอลัมน์ 460px กลางจอ
+     เหลือขอบว่างสองข้างเยอะมาก ช่วงนี้จึงขยายความกว้างและจัดการ์ด/ตัวกรองเป็นหลายคอลัมน์
+     แต่ยังคงเมนูล่างไว้ เพราะยังใช้นิ้วแตะเป็นหลัก */
+  @media (min-width: 760px) and (max-width: 1099px){
+    body.deskmode .phonewrap{max-width:none;padding:0 max(16px, calc((100% - 900px) / 2)) 78px;}
+    body.deskmode .apphead{border-radius:0 0 26px 26px;}
+    body.deskmode .bottomnav{max-width:none;padding-left:max(16px, calc((100% - 900px) / 2));
+      padding-right:max(16px, calc((100% - 900px) / 2));}
+    body.deskmode .sethubgrid{grid-template-columns:repeat(3,1fr);}
+    body.deskmode #empSummaryList{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;}
+    body.deskmode #empSummaryList .miniempcard{margin-bottom:0;}
+    body.deskmode .statgrid{grid-template-columns:repeat(4,1fr);}
+    body.deskmode #setPaneHost section > .card{max-width:720px;}
+    body.deskmode .rptscroll{max-height:calc(100vh - 260px);overflow:auto;}
+  }
+
   @media (min-width: 1100px){
     body.deskmode{background:var(--bg);}
     body.deskmode .phonewrap{max-width:none;box-shadow:none;padding-bottom:0;padding-left:200px;min-height:100vh;}
@@ -544,17 +561,30 @@
     /* แท็บที่ไม่มีตัวกรองข้าง ให้กว้างเต็มแต่ไม่ยืดจนอ่านยาก */
     body.deskmode #atabEmployees{max-width:1180px;}
 
-    /* หน้าตั้งค่า: แถบหมวดกลายเป็นแถบข้างซ้ายแบบตรึงไว้ (ใช้ trick เดียวกับ atabLeaves/atabInspect) */
+    /* หน้าตั้งค่าบนจอคอม: หัวข้อทั้ง 9 อยู่เป็นแถบข้างซ้ายตลอดเวลา เนื้อหาอยู่ขวา
+       จอกว้างพอให้เห็นทั้งสองอย่างพร้อมกัน ไม่ต้องเข้า-ออกหน้ารวมเหมือนบนมือถือ */
     body.deskmode #atabSettings{
-      display:grid;grid-template-columns:210px minmax(0,1fr);
-      gap:0 28px;align-items:start;max-width:1180px;
+      display:grid;grid-template-columns:236px minmax(0,1fr);
+      gap:0 28px;align-items:start;max-width:1240px;
     }
-    body.deskmode #atabSettings .setjumpbar{
-      grid-column:1;grid-row:1 / span 99;position:sticky;top:22px;
-      flex-direction:column;align-items:stretch;overflow:visible;padding-bottom:0;
-    }
-    body.deskmode #atabSettings .setjumpchip{justify-content:flex-start;padding:10px 14px;}
-    body.deskmode #atabSettings .setgroup{grid-column:2;}
+    body.deskmode #setHub{grid-column:1;position:sticky;top:22px;}
+    body.deskmode #setHub.hidden{display:block;}          /* บนคอมแถบข้างต้องอยู่เสมอ */
+    body.deskmode #setDetail{grid-column:2;min-width:0;}
+    body.deskmode #setDetail.hidden{display:block;}
+    body.deskmode #setBackBtn{display:none;}              /* ไม่ต้องมีปุ่มย้อนกลับ เพราะเมนูอยู่ข้างๆ แล้ว */
+    body.deskmode .sethubgrid{grid-template-columns:1fr;gap:4px;}
+    body.deskmode .sethub{padding:9px 12px;border:none;border-radius:10px;background:none;}
+    body.deskmode .sethub:hover{background:var(--pink-pale);transform:none;}
+    body.deskmode .sethub.active{background:var(--pink-pale);}
+    body.deskmode .sethub .ic{display:inline-block;margin:0 8px 0 0;font-size:14px;vertical-align:middle;}
+    body.deskmode .sethub .t{display:inline;font-size:13px;}
+    body.deskmode .sethub.active .t{color:var(--pink-dark);}
+    body.deskmode .sethub .s{display:none;}               /* คำอธิบายยาวไปสำหรับแถบข้าง */
+    body.deskmode .sethub .n{display:block;margin:2px 0 0 22px;background:none;padding:0;
+      color:var(--muted);font-weight:400;font-size:10.5px;}
+    /* ฟอร์มในหน้าตั้งค่าไม่ควรยืดเต็มจอกว้าง อ่านและกรอกยาก */
+    body.deskmode #setPaneHost section > .card{max-width:760px;}
+    body.deskmode #setPaneHost .row2{max-width:760px;}
 
     /* การ์ดสรุปรายพนักงาน + รายชื่อ วางเป็นกริดหลายคอลัมน์ */
     body.deskmode #empSummaryList{
@@ -3949,15 +3979,22 @@ function buildSettingsPanes(){
   document.querySelectorAll('#atabSettings .setgroup').forEach(g=> g.remove());
   setPanesBuilt = true;
 }
+// บนจอคอมแถบหัวข้ออยู่ข้างซ้ายตลอด จึงไม่ต้องสลับซ่อน/แสดงแบบมือถือ
+function isDeskSettings(){
+  return document.body.classList.contains('deskmode')
+      && window.matchMedia('(min-width: 1100px)').matches;
+}
 function openSetPane(name){
   buildSettingsPanes();
   if(!SET_PANES[name]) return;
   Object.keys(SET_PANES).forEach(k=>
     document.getElementById('setPane_'+k)?.classList.toggle('hidden', k!==name));
-  document.getElementById('setHub').classList.add('hidden');
+  document.querySelectorAll('.sethub').forEach(c=>
+    c.classList.toggle('active', c.dataset.gopane===name));
+  document.getElementById('setHub').classList.toggle('hidden', !isDeskSettings());
   document.getElementById('setDetail').classList.remove('hidden');
   document.getElementById('adminPageTitle').textContent = 'ตั้งค่า · ' + SET_PANES[name];
-  window.scrollTo({top:0});
+  if(!isDeskSettings()) window.scrollTo({top:0});
   // เรนเดอร์เฉพาะรายการของหน้าที่เปิด จะได้ไม่ต้องวาดรายการทั้งหมดทุกครั้งที่เข้าหน้าตั้งค่า
   const R = {
     emp: renderAdminEmpList, branch: renderBranchEditor,
@@ -3971,12 +4008,22 @@ function openSetPane(name){
   try{ R[name] && R[name](); }catch(e){ console.error('openSetPane', name, e); }
 }
 function closeSetPane(){
+  renderSettingsHubCounts();
+  // บนจอคอมไม่มีสถานะ "ไม่ได้เปิดหัวข้อไหนเลย" เพราะคอลัมน์ขวาจะว่างเปล่า — เปิดหัวข้อแรกค้างไว้
+  if(isDeskSettings()){ openSetPane('emp'); return; }
   document.getElementById('setDetail').classList.add('hidden');
   document.getElementById('setHub').classList.remove('hidden');
+  document.querySelectorAll('.sethub').forEach(c=> c.classList.remove('active'));
   document.getElementById('adminPageTitle').textContent = 'ตั้งค่าระบบ';
-  renderSettingsHubCounts();
   window.scrollTo({top:0});
 }
+// ย่อ/ขยายหน้าต่างข้ามเส้นแบ่งจอคอม ต้องสลับรูปแบบให้ตรงกับขนาดใหม่ทันที
+window.matchMedia('(min-width: 1100px)').addEventListener('change', ()=>{
+  if(document.getElementById('atabSettings')?.classList.contains('hidden')) return;
+  const open = [...document.querySelectorAll('.sethub')].find(c=>c.classList.contains('active'));
+  if(isDeskSettings()) openSetPane(open?.dataset.gopane || 'emp');
+  else if(!open) closeSetPane();
+});
 // ตัวเลขบนการ์ด — รู้ปริมาณก่อนกดเข้าไป
 function renderSettingsHubCounts(){
   if(!document.getElementById('hubn-emp')) return;
