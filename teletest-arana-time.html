@@ -2210,33 +2210,41 @@ function otRoomChatId(){
   const room = (db.settings.telegramRooms||[]).find(r=>/\bot\b|โอที/i.test(r.name||''));
   return room?.chatId || '';
 }
+/* Telegram จำกัดความถี่การส่งต่อกลุ่มไว้ที่ประมาณ 1 ข้อความ/วินาที — ตอนพนักงานหลายคน
+   สแกนเข้างานพร้อมกันช่วงเช้า (เคยพบ 16 ครั้งในกลุ่มเดียวภายในไม่กี่นาที) การส่งจะโดนปฏิเสธ
+   ด้วยรหัส 429 "Too Many Requests" ซึ่ง Telegram บอกเวลาที่ต้องรอมาให้ในคำตอบเสมอ
+   (data.parameters.retry_after) เดิมระบบไม่ได้อ่านค่านี้เลย ปล่อยให้ค้างเป็น "ส่งไม่สำเร็จ"
+   ทั้งที่รอไม่กี่วินาทีแล้วลองใหม่ก็มักจะผ่าน จึงเพิ่มการรอ+ลองซ้ำอัตโนมัติสูงสุด 2 ครั้งไว้ตรงนี้
+   จุดเดียว ให้ทุกฟังก์ชันส่ง Telegram ฝั่งเว็บ (checkin, ใบลา, OT) ได้ประโยชน์เหมือนกัน */
+async function tgFetchWithRetry(url, options, _retry=0){
+  let res, data;
+  try{ res = await fetch(url, options); data = await res.json(); }
+  catch(e){ return {ok:false, reason:'เชื่อมต่อ Telegram ไม่สำเร็จ'}; }
+  if(!data.ok && data.error_code===429 && _retry<2){
+    const waitSec = Math.min(data.parameters?.retry_after || 3, 15);
+    await new Promise(r=>setTimeout(r, waitSec*1000 + 300));
+    return tgFetchWithRetry(url, options, _retry+1);
+  }
+  return { ok:!!data.ok, reason: data.ok?'':(data.description||'ส่งไม่สำเร็จ'), data };
+}
 async function tgSendMessage(token, chatId, text){
   if(!token||!chatId) return {ok:false, reason:'ไม่ได้ตั้งค่า Telegram'};
-  try{
-    const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_id:chatId, text, parse_mode:'HTML'})});
-    const data = await res.json();
-    return {ok:!!data.ok, reason:data.ok?'':(data.description||'ส่งไม่สำเร็จ')};
-  }catch(e){ return {ok:false, reason:'เชื่อมต่อ Telegram ไม่สำเร็จ'}; }
+  return tgFetchWithRetry(`https://api.telegram.org/bot${token}/sendMessage`,
+    {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_id:chatId, text, parse_mode:'HTML'})});
 }
 async function tgSendPhoto(token, chatId, blob, caption){
   if(!token||!chatId) return {ok:false, reason:'ไม่ได้ตั้งค่า Telegram'};
-  try{
-    const form = new FormData();
-    form.append('chat_id',chatId); form.append('caption',caption); form.append('parse_mode','HTML'); form.append('photo',blob,'capture.jpg');
-    const res = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`,{method:'POST',body:form});
-    const data = await res.json();
-    const sizes = data?.result?.photo;
-    const fileId = sizes && sizes.length ? sizes[sizes.length-1].file_id : null;
-    return {ok:!!data.ok, reason:data.ok?'':(data.description||'ส่งไม่สำเร็จ'), fileId};
-  }catch(e){ return {ok:false, reason:'เชื่อมต่อ Telegram ไม่สำเร็จ'}; }
+  const form = new FormData();
+  form.append('chat_id',chatId); form.append('caption',caption); form.append('parse_mode','HTML'); form.append('photo',blob,'capture.jpg');
+  const r = await tgFetchWithRetry(`https://api.telegram.org/bot${token}/sendPhoto`, {method:'POST',body:form});
+  const sizes = r.data?.result?.photo;
+  r.fileId = sizes && sizes.length ? sizes[sizes.length-1].file_id : null;
+  return r;
 }
 async function tgSendPhotoById(token, chatId, fileId, caption){
   if(!token||!chatId||!fileId) return {ok:false, reason:'ข้อมูลไม่ครบ'};
-  try{
-    const res = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_id:chatId, photo:fileId, caption, parse_mode:'HTML'})});
-    const data = await res.json();
-    return {ok:!!data.ok, reason:data.ok?'':(data.description||'ส่งไม่สำเร็จ')};
-  }catch(e){ return {ok:false, reason:'เชื่อมต่อ Telegram ไม่สำเร็จ'}; }
+  return tgFetchWithRetry(`https://api.telegram.org/bot${token}/sendPhoto`,
+    {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_id:chatId, photo:fileId, caption, parse_mode:'HTML'})});
 }
 async function viewTelegramPhoto(fileId){
   const token = db.settings.centralToken;
