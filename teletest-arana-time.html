@@ -1615,11 +1615,24 @@
     <div id="manualCheckinDateText" style="color:var(--muted);font-size:12.5px;margin-bottom:10px;"></div>
     <label>เวลาเข้างาน (โดยประมาณ)</label>
     <input type="time" id="manualCheckinTime">
+    <label style="margin-top:10px;">เหตุผล/หลักฐานที่ HR ได้รับแจ้ง (บันทึกไว้เช็คย้อนหลัง)</label>
+    <textarea id="manualCheckinReason" rows="2" placeholder="เช่น ทักแจ้ง HR ทางไลน์ว่ามาถึงแล้วแต่ลืมสแกน มีรูปหน้าร้านเวลา 09:05 ยืนยัน" style="width:100%;box-sizing:border-box;"></textarea>
     <div class="modalfoot">
       <button class="btn block" id="submitManualCheckinBtn">บันทึก (สาย 30 นาที)</button>
       <button class="btn gray" id="closeManualCheckinBtn">ยกเลิก</button>
     </div>
     <div class="msg" id="manualCheckinMsg"></div>
+  </div>
+</div>
+
+<!-- Prominent success popup shown right after submitting a leave/offsite/OT request,
+     so the employee is in no doubt the request actually went through and won't resubmit it -->
+<div class="overlay" id="submitSuccessOverlay">
+  <div class="modal" style="text-align:center;max-width:340px;">
+    <div style="font-size:52px;line-height:1;margin-bottom:8px;">✅</div>
+    <h3 id="submitSuccessTitle" style="margin-bottom:6px;">ส่งคำขอเรียบร้อย</h3>
+    <div id="submitSuccessBody" style="color:var(--muted);font-size:14px;margin-bottom:16px;"></div>
+    <button class="btn block" id="closeSubmitSuccessBtn">รับทราบ</button>
   </div>
 </div>
 
@@ -1784,6 +1797,7 @@ const uid = ()=> crypto.randomUUID();
 
 // ===== Supabase config =====
 const SUPABASE_URL = 'https://zjrlttyhdfcdjdnrvega.supabase.co';
+const APP_URL = 'https://arana-aesthetic.github.io/teletest-arana-time/teletest-arana-time.html';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpqcmx0dHloZGZjZGpkbnJ2ZWdhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY1MjA5ODYsImV4cCI6MjEwMjA5Njk4Nn0.sBOAB63PfUk-jeKn9-XIAKcScXG1GYfAoPd87bm215w';
 
 function defaultDB(){
@@ -2051,8 +2065,8 @@ const approverToRow = a => ({ id:a.id, name:a.name, pin:a.pin||null, role:a.role
 
 // employeeName = ชื่อ ณ ตอนบันทึก ฐานข้อมูลเติมให้เองด้วย trigger (ดู sql/keep-employee-name-snapshot.sql)
 // อ่านมาใช้อย่างเดียว ไม่ต้องส่งกลับตอนบันทึก จะได้ไม่เผลอเขียนทับชื่อเดิมด้วยค่าว่าง
-const rowToLog = r => ({ id:r.id, employeeId:r.employee_id, employeeName:r.employee_name||'', type:r.type, time:r.time, branchId:r.branch_id, lateMinutes:r.late_minutes||0, sent:r.sent, acPointId:r.ac_point_id||null, cleanPointId:r.clean_point_id||null, leaveConflict:!!r.leave_conflict, corrected:!!r.corrected, manualEntry:!!r.manual_entry, manualBy:r.manual_by||null });
-const logToRow = l => ({ id:l.id, employee_id:l.employeeId, type:l.type, time:l.time, branch_id:l.branchId||null, late_minutes:l.lateMinutes||0, sent:l.sent, ac_point_id:l.acPointId||null, clean_point_id:l.cleanPointId||null, leave_conflict:!!l.leaveConflict, corrected:!!l.corrected, manual_entry:!!l.manualEntry, manual_by:l.manualBy||null });
+const rowToLog = r => ({ id:r.id, employeeId:r.employee_id, employeeName:r.employee_name||'', type:r.type, time:r.time, branchId:r.branch_id, lateMinutes:r.late_minutes||0, sent:r.sent, acPointId:r.ac_point_id||null, cleanPointId:r.clean_point_id||null, leaveConflict:!!r.leave_conflict, corrected:!!r.corrected, manualEntry:!!r.manual_entry, manualBy:r.manual_by||null, manualReason:r.manual_reason||null });
+const logToRow = l => ({ id:l.id, employee_id:l.employeeId, type:l.type, time:l.time, branch_id:l.branchId||null, late_minutes:l.lateMinutes||0, sent:l.sent, ac_point_id:l.acPointId||null, clean_point_id:l.cleanPointId||null, leave_conflict:!!l.leaveConflict, corrected:!!l.corrected, manual_entry:!!l.manualEntry, manual_by:l.manualBy||null, manual_reason:l.manualReason||null });
 const rowToWarningLetter = r => ({ id:r.id, employeeId:r.employee_id, companyId:r.company_id||null, subject:r.subject||'', issuedDate:r.issued_date, details:r.details||'', punishments:r.punishments||(r.punishment?[r.punishment]:['verbal']), warningNumber:r.warning_number||1, evidenceFileId:r.evidence_file_id||null, issuedBy:r.issued_by||'-', createdAt:r.created_at, signatures:r.signatures||{} });
 const warningLetterToRow = w => ({ id:w.id, employee_id:w.employeeId, company_id:w.companyId||null, subject:w.subject||null, issued_date:w.issuedDate, details:w.details||null, punishments:w.punishments&&w.punishments.length?w.punishments:['verbal'], warning_number:w.warningNumber||1, evidence_file_id:w.evidenceFileId||null, issued_by:w.issuedBy||null, created_at:w.createdAt, signatures:w.signatures||{} });
 const rowToCompany = r => ({ id:r.id, name:r.name||'', logoBase64:r.logo_base64||null, createdAt:r.created_at });
@@ -3238,11 +3252,11 @@ document.getElementById('submitLeaveBtn').onclick = async ()=>{
   const leave = {id:uid(), employeeId:emp.id, kind, from, to, hourStart, hourEnd, reason, status:'pending', requestedAt:new Date().toISOString(), evidenceSent:null, evidenceFileId:null, locationLat, locationLng, locationAddress};
   db.leaves.push(leave); await saveLeaveRow(leave);
   msg.className='msg ok'; msg.textContent='ส่งใบลาเรียบร้อย รออนุมัติจาก HR';
-  alert('ส่งคำขอใบลาเรียบร้อย รออนุมัติ จึงจะได้รับข้อความทางกลุ่มสาขา');
+  showSubmitSuccessPopup(`${leaveLabel(kind)} ${leaveRangeText(leave)}\nไม่ต้องส่งซ้ำ — ระบบส่งคำขอเข้ากลุ่มรออนุมัติแล้ว`);
   renderLeaveTab();
   const br = currentBranch(emp);
   const rangeText = leaveRangeText(leave);
-  let text = `💌รออนุมัติ สาขา ${br?.name||'-'}\n▪️${notifyName(emp)}\n▪️ยื่น${leaveLabel(kind)}\n▪️${rangeText}\n▪️เหตุผล: ${reason||'-'}`;
+  let text = `💌รออนุมัติ สาขา ${br?.name||'-'}\n▪️${notifyName(emp)}\n▪️ยื่น${leaveLabel(kind)}\n▪️${rangeText}\n▪️เหตุผล: ${reason||'-'}` + approveLinkLine('อนุมัติการลา');
   if(locationLat!=null){
     const mapLink = `https://maps.google.com/?q=${locationLat},${locationLng}`;
     text += `\n📍พิกัด: ${locationAddress||'-'} (<a href="${mapLink}">แผนที่</a>)`;
@@ -3281,7 +3295,10 @@ lateEvidenceInput.addEventListener('change', async (e)=>{
   const emp = db.employees.find(e=>e.id===leave.employeeId);
   const br = db.branches.find(b=>b.id===emp?.branchId);
   const caption = `✅ส่งหลักฐานการลา\n${notifyName(emp)} ${ddmmyyyy(leave.from)}\nประเภทการลา : ${leaveLabel(leave.kind)}`;
-  const r = await tgSendPhoto(db.settings.centralToken, br?.chatIdLeaveApproval, file, caption);
+  // ใบลาที่ยังไม่อนุมัติ ห้ามส่งรูปเข้ากลุ่ม "ผลอนุมัติลา" ก่อน (กลุ่มนั้นไว้เก็บเฉพาะใบลาที่ตัดสินใจแล้ว)
+  // ต้องส่งเข้ากลุ่ม "รออนุมัติ" กลุ่มเดียวกับตอนยื่นคำขอแทน จนกว่า HR จะอนุมัติ
+  const targetChatId = leave.status==='approved' ? br?.chatIdLeaveApproval : db.settings.centralChatId;
+  const r = await tgSendPhoto(db.settings.centralToken, targetChatId, file, caption);
   leave.evidenceFileId = r.fileId || leave.evidenceFileId;
   leave.evidenceSent = r.ok;
   await saveLeaveRow(leave);
@@ -3507,6 +3524,7 @@ document.getElementById('submitOtBtn').onclick = async ()=>{
   db.otRequests.push(...rows);
   await Promise.all(rows.map(r=>saveOtRow(r)));
   msg.className='msg ok'; msg.textContent='ส่งคำขอ OT เรียบร้อย รออนุมัติจากหัวหน้า/HR';
+  showSubmitSuccessPopup(`OT วันที่ ${date} เวลา ${hourStart}-${hourEnd}\nไม่ต้องส่งซ้ำ — ระบบส่งคำขอเข้ากลุ่มรออนุมัติแล้ว`);
   renderOtTab();
   const br = currentBranch(emp);
   const empLines = selectedIds.map((empId,i)=>{ const e = db.employees.find(x=>x.id===empId); return `${i+1}. ${notifyName(e)}`; }).join('\n');
@@ -3858,9 +3876,13 @@ document.getElementById('submitTransferBtn').onclick = async ()=>{
   const transfer = {id:uid(), employeeId:emp.id, branchId, fromDate:from, toDate:to, reason, status:'pending', requestedAt:new Date().toISOString()};
   db.branchTransfers.push(transfer); await saveBranchTransferRow(transfer);
   msg.className='msg ok'; msg.textContent='ส่งคำขอแล้ว รออนุมัติ';
-  renderMyTransferList();
   const targetLabel = transferTargetLabel(branchId);
-  if(db.settings.notifyTypes.leaveSubmit && db.settings.centralChatId) await tgSendMessage(db.settings.centralToken, db.settings.centralChatId, `<b>${notifyName(emp)}</b> ขอไปทำงาน ${targetLabel} วันที่ ${from}${from!==to?' ถึง '+to:''}\nเหตุผล: ${reason||'-'}`);
+  showSubmitSuccessPopup(`ไปทำงาน${targetLabel} ${from}${from!==to?' – '+to:''}\nไม่ต้องส่งซ้ำ — ระบบส่งคำขอเข้ากลุ่มรออนุมัติแล้ว`);
+  renderMyTransferList();
+  const br = currentBranch(emp);
+  // ใช้แพทเทิร์นเดียวกับใบลา (💌รออนุมัติ...) แต่เปลี่ยนไอคอนเป็น 🧭 ให้ดูออกทันทีว่าเป็นคำขอไปทำงานนอกสถานที่ ไม่ใช่ใบลา
+  const transferText = `🧭รออนุมัติ ไปทำงาน${targetLabel}\n▪️${notifyName(emp)}\n▪️สาขาต้นสังกัด: ${br?.name||'-'}\n▪️วันที่: ${from}${from!==to?' ถึง '+to:''}\n▪️เหตุผล: ${reason||'-'}` + approveLinkLine('อนุมัติคำขอไปทำงานนอกสถานที่');
+  if(db.settings.notifyTypes.leaveSubmit && db.settings.centralChatId) await tgSendMessage(db.settings.centralToken, db.settings.centralChatId, transferText);
   await pushNotification(emp.id, 'ส่งคำขอไปสาขาอื่นแล้ว', `${targetLabel} ${from}${from!==to?' – '+to:''} กำลังรอการอนุมัติ`);
 };
 document.getElementById('menuPin').onclick = ()=>{
@@ -4524,7 +4546,7 @@ function renderInspectTab(){
       }
       else if(st.isHol){ statusText = 'วันหยุดบริษัท'; badgeClass='idle'; }
       else if(st.offsiteTransfer){ const tb = db.branches.find(b=>b.id===st.offsiteTransfer.branchId); statusText = `ทำงาน${tb?'สาขา '+tb.name:'นอกสถานที่'}`; badgeClass='offsite'; }
-      else if(st.inLog){ statusText = st.inLog.lateMinutes>0 ? `สาย ${st.inLog.lateMinutes} นาที (เข้า ${fmtTime(new Date(st.inLog.time))})` : `ตรงเวลา (เข้า ${fmtTime(new Date(st.inLog.time))})`; if(st.inLog.manualEntry) statusText += ' (แอดมินเพิ่มให้)'; badgeClass = st.inLog.lateMinutes>0?'late':'approved'; }
+      else if(st.inLog){ statusText = st.inLog.lateMinutes>0 ? `สาย ${st.inLog.lateMinutes} นาที (เข้า ${fmtTime(new Date(st.inLog.time))})` : `ตรงเวลา (เข้า ${fmtTime(new Date(st.inLog.time))})`; if(st.inLog.manualEntry) statusText += ` (แอดมินเพิ่มให้${st.inLog.manualReason?' — เหตุผล: '+st.inLog.manualReason:''})`; badgeClass = st.inLog.lateMinutes>0?'late':'approved'; }
       else { statusText = 'ยังไม่เข้างาน'; badgeClass='rejected'; }
       if(st.outLog) statusText += ` · ออก ${fmtTime(new Date(st.outLog.time))}`;
       const isAdmin = canManageApprovers();
@@ -4601,6 +4623,7 @@ function openManualCheckinForm(empId, dateStr){
   document.getElementById('manualCheckinEmpName').textContent = emp.name;
   document.getElementById('manualCheckinDateText').textContent = `วันที่ ${ddmmyyyy(dateStr)}`;
   document.getElementById('manualCheckinTime').value = emp.shiftStart || '09:00';
+  document.getElementById('manualCheckinReason').value = '';
   document.getElementById('manualCheckinMsg').textContent = '';
   document.getElementById('manualCheckinOverlay').classList.add('show');
 }
@@ -4609,21 +4632,35 @@ document.getElementById('submitManualCheckinBtn').onclick = async ()=>{
   if(!canManageApprovers()){ alert('ไม่มีสิทธิ์ ต้องเป็นเจ้าของ/HR เท่านั้น'); return; }
   const msg = document.getElementById('manualCheckinMsg');
   const time = document.getElementById('manualCheckinTime').value;
+  const reason = document.getElementById('manualCheckinReason').value.trim();
   if(!time || !manualCheckinTarget){ msg.className='msg err'; msg.textContent='กรุณาระบุเวลา'; return; }
+  if(!reason){ msg.className='msg err'; msg.textContent='กรุณาระบุเหตุผล/หลักฐานที่ได้รับแจ้ง เพื่อบันทึกไว้เช็คย้อนหลัง'; return; }
   const { empId, dateStr } = manualCheckinTarget;
   const emp = db.employees.find(e=>e.id===empId);
   const br = currentBranch(emp);
   const manualBy = session.role==='admin' ? 'เจ้าของ/HR' : (currentApprover()?.name || 'ผู้บริหาร');
   const logEntry = {
     id:uid(), employeeId:empId, type:'IN', time:new Date(`${dateStr}T${time}:00`).toISOString(),
-    branchId:br?.id||null, lateMinutes:30, sent:false, manualEntry:true, manualBy
+    branchId:br?.id||null, lateMinutes:30, sent:false, manualEntry:true, manualBy, manualReason:reason
   };
   db.logs.unshift(logEntry); await saveLogRow(logEntry);
-  await logAudit('manual_checkin', 'log', logEntry.id, `เพิ่มเวลาเข้างานย้อนหลังให้ ${emp?.name||'-'} วันที่ ${ddmmyyyy(dateStr)} เวลา ${time} (สาย 30 นาที ตามนโยบายลืมสแกน)`);
+  await logAudit('manual_checkin', 'log', logEntry.id, `เพิ่มเวลาเข้างานย้อนหลังให้ ${emp?.name||'-'} วันที่ ${ddmmyyyy(dateStr)} เวลา ${time} (สาย 30 นาที ตามนโยบายลืมสแกน) — เหตุผล: ${reason}`);
   msg.className='msg ok'; msg.textContent='บันทึกเรียบร้อย';
   renderInspectTab(); renderOverviewStats();
   setTimeout(()=>{ document.getElementById('manualCheckinOverlay').classList.remove('show'); manualCheckinTarget=null; }, 700);
 };
+// ป้ายกำกับสรุปการยื่นคำขอสำเร็จ — แทนที่ alert() เดิมด้วยป็อปอัปที่เห็นชัดกว่า มีปุ่มให้กดรับทราบ
+// เพราะพนักงานหลายคนไม่ทันสังเกตว่ายื่นสำเร็จแล้วหรือไม่ (เคยชินว่ายื่นลาปุ๊บต้องเข้าเทเลแกรมทันที)
+function showSubmitSuccessPopup(body, title){
+  document.getElementById('submitSuccessTitle').textContent = title || 'ส่งคำขอเรียบร้อย';
+  document.getElementById('submitSuccessBody').textContent = body || 'ไม่ต้องส่งซ้ำ ระบบบันทึกคำขอไว้แล้ว รอ HR อนุมัติ';
+  document.getElementById('submitSuccessOverlay').classList.add('show');
+}
+document.getElementById('closeSubmitSuccessBtn').onclick = ()=> document.getElementById('submitSuccessOverlay').classList.remove('show');
+// ลิงก์แนบท้ายข้อความแจ้งเตือนกลุ่มส่วนกลาง ให้ผู้อนุมัติกดเข้าเว็บแอปได้ทันทีจากในแชท
+function approveLinkLine(label){
+  return `\n🚧${label} : <a href="${APP_URL}">กดที่นี่</a>`;
+}
 
 // -- เพิ่มบันทึก "ทำงานนอกสถานที่" ย้อนหลัง (พนักงานไม่ได้เช็กอินเพราะยังไม่รู้จักเมนูขอไปสาขาอื่น/นอกสถานที่) --
 // อนุมัติทันที ไม่นับขาดงาน/ลืมสแกน ต่างจาก "ลืมสแกน" ตรงที่ไม่มีการปรับสาย 30 นาที เพราะไม่ได้มาที่สาขาเลย
@@ -6935,6 +6972,11 @@ function grabFrameBlob(){
 function shiftLateMinutes(emp, now){
   if(!emp.shiftStart) return 0;
   const todayStr = dateKey(now);
+  // ทำงานนอกสถานที่ที่อนุมัติแล้ว ไม่ต้องคำนวณนาทีมาสาย เพราะอาจมีช่วงเวลาเดินทางระหว่างจุดนัดหมาย
+  // (ต่างจากไปทำงานสาขาอื่นแบบระบุสาขาชัดเจน ซึ่งยังต้องเข้าตรงเวลาตามปกติ)
+  const offsiteToday = (db.branchTransfers||[]).some(t=>t.employeeId===emp.id && t.status==='approved'
+    && t.branchId==='offsite' && t.fromDate<=todayStr && t.toDate>=todayStr);
+  if(offsiteToday) return 0;
   const toMin = t => { const [h,m] = t.split(':').map(Number); return h*60 + m; };
   // ตั้งต้นจากเวลาเข้ากะของพนักงานคนนั้นเสมอ (แต่ละคนกะไม่เท่ากัน)
   let baseMin = toMin(emp.shiftStart);
@@ -6962,6 +7004,18 @@ function shiftLateMinutes(emp, now){
   const diffMin = nowMin - (baseMin + grace);
   return diffMin > 0 ? diffMin : 0;
 }
+// เครื่องสแกนหน้าที่หน้าร้านมักเปิดค้างไว้ทั้งวัน (โหลด db.leaves ครั้งเดียวตอนเปิดเครื่อง)
+// ถ้า HR อนุมัติใบลาเป็นชั่วโมงระหว่างวันจากอุปกรณ์อื่น เครื่องนี้จะไม่รู้ ทำให้คำนวณนาทีสายผิด
+// (คิดจากเวลาเข้ากะปกติทั้งที่ควรเลื่อนตามใบลา) จึงต้องดึงใบลาของวันนี้ให้สดก่อนคำนวณสายทุกครั้ง
+async function refreshEmployeeLeavesToday(empId){
+  try{
+    const todayStr = dateKey(new Date());
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/leaves?employee_id=eq.${empId}&from_date=eq.${todayStr}&select=*`, { headers: sbHeaders() });
+    if(!res.ok) return;
+    const fresh = (await res.json()).map(rowToLeave);
+    db.leaves = db.leaves.filter(l=> !(l.employeeId===empId && l.from===todayStr)).concat(fresh);
+  }catch(e){ console.error('refreshEmployeeLeavesToday', e); }
+}
 async function finalizeScan(emp, confidence, pos, distance){
   if(scanLoopId) cancelAnimationFrame(scanLoopId);
   const now = new Date();
@@ -6970,6 +7024,7 @@ async function finalizeScan(emp, confidence, pos, distance){
   let type, lateMinutes=0, text, notiTitle, notiBody;
   const conflictLeave = db.leaves.find(l=>l.employeeId===emp.id && l.status==='approved' && !HOURLY_KINDS.includes(l.kind) && new Date(l.from+'T00:00:00')<=now && new Date(l.to+'T23:59:59')>=now);
   if(!st.inTime){
+    await refreshEmployeeLeavesToday(emp.id);
     type='IN'; lateMinutes = shiftLateMinutes(emp, now);
     text = `✅${notifyName(emp)}\nเข้างาน เวลา ${fmtTime(now)} น.${lateMinutes>0?`\nสาย ${lateMinutes} นาที`:''}\nยืนยันใบหน้า ${confidence}%`;
     notiTitle = 'เช็กอินสำเร็จ'; notiBody = `บันทึกเวลาเข้างานที่ ${br?.name||'-'} เรียบร้อย${lateMinutes>0?` (สาย ${lateMinutes} นาที)`:''}`;
