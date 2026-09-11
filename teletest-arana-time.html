@@ -3560,8 +3560,10 @@ document.getElementById('submitOtBtn').onclick = async ()=>{
   showSubmitSuccessPopup(`OT วันที่ ${date} เวลา ${hourStart}-${hourEnd}\nไม่ต้องส่งซ้ำ — ระบบส่งคำขอเข้ากลุ่มรออนุมัติแล้ว`);
   renderOtTab();
   const br = currentBranch(emp);
-  const empLines = selectedIds.map((empId,i)=>{ const e = db.employees.find(x=>x.id===empId); return `${i+1}. ${notifyName(e)}`; }).join('\n');
-  const text = `▶️คำขอรออนุมัติ\nสาขา : ${br?.name||'-'}\nขอทำ OT วันที่ : ${date}\nเวลา : ${hourStart}-${hourEnd}\nรวม : ${otHoursText(hourStart,hourEnd)} ชม.\nเหตุผล : ${reason||'-'}\nพนักงานขอ OT\n${empLines}` + approveLinkLine('อนุมัติ OT');
+  // แจ้งแบบสั้นแค่พอให้รู้ว่ามีคำขอรออนุมัติ กดลิงก์แล้วค่อยดูรายละเอียดในระบบ — รายละเอียดเต็ม (สาขา/เวลา/เหตุผล/รายชื่อ)
+  // ค่อยส่งเข้ากลุ่มอีกทีตอนอนุมัติ/ปฏิเสธแล้ว (ดู applyOtDecision ด้านล่าง)
+  const dateDash = date.split('-').reverse().join('-');
+  const text = `🚧สาขา ${br?.name||'-'} ขออนุมัติเบิก OT\n⚠️วันที่ ${dateDash} ⏭️ <a href="${APP_URL}">กดที่นี่</a>`;
   if(db.settings.notifyTypes.otSubmit && otRoomChatId()) await tgSendMessage(db.settings.centralToken, otRoomChatId(), text);
   await Promise.all(selectedIds.map(empId => pushNotification(empId, 'ส่งคำขอ OT แล้ว', `${date} เวลา ${hourStart}-${hourEnd} กำลังรอการอนุมัติ`)));
   setTimeout(()=>{ document.getElementById('otOverlay').classList.remove('show'); }, 900);
