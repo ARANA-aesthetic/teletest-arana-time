@@ -4551,8 +4551,20 @@ function renderInspectTab(){
       const st = empStatusOnDate(e.id, dateStr);
       let statusText, badgeClass;
       if(st.leave){
-        statusText = `ลา: ${leaveLabel(st.leave.kind)}`; badgeClass='pending';
-        if(st.inLog && !HOURLY_KINDS.includes(st.leave.kind)){ statusText += ` ⚠️ แต่มีการเช็กอินเข้างาน (${fmtTime(new Date(st.inLog.time))}) — ข้อมูลไม่สอดคล้องกัน`; badgeClass='rejected'; }
+        const isHourlyLeave = HOURLY_KINDS.includes(st.leave.kind);
+        statusText = `ลา: ${leaveLabel(st.leave.kind)}`;
+        if(isHourlyLeave && st.leave.hourStart && st.leave.hourEnd) statusText += ` ${st.leave.hourStart}–${st.leave.hourEnd} น.`;
+        badgeClass='pending';
+        if(st.inLog){
+          if(isHourlyLeave){
+            // โชว์เวลาลาคู่กับเวลาเข้างานจริง เพื่อให้ตรวจสอบง่ายๆ ด้วยตาว่าเข้างานตรงกับช่วงที่ลาไว้จริงหรือไม่
+            // (เคสที่ลาไม่ครอบคลุมเวลาเข้ากะ ระบบจะยังนับสายจากเวลาเข้ากะปกติตามเดิม ไม่ใช่ลาแล้วไม่คิดสายเสมอไป)
+            statusText += ` · เข้า ${fmtTime(new Date(st.inLog.time))}${st.inLog.lateMinutes>0?` (สาย ${st.inLog.lateMinutes} นาที)`:''}`;
+            badgeClass = st.inLog.lateMinutes>0 ? 'late' : 'pending';
+          } else {
+            statusText += ` ⚠️ แต่มีการเช็กอินเข้างาน (${fmtTime(new Date(st.inLog.time))}) — ข้อมูลไม่สอดคล้องกัน`; badgeClass='rejected';
+          }
+        }
       }
       else if(st.isHol){ statusText = 'วันหยุดบริษัท'; badgeClass='idle'; }
       else if(st.offsiteTransfer){ const tb = db.branches.find(b=>b.id===st.offsiteTransfer.branchId); statusText = `ทำงาน${tb?'สาขา '+tb.name:'นอกสถานที่'}`; badgeClass='offsite'; }
