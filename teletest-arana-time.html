@@ -6552,6 +6552,17 @@ function resolveImportBranch(label){
   return b ? b.id : null;
 }
 const normalizeHeader = h => String(h||'').trim().replace(/\s+/g,' ');
+// หัวตารางจริงไม่จำเป็นต้องอยู่แถวแรกสุดของไฟล์เสมอไป — ไฟล์ Excel ที่ HR ใช้งานจริงมักมีแถวหัวเรื่อง
+// (เช่น "วันปัจจุบัน", "ข้อมูลพนักงาน") นำหน้าหัวตารางจริงอยู่ 1-2 แถว ไล่หาแถวที่มีคอลัมน์ที่จำเป็นครบ
+// ในแถวแรกๆ ของไฟล์แทนที่จะยึดตายตัวว่าแถวที่ 1 ต้องเป็นหัวตารางเสมอ
+function findHeaderRow(table, requiredLabels, maxScan=15){
+  for(let i=0; i<Math.min(table.length, maxScan); i++){
+    const colIdx = {};
+    table[i].map(normalizeHeader).forEach((h,ci)=>{ if(colIdx[h]===undefined) colIdx[h]=ci; });
+    if(requiredLabels.every(label=>colIdx[label]!==undefined)) return { headerRowIdx:i, colIdx };
+  }
+  return null;
+}
 // ไฟล์ .xlsx: เซลล์วันที่/เวลาเก็บเป็นเลขซีเรียล (จำนวนวันนับจาก 1899-12-30) — แปลงเองแบบตายตัวด้วย UTC เสมอ
 // (ทดสอบแล้วพบว่า SheetJS's cellDates:true ตีความ timezone ตามเครื่องที่รันเว็บ ถ้าเครื่อง HR ตั้ง timezone
 // ไม่ตรงกับไทยพอดี วันที่จะเพี้ยนไปหนึ่งวันแบบเงียบๆ จึงอ่านเป็นเลขดิบแล้วแปลงเองแทนทั้งหมด)
@@ -6634,11 +6645,11 @@ function parseLeaveImportRow(colIdx, row, rowNo){
 // (ดู isHiddenEmployee: active:false ไม่มี resignDate = ซ่อนจากรายงานสถานะรายวัน แต่ยังแก้ไขได้จากหน้าจัดการพนักงาน)
 // ถ้าไฟล์มีคอลัมน์ "วันที่ลาออก" มาด้วยและมีค่าให้แถวไหน ก็ใช้ค่านั้นตั้งวันที่ให้เลยทันที ไม่ต้องรอ HR มากรอกทีหลัง
 // ทำเป็น pass แยกก่อนอ่านแถวลาจริง เพราะคนคนเดียวมักมีใบลาหลายใบในไฟล์เดียวกัน ต้องกันสร้าง/อัปเดตซ้ำ
-function resolveLeaveImportEmployees(table, colIdx){
+function resolveLeaveImportEmployees(table, colIdx, headerRowIdx=0){
   const newEmployees = new Map(), resignUpdates = new Map();
   const hasResignCol = colIdx[LEAVE_IMPORT_COLUMNS.resignDate] !== undefined;
   const get = (row, key) => { const i = colIdx[LEAVE_IMPORT_COLUMNS[key]]; return i===undefined ? '' : (row[i]??''); };
-  for(let i=1;i<table.length;i++){
+  for(let i=headerRowIdx+1;i<table.length;i++){
     const row = table[i];
     const nameRaw = String(get(row,'name')).trim(), nickRaw = String(get(row,'nickname')).trim();
     const key = nameRaw || nickRaw; if(!key) continue;
@@ -6667,18 +6678,19 @@ async function readLeaveImportFile(file){
   }
   table = table.filter(r=>r.some(c=>String(c??'').trim()!==''));
   if(!table.length) return { rows:[], errors:['ไฟล์ว่างเปล่าหรืออ่านไม่ได้'], dupes:[], newEmployees:[], resignUpdates:[] };
-  const colIdx = {};
-  table[0].map(normalizeHeader).forEach((h,i)=>{ if(colIdx[h]===undefined) colIdx[h]=i; });
-  const requiredMissing = ['name','from','kind'].map(k=>LEAVE_IMPORT_COLUMNS[k]).filter(label=>colIdx[label]===undefined);
-  if(requiredMissing.length) return { rows:[], errors:[`ไฟล์ขาดคอลัมน์ที่จำเป็น: ${requiredMissing.join(', ')} (ต้องตั้งชื่อหัวคอลัมน์ให้ตรงเป๊ะ)`], dupes:[], newEmployees:[], resignUpdates:[] };
-  const { newEmployees, resignUpdates } = resolveLeaveImportEmployees(table, colIdx);
+  const required = ['name','from','kind'].map(k=>LEAVE_IMPORT_COLUMNS[k]);
+  const header = findHeaderRow(table, required);
+  if(!header) return { rows:[], errors:[`หาหัวตารางไม่เจอในไฟล์ — ต้องมีแถวที่มีคอลัมน์ครบ: ${required.join(', ')} (ต้องตั้งชื่อหัวคอลัมน์ให้ตรงเป๊ะ)`], dupes:[], newEmployees:[], resignUpdates:[] };
+  const { headerRowIdx, colIdx } = header;
+  const { newEmployees, resignUpdates } = resolveLeaveImportEmployees(table, colIdx, headerRowIdx);
   // ใส่พนักงานใหม่ (ยังไม่บันทึกจริง) เข้า db.employees ชั่วคราว ให้แถวลาที่จะ parse ต่อจากนี้จับคู่คนเดิมเจอ
   // (ต้องกันของค้างจากการกด "ตรวจไฟล์" ครั้งก่อนหน้าด้วย ไม่งั้นกดตรวจซ้ำหลายรอบจะมีพนักงานผีซ้อนกันหลายชุด)
   if(pendingLeaveImportNewEmployees) db.employees = db.employees.filter(e=>!pendingLeaveImportNewEmployees.includes(e));
   pendingLeaveImportNewEmployees = [...newEmployees.values()];
   db.employees.push(...pendingLeaveImportNewEmployees);
   const rows = [], errors = [];
-  for(let i=1;i<table.length;i++){
+  for(let i=headerRowIdx+1;i<table.length;i++){
+    if(!table[i].some(c=>String(c??'').trim()!=='')) continue;
     const r = parseLeaveImportRow(colIdx, table[i], i+1);
     if(r.error) errors.push(r.error); else rows.push(r);
   }
@@ -6808,14 +6820,22 @@ async function readStartDateImportFile(file){
   }
   table = table.filter(r=>r.some(c=>String(c??'').trim()!==''));
   if(!table.length) return { rows:[], errors:['ไฟล์ว่างเปล่าหรืออ่านไม่ได้'], skipped:[] };
-  const colIdx = {};
-  table[0].map(normalizeHeader).forEach((h,i)=>{ if(colIdx[h]===undefined) colIdx[h]=i; });
-  const requiredMissing = ['name','startDate'].map(k=>STARTDATE_IMPORT_COLUMNS[k]).filter(label=>colIdx[label]===undefined);
-  if(requiredMissing.length) return { rows:[], errors:[`ไฟล์ขาดคอลัมน์ที่จำเป็น: ${requiredMissing.join(', ')} (ต้องตั้งชื่อหัวคอลัมน์ให้ตรงเป๊ะ)`], skipped:[] };
+  const required = ['name','startDate'].map(k=>STARTDATE_IMPORT_COLUMNS[k]);
+  const header = findHeaderRow(table, required);
+  if(!header) return { rows:[], errors:[`หาหัวตารางไม่เจอในไฟล์ — ต้องมีแถวที่มีคอลัมน์ครบ: ${required.join(', ')} (ต้องตั้งชื่อหัวคอลัมน์ให้ตรงเป๊ะ)`], skipped:[] };
+  const { headerRowIdx, colIdx } = header;
   const rows = [], errors = [], skipped = [];
   const seen = new Set();
-  for(let i=1;i<table.length;i++){
-    const r = parseStartDateImportRow(colIdx, table[i], i+1);
+  for(let i=headerRowIdx+1;i<table.length;i++){
+    const row = table[i];
+    // ข้ามแถวที่ไม่มีข้อมูลในคอลัมน์ที่เกี่ยวข้องเลยเงียบๆ (เช่นแถวโลโก้/หมายเหตุที่หลุดมาอยู่ท้ายชีต)
+    // แทนที่จะฟ้อง error รกๆ ให้ทุกแถว
+    const hasAnyRelevant = ['code','name','nickname','startDate'].some(k=>{
+      const ci = colIdx[STARTDATE_IMPORT_COLUMNS[k]];
+      return ci!==undefined && String(row[ci]??'').trim()!=='';
+    });
+    if(!hasAnyRelevant) continue;
+    const r = parseStartDateImportRow(colIdx, row, i+1);
     if(r.error){ errors.push(r.error); continue; }
     if(seen.has(r.emp.id)) continue; // กันแถวซ้ำของคนเดียวกันในไฟล์เดียวกัน เอาแถวแรกพอ
     seen.add(r.emp.id);
