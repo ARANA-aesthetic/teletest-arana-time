@@ -1323,7 +1323,8 @@
                 (คอลัมน์อื่นที่มีในชีต เช่น แจ้งก่อน/เดือน/อีเมล/ตำแหน่งงาน/จำนวนวัน/จำนวนชั่วโมง จะถูกข้ามไป ไม่ต้องลบออก)<br>
                 จับคู่พนักงานด้วยชื่อ-นามสกุล หรือชื่อเล่น (ต้องตรงกับในระบบเป๊ะ) · ประเภทการลาต้องเป็นคำที่ระบบรู้จัก เช่น <code>ลากิจ (หักเงิน)</code>, <code>ลาป่วย (มีใบรับรองแพทย์)</code>, <code>ลาเป็นชั่วโมง (กิจ)</code><br>
                 ถ้าไม่มีไฟล์ .xlsx ใช้ .csv แทนได้ แต่คอลัมน์วันที่ (ลาวันที่/ลาถึงวันที่) ต้องเป็นรูปแบบ <b>DD-MM-YYYY</b> เท่านั้น (เช่น <code>30-08-2026</code>) เพื่อไม่ให้วัน/เดือนสลับกัน<br>
-                <b style="color:var(--pink-dark);">พนักงานที่ลาออกไปแล้ว:</b> เพิ่มคอลัมน์ <code>วันที่ลาออก</code> (รูปแบบเดียวกับวันที่อื่นๆ) ต่อท้ายได้ — ถ้าชื่อนั้นยังไม่มีในระบบเลย จะสร้างประวัติพนักงาน "ลาออกแล้ว" ให้อัตโนมัติเพื่อผูกประวัติการลาไว้ ถ้าชื่อนั้นมีอยู่แล้วแต่ยัง active จะปรับสถานะเป็นลาออกแล้วให้ตามวันที่ระบุ (มีขั้นตอนให้ตรวจสอบรายชื่อก่อนกดยืนยันเสมอ)<br>
+                <b style="color:var(--pink-dark);">พนักงานที่ลาออกไปแล้ว (ก่อนมีระบบนี้):</b> ไม่ต้องแก้ไฟล์อะไรเพิ่ม — ชื่อไหนไม่พบในระบบเลยจะถูกสร้างประวัติพนักงานใหม่ให้อัตโนมัติ (ตั้งสถานะ "ปิดการใช้งาน" ไว้ก่อน ยังไม่โผล่ในรายงาน/แจ้งเตือนประจำวัน) ให้ HR เข้าไปกรอกวันที่พ้นสภาพจริงย้อนหลังเองทีหลังในหน้าจัดการพนักงานได้ตามสบาย · ถ้าอยากระบุวันที่ลาออกให้เสร็จในคราวเดียว เพิ่มคอลัมน์ <code>วันที่ลาออก</code> ต่อท้ายในไฟล์ได้ (ไม่บังคับ)<br>
+                <span style="color:var(--red);">⚠️ตรวจสอบรายชื่อที่ระบบจะสร้างใหม่ในขั้นตอน "ตรวจไฟล์ก่อนนำเข้า" ให้ดีก่อนกดยืนยันเสมอ — พิมพ์ชื่อผิดจะกลายเป็นสร้างพนักงานซ้ำคนใหม่แทนที่จะจับคู่กับตัวจริง</span><br>
                 บันทึกเป็น <b>อนุมัติแล้ว</b> · <b>ไม่ส่งแจ้งเตือนเข้ากลุ่มใดๆ</b>
                 <button class="btn ghost sm block" style="margin-top:8px;" id="downloadLeaveTemplateBtn">ดาวน์โหลดไฟล์ตัวอย่าง .csv (พร้อมชื่อพนักงานจริง)</button>
               </div>
@@ -6581,24 +6582,27 @@ function parseLeaveImportRow(colIdx, row, rowNo){
   if(emp.resignDate && from > emp.resignDate) return err(`วันที่ลาอยู่หลังวันที่ลาออกของ ${emp.name} (ลาออก ${ddmmyyyy(emp.resignDate)})`);
   return { emp, kind, from, to, hourStart, hourEnd, reason: String(val('reason')).trim(), requestedAt: parseImportTimestamp(val('timestamp')) };
 }
-// พนักงานที่ลาออกไปก่อนมีระบบนี้จะไม่มีชื่ออยู่ใน db.employees เลย — ถ้าไฟล์ระบุ "วันที่ลาออก" มาด้วย
-// ให้สร้างประวัติพนักงาน "ลาออกแล้ว" ให้อัตโนมัติ (active:false + resignDate) เพื่อผูกประวัติการลาไว้ได้
-// โดยไม่ต้องให้ HR ไปเพิ่มพนักงานเองทีละคนก่อน — ส่วนคนที่มีชื่ออยู่แล้วแต่ยัง active ก็ปรับสถานะเป็นลาออกแล้วให้ด้วย
+// พนักงานที่ลาออกไปก่อนมีระบบนี้จะไม่มีชื่ออยู่ใน db.employees เลย — ไม่ว่าไฟล์จะมีคอลัมน์ "วันที่ลาออก"
+// มาด้วยหรือไม่ก็ตาม ชื่อที่หาไม่เจอในระบบทุกกรณีจะถูกสร้างประวัติพนักงานให้อัตโนมัติ ตั้งสถานะ "ปิดการใช้งาน"
+// ไว้ก่อน (active:false, ยังไม่ใส่ resignDate) เพื่อผูกประวัติการลาไว้ได้ทันที โดยไม่ต้องแก้ไฟล์ให้มีคอลัมน์เพิ่ม
+// — คนกลุ่มนี้ยังไม่โผล่ในรายงาน/แจ้งเตือนประจำวันจนกว่า HR จะเข้าไปกรอกวันที่พ้นสภาพจริงเองภายหลัง
+// (ดู isHiddenEmployee: active:false ไม่มี resignDate = ซ่อนจากรายงานสถานะรายวัน แต่ยังแก้ไขได้จากหน้าจัดการพนักงาน)
+// ถ้าไฟล์มีคอลัมน์ "วันที่ลาออก" มาด้วยและมีค่าให้แถวไหน ก็ใช้ค่านั้นตั้งวันที่ให้เลยทันที ไม่ต้องรอ HR มากรอกทีหลัง
 // ทำเป็น pass แยกก่อนอ่านแถวลาจริง เพราะคนคนเดียวมักมีใบลาหลายใบในไฟล์เดียวกัน ต้องกันสร้าง/อัปเดตซ้ำ
 function resolveLeaveImportEmployees(table, colIdx){
   const newEmployees = new Map(), resignUpdates = new Map();
-  if(colIdx[LEAVE_IMPORT_COLUMNS.resignDate] === undefined) return { newEmployees, resignUpdates };
+  const hasResignCol = colIdx[LEAVE_IMPORT_COLUMNS.resignDate] !== undefined;
   const get = (row, key) => { const i = colIdx[LEAVE_IMPORT_COLUMNS[key]]; return i===undefined ? '' : (row[i]??''); };
   for(let i=1;i<table.length;i++){
     const row = table[i];
-    const resignRaw = get(row,'resignDate'); if(!resignRaw) continue;
-    const resignDate = parseImportDate(resignRaw); if(!resignDate) continue;
     const nameRaw = String(get(row,'name')).trim(), nickRaw = String(get(row,'nickname')).trim();
     const key = nameRaw || nickRaw; if(!key) continue;
     const emp = (nameRaw && db.employees.find(e=>e.name.trim()===nameRaw))
              || (nickRaw && db.employees.find(e=>(e.nickname||'').trim()===nickRaw));
+    const resignRaw = hasResignCol ? get(row,'resignDate') : '';
+    const resignDate = resignRaw ? parseImportDate(resignRaw) : null;
     if(emp){
-      if(emp.active!==false || emp.resignDate!==resignDate) resignUpdates.set(emp.id, { emp, resignDate });
+      if(resignDate && (emp.active!==false || emp.resignDate!==resignDate)) resignUpdates.set(emp.id, { emp, resignDate });
     } else if(!newEmployees.has(key)){
       newEmployees.set(key, { id:uid(), name:nameRaw||key, nickname:nickRaw||'', branchId:resolveImportBranch(get(row,'branch')),
         employeeCode:'', department:'', jobTitle:'', startDate:null, shiftStart:'', shiftEnd:'', email:'', pin:null,
@@ -6660,8 +6664,8 @@ document.getElementById('checkLeaveImportBtn').onclick = async ()=>{
   box.innerHTML = `
     <div style="border:1px solid var(--border);border-radius:12px;padding:12px;margin-top:10px;font-size:12px;line-height:1.7;">
       <div style="font-weight:600;color:${rows.length?'var(--green)':'var(--red)'};">พร้อมนำเข้า ${rows.length} รายการ</div>
-      ${newEmployees.length?`<div style="color:var(--blue);margin-top:6px;">จะสร้างประวัติพนักงาน "ลาออกแล้ว" ใหม่ ${newEmployees.length} คน (ไม่เคยมีชื่อในระบบมาก่อน):<br>${newEmployees.slice(0,8).map(e=>`${e.name} — ลาออก ${ddmmyyyy(e.resignDate)}`).join('<br>')}${newEmployees.length>8?'<br>…':''}</div>`:''}
-      ${resignUpdates.length?`<div style="color:var(--blue);margin-top:6px;">จะปรับสถานะพนักงานเดิมเป็น "ลาออกแล้ว" ${resignUpdates.length} คน:<br>${resignUpdates.slice(0,8).map(u=>`${u.emp.name} — ลาออก ${ddmmyyyy(u.resignDate)}`).join('<br>')}${resignUpdates.length>8?'<br>…':''}</div>`:''}
+      ${newEmployees.length?`<div style="color:var(--blue);margin-top:6px;">⚠️ตรวจชื่อให้ดี — จะสร้างประวัติพนักงานใหม่ (ปิดการใช้งาน) ${newEmployees.length} คน เพราะไม่พบชื่อนี้ในระบบเลย (พิมพ์ชื่อผิด/สะกดคลาดเคลื่อนก็จะถูกสร้างเป็นคนใหม่แยกจากตัวจริงทันที):<br>${newEmployees.map(e=>`${e.name}${e.nickname?' ('+e.nickname+')':''} — ${e.resignDate?'ลาออก '+ddmmyyyy(e.resignDate):'ยังไม่ระบุวันที่ลาออก รอ HR กรอกภายหลัง'}`).join('<br>')}</div>`:''}
+      ${resignUpdates.length?`<div style="color:var(--blue);margin-top:6px;">จะปรับสถานะพนักงานเดิมเป็น "ลาออกแล้ว" ${resignUpdates.length} คน:<br>${resignUpdates.map(u=>`${u.emp.name} — ลาออก ${ddmmyyyy(u.resignDate)}`).join('<br>')}</div>`:''}
       ${dupes.length?`<div style="color:var(--amber);margin-top:6px;">ข้าม ${dupes.length} รายการที่มีอยู่แล้ว:<br>${dupes.slice(0,5).join('<br>')}${dupes.length>5?'<br>…':''}</div>`:''}
       ${errors.length?`<div style="color:var(--red);margin-top:6px;">มีปัญหา ${errors.length} แถว (จะไม่ถูกนำเข้า):<br>${errors.slice(0,8).join('<br>')}${errors.length>8?'<br>…':''}</div>`:''}
       ${rows.length?`<div style="margin-top:8px;color:var(--muted);">${Object.entries(byEmp).slice(0,8).map(([n,c])=>`${n} ${c} ใบ`).join(' · ')}${Object.keys(byEmp).length>8?' …':''}</div>
