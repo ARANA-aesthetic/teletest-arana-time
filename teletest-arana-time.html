@@ -1323,6 +1323,7 @@
                 (คอลัมน์อื่นที่มีในชีต เช่น แจ้งก่อน/เดือน/อีเมล/ตำแหน่งงาน/จำนวนวัน/จำนวนชั่วโมง จะถูกข้ามไป ไม่ต้องลบออก)<br>
                 จับคู่พนักงานด้วยชื่อ-นามสกุล หรือชื่อเล่น (ต้องตรงกับในระบบเป๊ะ) · ประเภทการลาต้องเป็นคำที่ระบบรู้จัก เช่น <code>ลากิจ (หักเงิน)</code>, <code>ลาป่วย (มีใบรับรองแพทย์)</code>, <code>ลาเป็นชั่วโมง (กิจ)</code><br>
                 ถ้าไม่มีไฟล์ .xlsx ใช้ .csv แทนได้ แต่คอลัมน์วันที่ (ลาวันที่/ลาถึงวันที่) ต้องเป็นรูปแบบ <b>DD-MM-YYYY</b> เท่านั้น (เช่น <code>30-08-2026</code>) เพื่อไม่ให้วัน/เดือนสลับกัน<br>
+                <b style="color:var(--pink-dark);">พนักงานที่ลาออกไปแล้ว:</b> เพิ่มคอลัมน์ <code>วันที่ลาออก</code> (รูปแบบเดียวกับวันที่อื่นๆ) ต่อท้ายได้ — ถ้าชื่อนั้นยังไม่มีในระบบเลย จะสร้างประวัติพนักงาน "ลาออกแล้ว" ให้อัตโนมัติเพื่อผูกประวัติการลาไว้ ถ้าชื่อนั้นมีอยู่แล้วแต่ยัง active จะปรับสถานะเป็นลาออกแล้วให้ตามวันที่ระบุ (มีขั้นตอนให้ตรวจสอบรายชื่อก่อนกดยืนยันเสมอ)<br>
                 บันทึกเป็น <b>อนุมัติแล้ว</b> · <b>ไม่ส่งแจ้งเตือนเข้ากลุ่มใดๆ</b>
                 <button class="btn ghost sm block" style="margin-top:8px;" id="downloadLeaveTemplateBtn">ดาวน์โหลดไฟล์ตัวอย่าง .csv (พร้อมชื่อพนักงานจริง)</button>
               </div>
@@ -6494,8 +6495,16 @@ document.getElementById('testCentralTgBtn').onclick = async ()=>{
 const LEAVE_IMPORT_COLUMNS = {
   timestamp:'ประทับเวลา', name:'ชื่อ-นามสกุล', nickname:'ชื่อเล่น', branch:'ร้าน/สาขา',
   from:'ลาวันที่', to:'ลาถึงวันที่', kind:'ประเภทการลา',
-  hourStart:'ลาเป็นชั่วโมง เริ่มเวลา', hourEnd:'ลาเป็นชั่วโมง ถึงเวลา', reason:'เหตุผลในการลา'
+  hourStart:'ลาเป็นชั่วโมง เริ่มเวลา', hourEnd:'ลาเป็นชั่วโมง ถึงเวลา', reason:'เหตุผลในการลา',
+  resignDate:'วันที่ลาออก'
 };
+// ตัด "ARANA " ออกก่อนเทียบ เพราะไฟล์เก่าตั้งชื่อสาขาแบบ "ARANA แม่สอด" แต่ในระบบเก็บแค่ "แม่สอด"
+function resolveImportBranch(label){
+  const norm = String(label||'').trim().replace(/^ARANA\s+/i,'').toLowerCase();
+  if(!norm) return null;
+  const b = db.branches.find(b=>b.name.trim().toLowerCase()===norm);
+  return b ? b.id : null;
+}
 const normalizeHeader = h => String(h||'').trim().replace(/\s+/g,' ');
 // ไฟล์ .xlsx: เซลล์วันที่/เวลาเก็บเป็นเลขซีเรียล (จำนวนวันนับจาก 1899-12-30) — แปลงเองแบบตายตัวด้วย UTC เสมอ
 // (ทดสอบแล้วพบว่า SheetJS's cellDates:true ตีความ timezone ตามเครื่องที่รันเว็บ ถ้าเครื่อง HR ตั้ง timezone
@@ -6569,7 +6578,35 @@ function parseLeaveImportRow(colIdx, row, rowNo){
     if(to !== from) return err(`ลาเป็นชั่วโมงต้องเป็นวันเดียว (${emp.name})`);
   }
   if(emp.startDate && from < emp.startDate) return err(`วันที่ลาอยู่ก่อนวันเริ่มงานของ ${emp.name}`);
+  if(emp.resignDate && from > emp.resignDate) return err(`วันที่ลาอยู่หลังวันที่ลาออกของ ${emp.name} (ลาออก ${ddmmyyyy(emp.resignDate)})`);
   return { emp, kind, from, to, hourStart, hourEnd, reason: String(val('reason')).trim(), requestedAt: parseImportTimestamp(val('timestamp')) };
+}
+// พนักงานที่ลาออกไปก่อนมีระบบนี้จะไม่มีชื่ออยู่ใน db.employees เลย — ถ้าไฟล์ระบุ "วันที่ลาออก" มาด้วย
+// ให้สร้างประวัติพนักงาน "ลาออกแล้ว" ให้อัตโนมัติ (active:false + resignDate) เพื่อผูกประวัติการลาไว้ได้
+// โดยไม่ต้องให้ HR ไปเพิ่มพนักงานเองทีละคนก่อน — ส่วนคนที่มีชื่ออยู่แล้วแต่ยัง active ก็ปรับสถานะเป็นลาออกแล้วให้ด้วย
+// ทำเป็น pass แยกก่อนอ่านแถวลาจริง เพราะคนคนเดียวมักมีใบลาหลายใบในไฟล์เดียวกัน ต้องกันสร้าง/อัปเดตซ้ำ
+function resolveLeaveImportEmployees(table, colIdx){
+  const newEmployees = new Map(), resignUpdates = new Map();
+  if(colIdx[LEAVE_IMPORT_COLUMNS.resignDate] === undefined) return { newEmployees, resignUpdates };
+  const get = (row, key) => { const i = colIdx[LEAVE_IMPORT_COLUMNS[key]]; return i===undefined ? '' : (row[i]??''); };
+  for(let i=1;i<table.length;i++){
+    const row = table[i];
+    const resignRaw = get(row,'resignDate'); if(!resignRaw) continue;
+    const resignDate = parseImportDate(resignRaw); if(!resignDate) continue;
+    const nameRaw = String(get(row,'name')).trim(), nickRaw = String(get(row,'nickname')).trim();
+    const key = nameRaw || nickRaw; if(!key) continue;
+    const emp = (nameRaw && db.employees.find(e=>e.name.trim()===nameRaw))
+             || (nickRaw && db.employees.find(e=>(e.nickname||'').trim()===nickRaw));
+    if(emp){
+      if(emp.active!==false || emp.resignDate!==resignDate) resignUpdates.set(emp.id, { emp, resignDate });
+    } else if(!newEmployees.has(key)){
+      newEmployees.set(key, { id:uid(), name:nameRaw||key, nickname:nickRaw||'', branchId:resolveImportBranch(get(row,'branch')),
+        employeeCode:'', department:'', jobTitle:'', startDate:null, shiftStart:'', shiftEnd:'', email:'', pin:null,
+        descriptor:null, homeLat:null, homeLng:null, active:false, pendingDescriptor:null, pendingDescriptorPhotoId:null,
+        pendingDescriptorAt:null, weeklyOffDays:[], resignDate });
+    }
+  }
+  return { newEmployees, resignUpdates };
 }
 async function readLeaveImportFile(file){
   let table;
@@ -6580,11 +6617,17 @@ async function readLeaveImportFile(file){
     table = parseCsvText(await file.text());
   }
   table = table.filter(r=>r.some(c=>String(c??'').trim()!==''));
-  if(!table.length) return { rows:[], errors:['ไฟล์ว่างเปล่าหรืออ่านไม่ได้'], dupes:[] };
+  if(!table.length) return { rows:[], errors:['ไฟล์ว่างเปล่าหรืออ่านไม่ได้'], dupes:[], newEmployees:[], resignUpdates:[] };
   const colIdx = {};
   table[0].map(normalizeHeader).forEach((h,i)=>{ if(colIdx[h]===undefined) colIdx[h]=i; });
   const requiredMissing = ['name','from','kind'].map(k=>LEAVE_IMPORT_COLUMNS[k]).filter(label=>colIdx[label]===undefined);
-  if(requiredMissing.length) return { rows:[], errors:[`ไฟล์ขาดคอลัมน์ที่จำเป็น: ${requiredMissing.join(', ')} (ต้องตั้งชื่อหัวคอลัมน์ให้ตรงเป๊ะ)`], dupes:[] };
+  if(requiredMissing.length) return { rows:[], errors:[`ไฟล์ขาดคอลัมน์ที่จำเป็น: ${requiredMissing.join(', ')} (ต้องตั้งชื่อหัวคอลัมน์ให้ตรงเป๊ะ)`], dupes:[], newEmployees:[], resignUpdates:[] };
+  const { newEmployees, resignUpdates } = resolveLeaveImportEmployees(table, colIdx);
+  // ใส่พนักงานใหม่ (ยังไม่บันทึกจริง) เข้า db.employees ชั่วคราว ให้แถวลาที่จะ parse ต่อจากนี้จับคู่คนเดิมเจอ
+  // (ต้องกันของค้างจากการกด "ตรวจไฟล์" ครั้งก่อนหน้าด้วย ไม่งั้นกดตรวจซ้ำหลายรอบจะมีพนักงานผีซ้อนกันหลายชุด)
+  if(pendingLeaveImportNewEmployees) db.employees = db.employees.filter(e=>!pendingLeaveImportNewEmployees.includes(e));
+  pendingLeaveImportNewEmployees = [...newEmployees.values()];
+  db.employees.push(...pendingLeaveImportNewEmployees);
   const rows = [], errors = [];
   for(let i=1;i<table.length;i++){
     const r = parseLeaveImportRow(colIdx, table[i], i+1);
@@ -6597,22 +6640,28 @@ async function readLeaveImportFile(file){
     if(dup) dupes.push(`${r.emp.name} · ${leaveLabel(r.kind)} · ${ddmmyyyy(r.from)}`);
     return !dup;
   });
-  return { rows: keep, errors, dupes };
+  return { rows: keep, errors, dupes, newEmployees: [...newEmployees.values()], resignUpdates: [...resignUpdates.values()] };
 }
 let pendingLeaveImport = null;
+let pendingLeaveImportNewEmployees = null;
+let pendingLeaveImportResignUpdates = null;
 document.getElementById('checkLeaveImportBtn').onclick = async ()=>{
   const msg = document.getElementById('importLeaveMsg');
   const box = document.getElementById('leaveImportPreview');
   const file = document.getElementById('importLeaveFile').files[0];
   if(!file){ msg.className='msg err'; msg.textContent='กรุณาเลือกไฟล์ก่อน'; box.innerHTML=''; return; }
-  const { rows, errors, dupes } = await readLeaveImportFile(file);
+  const { rows, errors, dupes, newEmployees, resignUpdates } = await readLeaveImportFile(file);
   pendingLeaveImport = rows;
+  pendingLeaveImportNewEmployees = newEmployees;
+  pendingLeaveImportResignUpdates = resignUpdates;
   msg.textContent = ''; msg.className = 'msg';
   const byEmp = {};
   rows.forEach(r=>{ byEmp[r.emp.name] = (byEmp[r.emp.name]||0)+1; });
   box.innerHTML = `
     <div style="border:1px solid var(--border);border-radius:12px;padding:12px;margin-top:10px;font-size:12px;line-height:1.7;">
       <div style="font-weight:600;color:${rows.length?'var(--green)':'var(--red)'};">พร้อมนำเข้า ${rows.length} รายการ</div>
+      ${newEmployees.length?`<div style="color:var(--blue);margin-top:6px;">จะสร้างประวัติพนักงาน "ลาออกแล้ว" ใหม่ ${newEmployees.length} คน (ไม่เคยมีชื่อในระบบมาก่อน):<br>${newEmployees.slice(0,8).map(e=>`${e.name} — ลาออก ${ddmmyyyy(e.resignDate)}`).join('<br>')}${newEmployees.length>8?'<br>…':''}</div>`:''}
+      ${resignUpdates.length?`<div style="color:var(--blue);margin-top:6px;">จะปรับสถานะพนักงานเดิมเป็น "ลาออกแล้ว" ${resignUpdates.length} คน:<br>${resignUpdates.slice(0,8).map(u=>`${u.emp.name} — ลาออก ${ddmmyyyy(u.resignDate)}`).join('<br>')}${resignUpdates.length>8?'<br>…':''}</div>`:''}
       ${dupes.length?`<div style="color:var(--amber);margin-top:6px;">ข้าม ${dupes.length} รายการที่มีอยู่แล้ว:<br>${dupes.slice(0,5).join('<br>')}${dupes.length>5?'<br>…':''}</div>`:''}
       ${errors.length?`<div style="color:var(--red);margin-top:6px;">มีปัญหา ${errors.length} แถว (จะไม่ถูกนำเข้า):<br>${errors.slice(0,8).join('<br>')}${errors.length>8?'<br>…':''}</div>`:''}
       ${rows.length?`<div style="margin-top:8px;color:var(--muted);">${Object.entries(byEmp).slice(0,8).map(([n,c])=>`${n} ${c} ใบ`).join(' · ')}${Object.keys(byEmp).length>8?' …':''}</div>
@@ -6628,6 +6677,18 @@ async function runLeaveImport(){
   const btn = document.getElementById('doLeaveImportBtn');
   if(btn){ btn.disabled = true; btn.textContent = 'กำลังนำเข้า…'; }
   const nowIso = new Date().toISOString();
+  // สร้างประวัติพนักงานที่ลาออกไปก่อนมีระบบนี้ (ยังไม่เคยมีชื่อในระบบเลย) ให้เป็นจริงในฐานข้อมูลก่อน
+  for(const e of (pendingLeaveImportNewEmployees||[])){
+    const res = await saveEmployeeRow(e);
+    if(res && res.ok) await logAudit('import_create', 'employee', e.id, `สร้างประวัติพนักงานลาออกแล้วจากการนำเข้าใบลาย้อนหลัง: ${e.name} (ลาออก ${ddmmyyyy(e.resignDate)})`);
+  }
+  // ปรับสถานะพนักงานที่มีอยู่แล้วในระบบให้เป็นลาออกแล้ว ตามวันที่ลาออกจริงที่ระบุมาในไฟล์
+  for(const u of (pendingLeaveImportResignUpdates||[])){
+    const before = u.emp.active===false ? `ลาออกแล้ว (${ddmmyyyy(u.emp.resignDate)})` : 'ยัง active อยู่';
+    u.emp.active = false; u.emp.resignDate = u.resignDate;
+    const res = await saveEmployeeRow(u.emp);
+    if(res && res.ok) await logAudit('import_resign', 'employee', u.emp.id, `ปรับสถานะเป็นลาออกแล้วจากการนำเข้าใบลาย้อนหลัง: ${u.emp.name} (${before} → ลาออกแล้ว ${ddmmyyyy(u.resignDate)})`);
+  }
   let ok = 0; const failed = [];
   for(const r of rows){
     // ใช้ "ประทับเวลา" จริงจากชีตเดิมถ้าอ่านได้ ให้ประวัติยื่น/อนุมัติตรงกับตอนที่เกิดขึ้นจริง ไม่ใช่วันที่กดนำเข้า
@@ -6639,7 +6700,10 @@ async function runLeaveImport(){
     if(res && res.ok){ db.leaves.push(row); ok++; }
     else failed.push(`${r.emp.name} ${ddmmyyyy(r.from)}`);
   }
-  await logAudit('import', 'leave', null, `นำเข้าใบลาย้อนหลัง ${ok} รายการ${failed.length?` (ล้มเหลว ${failed.length})`:''}`);
+  await logAudit('import', 'leave', null, `นำเข้าใบลาย้อนหลัง ${ok} รายการ${failed.length?` (ล้มเหลว ${failed.length})`:''}`
+    + (pendingLeaveImportNewEmployees?.length ? ` · สร้างพนักงานลาออกแล้วใหม่ ${pendingLeaveImportNewEmployees.length} คน` : '')
+    + (pendingLeaveImportResignUpdates?.length ? ` · ปรับสถานะลาออก ${pendingLeaveImportResignUpdates.length} คน` : ''));
+  pendingLeaveImportNewEmployees = null; pendingLeaveImportResignUpdates = null;
   // ใบลาที่เพิ่งเข้ามาอาจเปลี่ยนการคิดนาทีสายของวันนั้น ต้องคำนวณใหม่ให้ตรง
   for(const r of rows) await recalcLateForEmployeeDate(r.emp.id, r.from);
   msg.className = failed.length ? 'msg err' : 'msg ok';
@@ -6647,7 +6711,7 @@ async function runLeaveImport(){
   document.getElementById('leaveImportPreview').innerHTML = '';
   document.getElementById('importLeaveFile').value = '';
   pendingLeaveImport = null;
-  renderLeaveLists(); renderOverviewStats();
+  renderLeaveLists(); renderOverviewStats(); renderAdminEmpList(); renderEmployeesView();
 }
 document.getElementById('downloadLeaveTemplateBtn').onclick = ()=>{
   const sample = db.employees.filter(isEmployedNow).slice(0,3);
@@ -6658,7 +6722,7 @@ document.getElementById('downloadLeaveTemplateBtn').onclick = ()=>{
     i===0 ? '05-07-2026' : '11-07-2026', i===0 ? '05-07-2026' : '12-07-2026',
     i===0 ? 'ลาเป็นชั่วโมง (กิจ)' : 'ลาป่วย (ไม่มีใบรับรองแพทย์)',
     i===0 ? '13:00' : '', i===0 ? '15:00' : '',
-    'ตัวอย่าง — ลบแถวนี้ออกก่อนใช้จริง'
+    'ตัวอย่าง — ลบแถวนี้ออกก่อนใช้จริง', ''
   ]));
   rows.push(header.map(()=>''));
   rows.push(['# ประเภทที่ใช้ได้: ' + Object.values(LEAVE_KIND_LABELS).join(' / '), ...header.slice(1).map(()=>'')]);
