@@ -950,7 +950,11 @@
     <div id="atabEmployees" class="hidden">
       <section>
         <button class="btn ghost block" style="margin-bottom:16px;" id="exportEmpBtn">Export ข้อมูลพนักงาน</button>
-        <div class="branchselect" style="margin-bottom:12px;"><select id="employeesViewBranchFilter"></select></div>
+        <div class="branchselect" style="margin-bottom:8px;"><select id="employeesViewBranchFilter"></select></div>
+        <div class="branchselect" style="margin-bottom:12px;"><select id="employeesViewStatusFilter">
+          <option value="active">เฉพาะที่ทำงานอยู่</option>
+          <option value="all">ทั้งหมด (รวมประวัติ/ลาออกแล้ว)</option>
+        </select></div>
         <div class="card" id="employeesViewList" style="padding:0 16px;"></div>
       </section>
     </div>
@@ -4212,7 +4216,10 @@ function tenureText(startDate){
 document.getElementById('exportEmpBtn').onclick = ()=>{
   const sel = document.getElementById('employeesViewBranchFilter');
   const branchVal = sel ? (sel.dataset.current||'all') : 'all';
-  const list = branchVal==='all' ? db.employees : db.employees.filter(e=>e.branchId===branchVal);
+  const statusSel = document.getElementById('employeesViewStatusFilter');
+  const statusVal = statusSel ? (statusSel.dataset.current||'active') : 'active';
+  const inBranch = branchVal==='all' ? db.employees : db.employees.filter(e=>e.branchId===branchVal);
+  const list = statusVal==='active' ? inBranch.filter(isCurrentlyEmployed) : inBranch;
   // รหัสพนักงานเป็นคอลัมน์แรก เพื่อให้ไฟล์นี้เอาไปจับคู่กับระบบเงินเดือน/ERP ได้ทันที
   const rows = [['รหัสพนักงาน','ชื่อ-นามสกุล','ชื่อเล่น','แผนก','ตำแหน่งงาน','สาขา','วันที่เริ่มงาน','วันที่พ้นสภาพ','อายุงาน','เวลาเข้างาน','เวลาออกงาน','อีเมล','สถานะ']];
   list.slice().sort((a,b)=>(a.employeeCode||'zzz').localeCompare(b.employeeCode||'zzz')).forEach(e=>{
@@ -4548,8 +4555,17 @@ function renderEmployeesView(){
   }
   if(sel){ sel.innerHTML = `<option value="all">ทุกสาขา</option>` + db.branches.map(b=>`<option value="${b.id}">${b.name}</option>`).join(''); sel.value = sel.dataset.current||'all'; }
   const branchVal = sel ? (sel.dataset.current||'all') : 'all';
+  // ค่าเริ่มต้นโชว์เฉพาะคนที่ยังทำงานอยู่ เหมือนหน้าจัดการพนักงานในตั้งค่า — กันประวัติ/คนลาออกแล้วปนมา
+  const statusSel = document.getElementById('employeesViewStatusFilter');
+  if(statusSel && !statusSel.dataset.wired){
+    statusSel.dataset.wired = '1'; statusSel.dataset.current = 'active';
+    statusSel.onchange = ()=>{ statusSel.dataset.current = statusSel.value; renderEmployeesView(); };
+  }
+  if(statusSel) statusSel.value = statusSel.dataset.current || 'active';
+  const statusVal = statusSel ? (statusSel.dataset.current||'active') : 'active';
   const el = document.getElementById('employeesViewList'); if(!el) return;
-  const list = branchVal==='all' ? db.employees : db.employees.filter(e=>e.branchId===branchVal);
+  const inBranch = branchVal==='all' ? db.employees : db.employees.filter(e=>e.branchId===branchVal);
+  const list = statusVal==='active' ? inBranch.filter(isCurrentlyEmployed) : inBranch;
   el.innerHTML = list.length ? list.map(e=>{
     const br = db.branches.find(b=>b.id===e.branchId);
     const st = todayStatus(e.id);
