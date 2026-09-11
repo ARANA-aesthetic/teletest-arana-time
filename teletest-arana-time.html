@@ -1229,6 +1229,10 @@
             <div class="card">
               <label>มาสาย = เลยเวลาเข้างานเกินกี่นาที</label>
               <input type="number" id="graceMinutesInput" min="0">
+              <label style="margin-top:12px;">เริ่มนับขาดงานตั้งแต่วันที่ (ไม่ระบุ = นับทุกวัน)</label>
+              <div style="color:var(--muted);font-size:11.5px;margin-bottom:6px;">ใช้ตอนยังไม่ได้นำเข้าประวัติเข้า-ออกงานเก่าเข้าระบบ — วันที่ก่อนวันนี้จะไม่ถูกนับเป็นขาดงานในหน้าสรุป/รายงานทุกจุด พอนำเข้าข้อมูลเก่าเสร็จแล้วค่อยลบวันที่นี้ทิ้งหรือเลื่อนกลับไป</div>
+              <div id="attendanceStartDate_holder"></div>
+              <button class="btn ghost sm" style="margin-top:6px;" id="clearAttendanceStartDateBtn">ล้างค่า (นับขาดงานทุกวัน)</button>
               <button class="btn sm" style="margin-top:10px;" id="saveRulesBtn">บันทึกเกณฑ์</button>
             </div>
           </section>
@@ -1823,7 +1827,7 @@ function defaultDB(){
     companies: [],
     notifications: [],
     settings: { centralToken:'', centralChatId:'', otChatId:'', graceMinutes:15, adminPassword:'admin1234', holidays:[], telegramRooms:[], shiftOverrides:[],
-      gsheetWebappUrl:'', gsheetSecret:'', gsheetLastSync:null,
+      gsheetWebappUrl:'', gsheetSecret:'', gsheetLastSync:null, attendanceStartDate:null,
       notifyTypes: { checkin:true, checkout:true, ac:true, clean:true, groom:true, leaveSubmit:true, leaveDecision:true, otSubmit:true, otDecision:true, faceReenroll:true } }
   };
 }
@@ -2089,8 +2093,8 @@ const branchTransferToRow = t => ({ id:t.id, employee_id:t.employeeId, branch_id
 const rowToNoti = r => ({ id:r.id, employeeId:r.employee_id, title:r.title, body:r.body, time:r.time, read:!!r.read });
 const notiToRow = n => ({ id:n.id, employee_id:n.employeeId, title:n.title, body:n.body, time:n.time, read:!!n.read });
 
-const rowToSettings = r => ({ centralToken:r.central_token||'', centralChatId:r.central_chat_id||'', otChatId:r.ot_chat_id||'', graceMinutes:r.grace_minutes??15, adminPassword:r.admin_password||'admin1234', holidays:r.holidays||[], notifyTypes:r.notify_types||{}, telegramRooms:r.telegram_rooms||[], gsheetWebappUrl:r.gsheet_webapp_url||'', gsheetSecret:r.gsheet_secret||'', gsheetLastSync:r.gsheet_last_sync||null, shiftOverrides:r.shift_overrides||[] });
-const settingsToRow = s => ({ id:1, central_token:s.centralToken||'', central_chat_id:s.centralChatId||'', ot_chat_id:s.otChatId||'', grace_minutes:s.graceMinutes??15, admin_password:s.adminPassword||'admin1234', holidays:s.holidays||[], notify_types:s.notifyTypes||{}, telegram_rooms:s.telegramRooms||[], gsheet_webapp_url:s.gsheetWebappUrl||'', gsheet_secret:s.gsheetSecret||'', shift_overrides:s.shiftOverrides||[] });
+const rowToSettings = r => ({ centralToken:r.central_token||'', centralChatId:r.central_chat_id||'', otChatId:r.ot_chat_id||'', graceMinutes:r.grace_minutes??15, adminPassword:r.admin_password||'admin1234', holidays:r.holidays||[], notifyTypes:r.notify_types||{}, telegramRooms:r.telegram_rooms||[], gsheetWebappUrl:r.gsheet_webapp_url||'', gsheetSecret:r.gsheet_secret||'', gsheetLastSync:r.gsheet_last_sync||null, shiftOverrides:r.shift_overrides||[], attendanceStartDate:r.attendance_start_date||null });
+const settingsToRow = s => ({ id:1, central_token:s.centralToken||'', central_chat_id:s.centralChatId||'', ot_chat_id:s.otChatId||'', grace_minutes:s.graceMinutes??15, admin_password:s.adminPassword||'admin1234', holidays:s.holidays||[], notify_types:s.notifyTypes||{}, telegram_rooms:s.telegramRooms||[], gsheet_webapp_url:s.gsheetWebappUrl||'', gsheet_secret:s.gsheetSecret||'', shift_overrides:s.shiftOverrides||[], attendance_start_date:s.attendanceStartDate||null });
 
 async function loadDB(){
   sbLoadFailed = [];
@@ -2379,6 +2383,11 @@ function summaryForRange(empId, fromStr, toStr){
     const empStart = new Date(emp.startDate+'T00:00:00');
     if(empStart > start) start = empStart;
   }
+  // ยังไม่ได้นำเข้าประวัติเข้า-ออกงานก่อนวันที่ตั้งไว้ (ถ้ามี) — ข้ามไปเลย ไม่นับเป็นขาดงานทั้งที่ยังไม่มีข้อมูลจริง
+  if(db.settings.attendanceStartDate){
+    const dataStart = new Date(db.settings.attendanceStartDate+'T00:00:00');
+    if(dataStart > start) start = dataStart;
+  }
   for(let d=new Date(start); d<=end; d.setDate(d.getDate()+1)){
     if(isHoliday(d)) continue;
     if((emp?.weeklyOffDays||[]).includes(d.getDay())) continue;
@@ -2458,6 +2467,10 @@ function monthlySummary(empId, month=new Date().getMonth(), year=new Date().getF
   if(emp?.startDate){
     const empStart = new Date(emp.startDate+'T00:00:00');
     if(empStart > start) start = empStart;
+  }
+  if(db.settings.attendanceStartDate){
+    const dataStart = new Date(db.settings.attendanceStartDate+'T00:00:00');
+    if(dataStart > start) start = dataStart;
   }
   const end = new Date(Math.min(new Date(year, month+1, 0).getTime(), today.getTime()));
   for(let d=new Date(start); d<=end; d.setDate(d.getDate()+1)){
@@ -3940,6 +3953,8 @@ function getOverviewRange(){
 function enterAdminView(){
   showView('admin');
   document.getElementById('graceMinutesInput').value = db.settings.graceMinutes;
+  document.getElementById('attendanceStartDate_holder').innerHTML = dateSelectHTML('attendanceStartDate');
+  setDateVal('attendanceStartDate', db.settings.attendanceStartDate||'');
   document.getElementById('centralToken').value = db.settings.centralToken;
   document.getElementById('centralChat').value = db.settings.centralChatId;
   document.getElementById('otChat').value = db.settings.otChatId;
@@ -4307,6 +4322,8 @@ function renderOverviewStats(){
 
   days.forEach(d=>{
     const dKey = d.toDateString();
+    // ยังไม่ได้นำเข้าประวัติเข้า-ออกงานก่อนวันที่ตั้งไว้ (ถ้ามี) — ข้ามวันนี้ทั้งวัน ไม่นับเป็นขาดงาน/มาทำงานเลย
+    if(db.settings.attendanceStartDate && dateKey(d) < db.settings.attendanceStartDate) return;
     // ไม่นับพนักงานที่วันนี้ตรงกับวันหยุดประจำสัปดาห์เฉพาะบุคคลของเขาเลย (ไม่ต้องเข้างาน ไม่นับขาดงาน)
     // และไม่นับพนักงานที่มีคำขอไปทำงานสาขาอื่น/นอกสถานที่ที่อนุมัติแล้ววันนี้ (ไม่ต้องเช็กอินที่สาขาต้นสังกัด)
     const activeEmps = emps.filter(e=>countsOn(e,d) && !(e.weeklyOffDays||[]).includes(d.getDay()) && !isApprovedTransferOnDate(e.id, dateKey(d)));
@@ -4899,6 +4916,8 @@ function buildMonthReport(){
           else cell.na = true;
           return cell;
         }
+        // ยังไม่ได้นำเข้าประวัติเข้า-ออกงานก่อนวันที่ตั้งไว้ (ถ้ามี) — ไม่นับเป็นขาดงาน ถือว่ายังไม่มีข้อมูล
+        if(db.settings.attendanceStartDate && dateKey(d) < db.settings.attendanceStartDate && !inLog){ cell.na = true; return cell; }
         if(leave){ cell.code = leaveAbbrev(leave.kind); cell.leaveKind = leave.kind; cell.leaveHours = leaveHoursNum(leave); }
         else if(isHoliday(d) || offWeekly){ cell.code = RPT_CODE_OFF; cell.off = true; }
         else if(isApprovedTransferOnDate(e.id, dateKey(d))){ cell.code = RPT_CODE_OFFSITE; cell.off = true; }
@@ -6473,7 +6492,18 @@ function renderNotifyTypesEditor(){
   });
 }
 
-document.getElementById('saveRulesBtn').onclick = async ()=>{ db.settings.graceMinutes = parseInt(document.getElementById('graceMinutesInput').value||15); await saveDB(); };
+document.getElementById('saveRulesBtn').onclick = async ()=>{
+  db.settings.graceMinutes = parseInt(document.getElementById('graceMinutesInput').value||15);
+  db.settings.attendanceStartDate = getDateVal('attendanceStartDate') || null;
+  await saveDB();
+  renderOverviewStats(); renderEmpSummary();
+};
+document.getElementById('clearAttendanceStartDateBtn').onclick = async ()=>{
+  setDateVal('attendanceStartDate','');
+  db.settings.attendanceStartDate = null;
+  await saveDB();
+  renderOverviewStats(); renderEmpSummary();
+};
 document.getElementById('saveCentralBtn').onclick = async ()=>{
   db.settings.centralToken = document.getElementById('centralToken').value.trim();
   db.settings.centralChatId = document.getElementById('centralChat').value.trim();
