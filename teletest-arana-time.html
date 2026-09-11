@@ -1144,6 +1144,10 @@
             <button class="btn block" style="margin-bottom:10px;" id="addEmpAdminBtn">+ เพิ่มพนักงาน</button>
             <button class="btn ghost block" style="margin-bottom:16px;" id="regenEmpCodesBtn">ออกรหัสพนักงานใหม่ทั้งหมด (เรียงตามอายุงาน)</button>
             <div class="branchselect" style="margin-bottom:8px;"><select id="manageEmpBranchFilter"></select></div>
+            <div class="branchselect" style="margin-bottom:8px;"><select id="manageEmpStatusFilter">
+              <option value="active">เฉพาะที่ทำงานอยู่</option>
+              <option value="all">ทั้งหมด (รวมประวัติ/ลาออกแล้ว)</option>
+            </select></div>
             <input type="search" id="adminEmpSearch" class="listsearch" placeholder="ค้นหา รหัส / ชื่อ / ชื่อเล่น / ตำแหน่ง">
             <div class="listcount" id="adminEmpCount"></div>
             <div class="card" id="adminEmpList" style="padding:0 16px;"></div>
@@ -4488,6 +4492,12 @@ function renderEmpSummary(){
     </div>`;
   }).join('') : '<div class="empty">ไม่มีพนักงานในสาขานี้</div>';
 }
+// นับเป็น "กำลังทำงานอยู่" ก็ต่อเมื่อยัง active และยังไม่ถึง/ผ่านวันลาออกจริง — ใช้ตรรกะเดียวกับ
+// badge "พ้นสภาพ"/"ปิดการใช้งาน" ที่ dim แถวไว้ด้านล่าง เพื่อไม่ให้นิยาม "active" สองชุดขัดกันเอง
+function isCurrentlyEmployed(e){
+  const resigned = e.resignDate && e.resignDate < dateKey(new Date());
+  return e.active!==false && !resigned;
+}
 function renderAdminEmpList(){
   const sel = document.getElementById('manageEmpBranchFilter');
   if(sel && !sel.dataset.wired){
@@ -4496,15 +4506,25 @@ function renderAdminEmpList(){
   }
   if(sel){ sel.innerHTML = `<option value="all">ทุกสาขา</option>` + db.branches.map(b=>`<option value="${b.id}">${b.name}</option>`).join(''); sel.value = sel.dataset.current||'all'; }
   const branchVal = sel ? (sel.dataset.current||'all') : 'all';
+  // ค่าเริ่มต้นโชว์เฉพาะคนที่ยังทำงานอยู่ — พนักงานประวัติ/ลาออกแล้วที่นำเข้ามาเก็บไว้จะไม่มาปนในรายการหลัก
+  // จนกว่าจะสลับดร็อปดาวน์เป็น "ทั้งหมด" เอง
+  const statusSel = document.getElementById('manageEmpStatusFilter');
+  if(statusSel && !statusSel.dataset.wired){
+    statusSel.dataset.wired = '1'; statusSel.dataset.current = 'active';
+    statusSel.onchange = ()=>{ statusSel.dataset.current = statusSel.value; renderAdminEmpList(); };
+  }
+  if(statusSel) statusSel.value = statusSel.dataset.current || 'active';
+  const statusVal = statusSel ? (statusSel.dataset.current||'active') : 'active';
   const el = document.getElementById('adminEmpList');
   const search = document.getElementById('adminEmpSearch');
   if(search && !search.dataset.wired){ search.dataset.wired='1'; search.oninput = renderAdminEmpList; }
   const q = (search?.value || '').trim().toLowerCase();
   const inBranch = branchVal==='all' ? db.employees : db.employees.filter(e=>e.branchId===branchVal);
-  const list = !q ? inBranch : inBranch.filter(e=>
+  const inStatus = statusVal==='active' ? inBranch.filter(isCurrentlyEmployed) : inBranch;
+  const list = !q ? inStatus : inStatus.filter(e=>
     [e.employeeCode, e.name, e.nickname, e.jobTitle, e.department].some(v=>(v||'').toLowerCase().includes(q)));
   const cnt = document.getElementById('adminEmpCount');
-  if(cnt) cnt.textContent = q ? `พบ ${list.length} จาก ${inBranch.length} คน` : `ทั้งหมด ${list.length} คน`;
+  if(cnt) cnt.textContent = q ? `พบ ${list.length} จาก ${inStatus.length} คน` : `ทั้งหมด ${list.length} คน`;
   el.innerHTML = list.length ? list.map(e=>{
     const br = db.branches.find(b=>b.id===e.branchId);
     const st = todayStatus(e.id);
