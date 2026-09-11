@@ -2099,8 +2099,8 @@ const companyToRow = c => ({ id:c.id, name:c.name||null, logo_base64:c.logoBase6
 const rowToLeave = r => ({ id:r.id, employeeId:r.employee_id, kind:r.kind, from:r.from_date, to:r.to_date, hourStart:r.from_time||null, hourEnd:r.to_time||null, reason:r.reason||'', status:r.status, requestedAt:r.requested_at, decidedAt:r.decided_at||null, evidenceSent:r.evidence_sent??null, evidenceFileId:r.evidence_file_id||null, editRequest:r.edit_request||null, locationLat:r.location_lat??null, locationLng:r.location_lng??null, locationAddress:r.location_address||null });
 const leaveToRow = l => ({ id:l.id, employee_id:l.employeeId, kind:l.kind, from_date:l.from, to_date:l.to, from_time:l.hourStart||null, to_time:l.hourEnd||null, reason:l.reason||null, status:l.status, requested_at:l.requestedAt, decided_at:l.decidedAt||null, evidence_sent:l.evidenceSent??null, evidence_file_id:l.evidenceFileId||null, edit_request:l.editRequest||null, location_lat:l.locationLat??null, location_lng:l.locationLng??null, location_address:l.locationAddress||null, days: (l.from && l.to) ? (Math.round((new Date(l.to)-new Date(l.from))/86400000)+1) : null });
 
-const rowToOt = r => ({ id:r.id, employeeId:r.employee_id, date:r.date, hourStart:r.hour_start, hourEnd:r.hour_end, reason:r.reason||'', status:r.status, requestedAt:r.requested_at, decidedAt:r.decided_at||null, groupId:r.group_id||null, editRequest:r.edit_request||null });
-const otToRow = o => ({ id:o.id, employee_id:o.employeeId, date:o.date, hour_start:o.hourStart, hour_end:o.hourEnd, reason:o.reason||null, status:o.status, requested_at:o.requestedAt, decided_at:o.decidedAt||null, group_id:o.groupId||null, edit_request:o.editRequest||null });
+const rowToOt = r => ({ id:r.id, employeeId:r.employee_id, date:r.date, hourStart:r.hour_start, hourEnd:r.hour_end, reason:r.reason||'', status:r.status, requestedAt:r.requested_at, decidedAt:r.decided_at||null, groupId:r.group_id||null, editRequest:r.edit_request||null, requestedByEmployeeId:r.requested_by_employee_id||null });
+const otToRow = o => ({ id:o.id, employee_id:o.employeeId, date:o.date, hour_start:o.hourStart, hour_end:o.hourEnd, reason:o.reason||null, status:o.status, requested_at:o.requestedAt, decided_at:o.decidedAt||null, group_id:o.groupId||null, edit_request:o.editRequest||null, requested_by_employee_id:o.requestedByEmployeeId||null });
 
 const rowToBranchTransfer = r => ({ id:r.id, employeeId:r.employee_id, branchId:r.branch_id, fromDate:r.from_date, toDate:r.to_date, reason:r.reason||'', status:r.status, requestedAt:r.requested_at, decidedAt:r.decided_at||null });
 const branchTransferToRow = t => ({ id:t.id, employee_id:t.employeeId, branch_id:t.branchId, from_date:t.fromDate, to_date:t.toDate, reason:t.reason||null, status:t.status, requested_at:t.requestedAt, decided_at:t.decidedAt||null });
@@ -3553,7 +3553,7 @@ document.getElementById('submitOtBtn').onclick = async ()=>{
   const selectedIds = Array.from(document.querySelectorAll('#otEmpChecklist [data-otemp]:checked')).map(cb=>cb.dataset.otemp);
   if(!selectedIds.length){ msg.className='msg err'; msg.textContent='กรุณาเลือกพนักงานอย่างน้อย 1 คน'; return; }
   const groupId = uid();
-  const rows = selectedIds.map(empId => ({id:uid(), employeeId:empId, date, hourStart, hourEnd, reason, status:'pending', requestedAt:new Date().toISOString(), groupId}));
+  const rows = selectedIds.map(empId => ({id:uid(), employeeId:empId, date, hourStart, hourEnd, reason, status:'pending', requestedAt:new Date().toISOString(), groupId, requestedByEmployeeId:emp.id}));
   db.otRequests.push(...rows);
   await Promise.all(rows.map(r=>saveOtRow(r)));
   msg.className='msg ok'; msg.textContent='ส่งคำขอ OT เรียบร้อย รออนุมัติจากหัวหน้า/HR';
@@ -3648,10 +3648,12 @@ async function applyOtDecision(groupId, items, status){
   const first = items[0];
   const br = db.branches.find(b=>b.id===db.employees.find(e=>e.id===first.employeeId)?.branchId);
   const empLines = items.map((o,i)=>{ const e = db.employees.find(x=>x.id===o.employeeId); return `${i+1}. ${notifyName(e)}`; }).join('\n');
+  const requester = db.employees.find(e=>e.id===first.requestedByEmployeeId);
+  const requesterLine = requester ? `\nขออนุมัติโดย : ${notifyName(requester)}` : '';
   if(db.settings.notifyTypes.otDecision && otRoomChatId()){
     const text = status==='approved'
-      ? `✅อนุมัติโอที โดย : ${approverName}\nสาขา : ${br?.name||'-'}\nขอทำ OT วันที่ : ${first.date}\nเวลา : ${first.hourStart}-${first.hourEnd}\nรวม : ${otHoursText(first.hourStart,first.hourEnd)} ชม.\nเหตุผล : ${first.reason||'-'}\nพนักงานขอ OT\n${empLines}`
-      : `❌ปฏิเสธคำขอ OT โดย : ${approverName}\nสาขา : ${br?.name||'-'}\nขอทำ OT วันที่ : ${first.date}\nเวลา : ${first.hourStart}-${first.hourEnd}\nพนักงานขอ OT\n${empLines}`;
+      ? `✅อนุมัติโอที โดย : ${approverName}${requesterLine}\nสาขา : ${br?.name||'-'}\nขอทำ OT วันที่ : ${first.date}\nเวลา : ${first.hourStart}-${first.hourEnd}\nรวม : ${otHoursText(first.hourStart,first.hourEnd)} ชม.\nเหตุผล : ${first.reason||'-'}\nพนักงานขอ OT\n${empLines}`
+      : `❌ปฏิเสธคำขอ OT โดย : ${approverName}${requesterLine}\nสาขา : ${br?.name||'-'}\nขอทำ OT วันที่ : ${first.date}\nเวลา : ${first.hourStart}-${first.hourEnd}\nพนักงานขอ OT\n${empLines}`;
     await tgSendMessage(db.settings.centralToken, otRoomChatId(), text);
   }
   await Promise.all(items.map(ot => pushNotification(ot.employeeId, status==='approved'?'คำขอ OT ได้รับการอนุมัติ':'คำขอ OT ถูกปฏิเสธ', `${first.date} เวลา ${first.hourStart}-${first.hourEnd}`)));
@@ -5524,6 +5526,7 @@ function renderOtLists(){
     const first = items[0];
     const br = db.branches.find(b=>b.id===db.employees.find(e=>e.id===first.employeeId)?.branchId);
     const names = items.map(o=>{ const e = db.employees.find(x=>x.id===o.employeeId); return `${e?.name||'-'}${e?.nickname?` (${e.nickname})`:''}`; }).join(', ');
+    const requester = db.employees.find(e=>e.id===first.requestedByEmployeeId);
     const canOt = canApproveOt();
     // ติ๊กเลือกได้ทีละคน แม้จะยื่นมาเป็นกลุ่ม — บางกรณีอนุมัติบางคนในกลุ่มเท่านั้น
     const members = items.map(o=>{
@@ -5533,7 +5536,7 @@ function renderOtLists(){
     return `<div class="listrow" style="flex-direction:column;align-items:stretch;gap:6px;">
       <div style="display:flex;align-items:flex-start;gap:10px;">
         ${canOt ? `<input type="checkbox" class="otgchk" data-otgroup="${gid}" title="เลือกทั้งรายการนี้" style="margin-top:4px;">` : ''}
-        <div class="avatar">${items.length}</div><div class="info"><div class="name">${br?.name||'-'} · ${fmtDateShort(new Date(first.date))} · ${first.hourStart}–${first.hourEnd} น.</div><div class="meta">${items.length>1?`${items.length} คน`:names}</div><div class="meta">${first.reason||'-'}</div></div></div>
+        <div class="avatar">${items.length}</div><div class="info"><div class="name">${br?.name||'-'} · ${fmtDateShort(new Date(first.date))} · ${first.hourStart}–${first.hourEnd} น.</div><div class="meta">${items.length>1?`${items.length} คน`:names}</div><div class="meta">${first.reason||'-'}</div>${requester?`<div class="meta">ขออนุมัติโดย : ${notifyName(requester)}</div>`:''}</div></div>
       ${canOt ? `<div class="otmembers"${items.length>1?'':' style="display:none;"'}>${members}</div>` : ''}
       ${canOt ? `<div class="actionrow"><button class="btn-mini approve" data-otapprovegroup="${gid}">อนุมัติทั้งรายการ</button><button class="btn-mini reject" data-otrejectgroup="${gid}">ปฏิเสธทั้งรายการ</button><button class="btn-mini icononly" data-otdeletegroup="${gid}" title="ลบ (ไม่แจ้งเตือน)">${TRASH_ICON_SVG}</button></div>` : `<div style="font-size:11.5px;color:var(--muted);">ไม่มีสิทธิ์อนุมัติรายการนี้ (ต้องเป็นเจ้าของ/HR เท่านั้น)</div>`}
     </div>`;
