@@ -10,6 +10,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Marcellus+SC&family=Prompt:wght@500;600;700&family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
   :root{
     --pink:#EC4899; --pink-dark:#DB2777; --pink-pale:#FCE7F3;
@@ -1315,15 +1316,17 @@
             <div class="sectitle">นำเข้าใบลาย้อนหลัง</div>
             <div class="card">
               <div style="color:var(--muted);font-size:12px;margin-bottom:10px;line-height:1.7;">
-                สำหรับใบลาที่พนักงานเคยส่งทางช่องทางเดิม (ไลน์ / กระดาษ / Excel) แล้วต้องการย้ายเข้าระบบ<br>
-                คอลัมน์: <b>รหัสพนักงานหรือชื่อ, ประเภทการลา, วันที่เริ่ม, วันที่สิ้นสุด, เวลาเริ่ม, เวลาสิ้นสุด, เหตุผล</b><br>
-                <span style="color:var(--pink-dark);">เต็มวัน:</span> <code>012,ลาป่วย (มีใบรับรองแพทย์),2026-07-01,2026-07-02,,,ไข้หวัด</code><br>
-                <span style="color:var(--pink-dark);">เป็นชั่วโมง:</span> <code>012,ลาเป็นชั่วโมง (กิจ),2026-07-05,2026-07-05,13:00,15:00,ธุระ</code><br>
-                ใส่ได้ทั้งชื่อประเภทภาษาไทยตามที่ระบบใช้ หรือรหัส เช่น <code>sick_cert</code> ·
+                สำหรับใบลาที่พนักงานเคยส่งทางช่องทางเดิม (Google ฟอร์ม/ชีตที่ใช้ก่อนมีระบบนี้) แล้วต้องการย้ายเข้าระบบ<br>
+                <b style="color:var(--pink-dark);">แนะนำ:</b> ดาวน์โหลดไฟล์จาก Google Sheets ปลายทางเป็น <b>.xlsx</b> โดยตรง (ไฟล์ &gt; ดาวน์โหลด &gt; Microsoft Excel) แล้วอัปโหลดได้เลย ไม่ต้องแก้อะไรในไฟล์<br>
+                ระบบจะอ่านตามชื่อหัวคอลัมน์ (สลับลำดับคอลัมน์ได้ ไม่กระทบ) ต้องมีคอลัมน์เหล่านี้:<br>
+                <code style="font-size:11px;">ประทับเวลา, ชื่อ-นามสกุล, ชื่อเล่น, ร้าน/สาขา, ลาวันที่, ลาถึงวันที่, ประเภทการลา, ลาเป็นชั่วโมง เริ่มเวลา, ลาเป็นชั่วโมง ถึงเวลา, เหตุผลในการลา</code><br>
+                (คอลัมน์อื่นที่มีในชีต เช่น แจ้งก่อน/เดือน/อีเมล/ตำแหน่งงาน/จำนวนวัน/จำนวนชั่วโมง จะถูกข้ามไป ไม่ต้องลบออก)<br>
+                จับคู่พนักงานด้วยชื่อ-นามสกุล หรือชื่อเล่น (ต้องตรงกับในระบบเป๊ะ) · ประเภทการลาต้องเป็นคำที่ระบบรู้จัก เช่น <code>ลากิจ (หักเงิน)</code>, <code>ลาป่วย (มีใบรับรองแพทย์)</code>, <code>ลาเป็นชั่วโมง (กิจ)</code><br>
+                ถ้าไม่มีไฟล์ .xlsx ใช้ .csv แทนได้ แต่คอลัมน์วันที่ (ลาวันที่/ลาถึงวันที่) ต้องเป็นรูปแบบ <b>DD-MM-YYYY</b> เท่านั้น (เช่น <code>30-08-2026</code>) เพื่อไม่ให้วัน/เดือนสลับกัน<br>
                 บันทึกเป็น <b>อนุมัติแล้ว</b> · <b>ไม่ส่งแจ้งเตือนเข้ากลุ่มใดๆ</b>
-                <button class="btn ghost sm block" style="margin-top:8px;" id="downloadLeaveTemplateBtn">ดาวน์โหลดไฟล์ตัวอย่าง (พร้อมรหัสพนักงานจริง)</button>
+                <button class="btn ghost sm block" style="margin-top:8px;" id="downloadLeaveTemplateBtn">ดาวน์โหลดไฟล์ตัวอย่าง .csv (พร้อมชื่อพนักงานจริง)</button>
               </div>
-              <input type="file" id="importLeaveFile" accept=".csv">
+              <input type="file" id="importLeaveFile" accept=".csv,.xlsx,.xls">
               <button class="btn sm block" style="margin-top:10px;" id="checkLeaveImportBtn">ตรวจไฟล์ก่อนนำเข้า</button>
               <div id="leaveImportPreview"></div>
               <div class="msg" id="importLeaveMsg"></div>
@@ -6485,47 +6488,106 @@ document.getElementById('testCentralTgBtn').onclick = async ()=>{
 /* ===== นำเข้าใบลาย้อนหลังจากช่องทางเดิม =====
    ใบลาที่พนักงานเคยส่งทางไลน์/กระดาษก่อนมีระบบนี้ ต้องย้ายเข้ามาให้รายงานและการคิดสายถูกต้อง
    ทำเป็น 2 จังหวะเสมอ: "ตรวจไฟล์" ให้เห็นก่อนว่าจะเข้ากี่รายการ ผิดตรงไหน แล้วค่อยกดยืนยัน
-   เพราะการนำเข้าทีละหลายสิบแถวถ้าผิดแล้วตามลบทีหลังเหนื่อยมาก */
-function parseLeaveCsvLine(cols, rowNo){
-  const [who, kindRaw, fromRaw, toRaw, hStart, hEnd, ...rest] = cols;
-  const reason = rest.join(',').trim();
+   เพราะการนำเข้าทีละหลายสิบแถวถ้าผิดแล้วตามลบทีหลังเหนื่อยมาก
+   คอลัมน์ตรงกับหัวตารางจริงของ Google Sheet ปลายทางที่ใช้ก่อนมีระบบนี้ — จับคู่ด้วย "ชื่อหัวคอลัมน์"
+   ไม่ใช่ลำดับตายตัว เพราะไฟล์จริงจะไปดาวน์โหลดมาจากชีตนั้นตรงๆ สลับลำดับคอลัมน์เมื่อไหร่ก็ยังอ่านถูก */
+const LEAVE_IMPORT_COLUMNS = {
+  timestamp:'ประทับเวลา', name:'ชื่อ-นามสกุล', nickname:'ชื่อเล่น', branch:'ร้าน/สาขา',
+  from:'ลาวันที่', to:'ลาถึงวันที่', kind:'ประเภทการลา',
+  hourStart:'ลาเป็นชั่วโมง เริ่มเวลา', hourEnd:'ลาเป็นชั่วโมง ถึงเวลา', reason:'เหตุผลในการลา'
+};
+const normalizeHeader = h => String(h||'').trim().replace(/\s+/g,' ');
+// ไฟล์ .xlsx: เซลล์วันที่/เวลาเก็บเป็นเลขซีเรียล (จำนวนวันนับจาก 1899-12-30) — แปลงเองแบบตายตัวด้วย UTC เสมอ
+// (ทดสอบแล้วพบว่า SheetJS's cellDates:true ตีความ timezone ตามเครื่องที่รันเว็บ ถ้าเครื่อง HR ตั้ง timezone
+// ไม่ตรงกับไทยพอดี วันที่จะเพี้ยนไปหนึ่งวันแบบเงียบๆ จึงอ่านเป็นเลขดิบแล้วแปลงเองแทนทั้งหมด)
+// ไฟล์ .csv: ต้องเป็น DD-MM-YYYY เท่านั้น (ชัดเจน ไม่กำกวมเรื่องวัน/เดือนสลับกันแบบ M/D ของฝรั่ง)
+function excelSerialToDate(serial){ return new Date(Date.UTC(1899,11,30) + Math.round(serial*86400000)); }
+function parseImportDate(v){
+  if(typeof v === 'number'){ const d = excelSerialToDate(v); return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`; }
+  const s = String(v||'').trim();
+  if(!s) return null;
+  if(/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const m = s.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
+  if(m){ const [,d,mo,y] = m; return `${y}-${mo.padStart(2,'0')}-${d.padStart(2,'0')}`; }
+  return null;
+}
+function parseImportTime(v){
+  if(typeof v === 'number'){ const totalMin = Math.round((v%1)*24*60); return `${String(Math.floor(totalMin/60)).padStart(2,'0')}:${String(totalMin%60).padStart(2,'0')}`; }
+  const s = String(v||'').trim();
+  const m = s.match(/^(\d{1,2}):(\d{2})/);
+  return m ? `${m[1].padStart(2,'0')}:${m[2]}` : null;
+}
+// ใช้แค่เป็นข้อมูลอ้างอิง (วันที่ยื่นจริง) ไม่ใช่ค่าที่ต้องแม่นเป๊ะ — parse ไม่ได้ก็ปล่อยเป็น null แล้วใช้เวลานำเข้าแทน
+function parseImportTimestamp(v){
+  if(typeof v === 'number') return excelSerialToDate(v).toISOString();
+  const s = String(v||'').trim();
+  if(!s) return null;
+  const d = new Date(s);
+  return isNaN(d) ? null : d.toISOString();
+}
+// แยกฟิลด์ CSV แบบรองรับเครื่องหมายคำพูดครอบฟิลด์ที่มีคอมมา/ขึ้นบรรทัดใหม่อยู่ข้างใน
+// (Google Sheets export คอมมาในคำตอบอิสระ เช่นเหตุผลการลา บ่อยมาก split ด้วย , เฉยๆ จะพังทันที)
+function parseCsvText(text){
+  const rows = []; let row = []; let field = ''; let inQuotes = false;
+  for(let i=0;i<text.length;i++){
+    const c = text[i];
+    if(inQuotes){
+      if(c==='"'){ if(text[i+1]==='"'){ field+='"'; i++; } else inQuotes=false; }
+      else field += c;
+    } else if(c==='"') inQuotes = true;
+    else if(c===','){ row.push(field); field=''; }
+    else if(c==='\r'){ /* no-op, \n ปิดแถว */ }
+    else if(c==='\n'){ row.push(field); rows.push(row); row=[]; field=''; }
+    else field += c;
+  }
+  if(field.length || row.length){ row.push(field); rows.push(row); }
+  return rows.filter(r=>r.some(c=>c.trim()!==''));
+}
+function parseLeaveImportRow(colIdx, row, rowNo){
+  const val = key => { const i = colIdx[LEAVE_IMPORT_COLUMNS[key]]; return i===undefined ? '' : (row[i]??''); };
   const err = m => ({ error: `แถว ${rowNo}: ${m}` });
-  if(!who) return err('ไม่ได้ระบุพนักงาน');
-  // จับคู่ด้วยรหัสพนักงานก่อน แล้วค่อยชื่อ — รหัสไม่มีปัญหาเรื่องเว้นวรรค/สะกดต่าง
-  const key = who.trim();
-  const emp = db.employees.find(e=>(e.employeeCode||'')===key)
-           || db.employees.find(e=>e.name.trim()===key)
-           || db.employees.find(e=>(e.nickname||'').trim()===key);
-  if(!emp) return err(`ไม่พบพนักงาน "${key}" (ใช้รหัสพนักงานจะแม่นที่สุด)`);
-  const k = (kindRaw||'').trim();
-  const kind = LEAVE_KIND_LABELS[k] ? k
-             : Object.keys(LEAVE_KIND_LABELS).find(code=>LEAVE_KIND_LABELS[code]===k);
-  if(!kind) return err(`ไม่รู้จักประเภทการลา "${k}"`);
-  const okDate = s => /^\d{4}-\d{2}-\d{2}$/.test((s||'').trim());
-  if(!okDate(fromRaw)) return err('วันที่เริ่มต้องเป็นรูปแบบ YYYY-MM-DD');
-  const from = fromRaw.trim();
-  const to = okDate(toRaw) ? toRaw.trim() : from;
-  if(to < from) return err('วันที่สิ้นสุดอยู่ก่อนวันที่เริ่ม');
+  const nameRaw = String(val('name')).trim(), nickRaw = String(val('nickname')).trim();
+  if(!nameRaw && !nickRaw) return err('ไม่ได้ระบุชื่อพนักงาน');
+  // จับคู่ด้วยชื่อ-นามสกุลก่อน แล้วค่อยชื่อเล่น (ไม่ใช้อีเมล เพราะพนักงานในระบบยังไม่มีใครลงอีเมลตรงกับในชีตเดิม)
+  const emp = (nameRaw && db.employees.find(e=>e.name.trim()===nameRaw))
+           || (nickRaw && db.employees.find(e=>(e.nickname||'').trim()===nickRaw));
+  if(!emp) return err(`ไม่พบพนักงาน "${nameRaw||nickRaw}" ในระบบ (ชื่อ-นามสกุลต้องตรงกับในระบบเป๊ะๆ)`);
+  const kRaw = String(val('kind')).trim();
+  const kind = LEAVE_KIND_LABELS[kRaw] ? kRaw : Object.keys(LEAVE_KIND_LABELS).find(code=>LEAVE_KIND_LABELS[code]===kRaw);
+  if(!kind) return err(`ไม่รู้จักประเภทการลา "${kRaw}" (${emp.name})`);
+  const from = parseImportDate(val('from'));
+  if(!from) return err(`คอลัมน์ "ลาวันที่" อ่านไม่ได้ ("${val('from')}") — ไฟล์ .csv ต้องเป็นรูปแบบ DD-MM-YYYY (${emp.name})`);
+  const toRaw = val('to');
+  const to = toRaw ? (parseImportDate(toRaw) || from) : from;
+  if(to < from) return err(`วันที่สิ้นสุดอยู่ก่อนวันที่เริ่ม (${emp.name})`);
   const hourly = HOURLY_KINDS.includes(kind);
   let hourStart = null, hourEnd = null;
   if(hourly){
-    const okTime = s => /^\d{1,2}:\d{2}$/.test((s||'').trim());
-    if(!okTime(hStart) || !okTime(hEnd)) return err('ลาเป็นชั่วโมงต้องระบุเวลาเริ่มและเวลาสิ้นสุด (เช่น 13:00)');
-    hourStart = hStart.trim(); hourEnd = hEnd.trim();
-    if(hourEnd <= hourStart) return err('เวลาสิ้นสุดต้องหลังเวลาเริ่ม');
-    if(to !== from) return err('ลาเป็นชั่วโมงต้องเป็นวันเดียว');
+    hourStart = parseImportTime(val('hourStart')); hourEnd = parseImportTime(val('hourEnd'));
+    if(!hourStart || !hourEnd) return err(`ลาเป็นชั่วโมงต้องระบุเวลาเริ่ม-สิ้นสุด (${emp.name})`);
+    if(hourEnd <= hourStart) return err(`เวลาสิ้นสุดต้องหลังเวลาเริ่ม (${emp.name})`);
+    if(to !== from) return err(`ลาเป็นชั่วโมงต้องเป็นวันเดียว (${emp.name})`);
   }
   if(emp.startDate && from < emp.startDate) return err(`วันที่ลาอยู่ก่อนวันเริ่มงานของ ${emp.name}`);
-  return { emp, kind, from, to, hourStart, hourEnd, reason };
+  return { emp, kind, from, to, hourStart, hourEnd, reason: String(val('reason')).trim(), requestedAt: parseImportTimestamp(val('timestamp')) };
 }
-function readLeaveCsv(text){
-  const lines = text.split(/\r?\n/).map(l=>l.trim()).filter(l=>l);
-  const start = /รหัส|ชื่อ|employee/i.test(lines[0]||'') ? 1 : 0;
+async function readLeaveImportFile(file){
+  let table;
+  if(/\.(xlsx|xls)$/i.test(file.name)){
+    const wb = XLSX.read(await file.arrayBuffer(), { type:'array' });
+    table = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header:1, defval:'', raw:true });
+  } else {
+    table = parseCsvText(await file.text());
+  }
+  table = table.filter(r=>r.some(c=>String(c??'').trim()!==''));
+  if(!table.length) return { rows:[], errors:['ไฟล์ว่างเปล่าหรืออ่านไม่ได้'], dupes:[] };
+  const colIdx = {};
+  table[0].map(normalizeHeader).forEach((h,i)=>{ if(colIdx[h]===undefined) colIdx[h]=i; });
+  const requiredMissing = ['name','from','kind'].map(k=>LEAVE_IMPORT_COLUMNS[k]).filter(label=>colIdx[label]===undefined);
+  if(requiredMissing.length) return { rows:[], errors:[`ไฟล์ขาดคอลัมน์ที่จำเป็น: ${requiredMissing.join(', ')} (ต้องตั้งชื่อหัวคอลัมน์ให้ตรงเป๊ะ)`], dupes:[] };
   const rows = [], errors = [];
-  for(let i=start;i<lines.length;i++){
-    const cols = lines[i].split(',').map(c=>c.trim());
-    if(cols.length < 3){ errors.push(`แถว ${i+1}: ข้อมูลไม่ครบ`); continue; }
-    const r = parseLeaveCsvLine(cols, i+1);
+  for(let i=1;i<table.length;i++){
+    const r = parseLeaveImportRow(colIdx, table[i], i+1);
     if(r.error) errors.push(r.error); else rows.push(r);
   }
   // กันนำเข้าซ้ำกับใบลาที่มีอยู่แล้ว (พนักงาน + ประเภท + วันเริ่ม ตรงกัน)
@@ -6542,8 +6604,8 @@ document.getElementById('checkLeaveImportBtn').onclick = async ()=>{
   const msg = document.getElementById('importLeaveMsg');
   const box = document.getElementById('leaveImportPreview');
   const file = document.getElementById('importLeaveFile').files[0];
-  if(!file){ msg.className='msg err'; msg.textContent='กรุณาเลือกไฟล์ CSV ก่อน'; box.innerHTML=''; return; }
-  const { rows, errors, dupes } = readLeaveCsv(await file.text());
+  if(!file){ msg.className='msg err'; msg.textContent='กรุณาเลือกไฟล์ก่อน'; box.innerHTML=''; return; }
+  const { rows, errors, dupes } = await readLeaveImportFile(file);
   pendingLeaveImport = rows;
   msg.textContent = ''; msg.className = 'msg';
   const byEmp = {};
@@ -6568,9 +6630,11 @@ async function runLeaveImport(){
   const nowIso = new Date().toISOString();
   let ok = 0; const failed = [];
   for(const r of rows){
+    // ใช้ "ประทับเวลา" จริงจากชีตเดิมถ้าอ่านได้ ให้ประวัติยื่น/อนุมัติตรงกับตอนที่เกิดขึ้นจริง ไม่ใช่วันที่กดนำเข้า
+    const requestedAt = r.requestedAt || nowIso;
     const row = { id:uid(), employeeId:r.emp.id, kind:r.kind, from:r.from, to:r.to,
       hourStart:r.hourStart, hourEnd:r.hourEnd, reason:r.reason || 'นำเข้าจากระบบเดิม',
-      status:'approved', requestedAt:nowIso, decidedAt:nowIso, evidenceSent:null, evidenceFileId:null };
+      status:'approved', requestedAt, decidedAt:requestedAt, evidenceSent:null, evidenceFileId:null };
     const res = await sbUpsertRow('leaves', leaveToRow(row));
     if(res && res.ok){ db.leaves.push(row); ok++; }
     else failed.push(`${r.emp.name} ${ddmmyyyy(r.from)}`);
@@ -6587,16 +6651,17 @@ async function runLeaveImport(){
 }
 document.getElementById('downloadLeaveTemplateBtn').onclick = ()=>{
   const sample = db.employees.filter(isEmployedNow).slice(0,3);
-  const rows = [['รหัสพนักงาน','ประเภทการลา','วันที่เริ่ม','วันที่สิ้นสุด','เวลาเริ่ม','เวลาสิ้นสุด','เหตุผล']];
+  const header = Object.values(LEAVE_IMPORT_COLUMNS); // ตรงกับหัวตารางที่ไฟล์จริงต้องมี (ลำดับไม่บังคับ แต่ตัวอย่างเรียงตามนี้)
+  const rows = [header];
   sample.forEach((e,i)=> rows.push([
-    e.employeeCode || e.name,
+    '11-09-2026', e.name, e.nickname || '', 'ตัวอย่าง',
+    i===0 ? '05-07-2026' : '11-07-2026', i===0 ? '05-07-2026' : '12-07-2026',
     i===0 ? 'ลาเป็นชั่วโมง (กิจ)' : 'ลาป่วย (ไม่มีใบรับรองแพทย์)',
-    '2026-07-0'+(i+1), '2026-07-0'+(i+1),
     i===0 ? '13:00' : '', i===0 ? '15:00' : '',
     'ตัวอย่าง — ลบแถวนี้ออกก่อนใช้จริง'
   ]));
-  rows.push(['','','','','','','']);
-  rows.push(['# ประเภทที่ใช้ได้: ' + Object.values(LEAVE_KIND_LABELS).join(' / '),'','','','','','']);
+  rows.push(header.map(()=>''));
+  rows.push(['# ประเภทที่ใช้ได้: ' + Object.values(LEAVE_KIND_LABELS).join(' / '), ...header.slice(1).map(()=>'')]);
   downloadCSV('arana-time-leave-import-template.csv', rows);
 };
 document.getElementById('importAttendanceBtn').onclick = async ()=>{
