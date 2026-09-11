@@ -950,11 +950,13 @@
     <div id="atabEmployees" class="hidden">
       <section>
         <button class="btn ghost block" style="margin-bottom:16px;" id="exportEmpBtn">Export ข้อมูลพนักงาน</button>
-        <div class="branchselect" style="margin-bottom:8px;"><select id="employeesViewBranchFilter"></select></div>
-        <div class="branchselect" style="margin-bottom:12px;"><select id="employeesViewStatusFilter">
-          <option value="active">เฉพาะที่ทำงานอยู่</option>
-          <option value="all">ทั้งหมด (รวมประวัติ/ลาออกแล้ว)</option>
-        </select></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+          <div class="branchselect" style="margin-bottom:0;flex:1;min-width:140px;"><select id="employeesViewBranchFilter"></select></div>
+          <div class="branchselect" style="margin-bottom:0;flex:1;min-width:140px;"><select id="employeesViewStatusFilter">
+            <option value="active">เฉพาะที่ทำงานอยู่</option>
+            <option value="all">ทั้งหมด (รวมประวัติ/ลาออกแล้ว)</option>
+          </select></div>
+        </div>
         <div class="card" id="employeesViewList" style="padding:0 16px;"></div>
       </section>
     </div>
@@ -1147,12 +1149,14 @@
             <div class="sectitle">จัดการพนักงาน</div>
             <button class="btn block" style="margin-bottom:10px;" id="addEmpAdminBtn">+ เพิ่มพนักงาน</button>
             <button class="btn ghost block" style="margin-bottom:16px;" id="regenEmpCodesBtn">ออกรหัสพนักงานใหม่ทั้งหมด (เรียงตามอายุงาน)</button>
-            <div class="branchselect" style="margin-bottom:8px;"><select id="manageEmpBranchFilter"></select></div>
-            <div class="branchselect" style="margin-bottom:8px;"><select id="manageEmpStatusFilter">
-              <option value="active">เฉพาะที่ทำงานอยู่</option>
-              <option value="all">ทั้งหมด (รวมประวัติ/ลาออกแล้ว)</option>
-            </select></div>
-            <input type="search" id="adminEmpSearch" class="listsearch" placeholder="ค้นหา รหัส / ชื่อ / ชื่อเล่น / ตำแหน่ง">
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+              <div class="branchselect" style="margin-bottom:0;flex:1;min-width:130px;"><select id="manageEmpBranchFilter"></select></div>
+              <div class="branchselect" style="margin-bottom:0;flex:1;min-width:130px;"><select id="manageEmpStatusFilter">
+                <option value="active">เฉพาะที่ทำงานอยู่</option>
+                <option value="all">ทั้งหมด (รวมประวัติ/ลาออกแล้ว)</option>
+              </select></div>
+              <input type="search" id="adminEmpSearch" class="listsearch" placeholder="ค้นหา รหัส / ชื่อ / ชื่อเล่น / ตำแหน่ง" style="flex:2;min-width:160px;width:auto;">
+            </div>
             <div class="listcount" id="adminEmpCount"></div>
             <div class="card" id="adminEmpList" style="padding:0 16px;"></div>
           </section>
