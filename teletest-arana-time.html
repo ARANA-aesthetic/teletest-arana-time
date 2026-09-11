@@ -1339,6 +1339,21 @@
             </div>
           </section>
           <section>
+            <div class="sectitle">นำเข้าวันเริ่มงานพนักงาน</div>
+            <div class="card">
+              <div style="color:var(--muted);font-size:12px;margin-bottom:10px;line-height:1.7;">
+                พนักงานที่ไม่มีวันเริ่มงานในระบบ จะคำนวณสิทธิ์ลาพักร้อน/ลาประเพณีไม่ได้ (ขึ้น "อายุงานยังไม่ครบ" ตลอด) — ใช้ที่นี่กรอกให้ครบทีเดียวได้จากไฟล์ Excel/CSV<br>
+                รองรับ .xlsx และ .csv (ถ้าเป็น .csv วันที่ต้องเป็นรูปแบบ <b>DD-MM-YYYY</b>) ระบบอ่านตามชื่อหัวคอลัมน์ ต้องมีอย่างน้อย:<br>
+                <code style="font-size:11px;">ชื่อ-นามสกุล, วันเริ่มงาน</code><br>
+                มีคอลัมน์ <code>รหัสพนักงาน</code> หรือ <code>ชื่อเล่น</code> เพิ่มด้วยก็ได้ (ไม่บังคับ) ใช้ช่วยจับคู่แม่นขึ้นถ้าชื่อซ้ำกัน · จับคู่ด้วยรหัสพนักงานก่อน ถ้าไม่มีจะใช้ชื่อ-นามสกุล แล้วชื่อเล่นตามลำดับ · อัปเดตเฉพาะคนที่มีอยู่แล้วในระบบเท่านั้น ไม่สร้างพนักงานใหม่
+              </div>
+              <input type="file" id="importStartDateFile" accept=".csv,.xlsx,.xls">
+              <button class="btn sm block" style="margin-top:10px;" id="checkStartDateImportBtn">ตรวจไฟล์ก่อนนำเข้า</button>
+              <div id="startDateImportPreview"></div>
+              <div class="msg" id="importStartDateMsg"></div>
+            </div>
+          </section>
+          <section>
             <div class="sectitle">ซ่อมรายการที่ไม่มีชื่อพนักงาน</div>
             <div class="card">
               <div style="color:var(--muted);font-size:12px;margin-bottom:12px;">
@@ -6762,6 +6777,94 @@ document.getElementById('downloadLeaveTemplateBtn').onclick = ()=>{
   rows.push(['# ประเภทที่ใช้ได้: ' + Object.values(LEAVE_KIND_LABELS).join(' / '), ...header.slice(1).map(()=>'')]);
   downloadCSV('arana-time-leave-import-template.csv', rows);
 };
+/* ===== นำเข้าวันเริ่มงานพนักงานเป็นชุด =====
+   พบว่าพนักงาน active เกือบทั้งหมดไม่มี startDate เลย ทำให้กล่องโควต้าลาพักร้อน/ลาประเพณี
+   ที่หน้าแรกพนักงานคำนวณอายุงานไม่ได้ (monthsSince คืน -1 เสมอ) ขึ้น "อายุงานยังไม่ครบ" ตลอดแทนที่จะ
+   โชว์ตัวเลขจริง — ใช้ตัว parser วันที่ชุดเดียวกับตัวนำเข้าใบลา (parseImportDate/parseCsvText) เพราะ
+   ต้องรองรับทั้ง .xlsx (ซีเรียล Excel) และ .csv (DD-MM-YYYY) เหมือนกัน อัปเดตเฉพาะคนที่มีอยู่แล้ว
+   ในระบบเท่านั้น ไม่สร้างพนักงานใหม่จากไฟล์นี้ */
+const STARTDATE_IMPORT_COLUMNS = { code:'รหัสพนักงาน', name:'ชื่อ-นามสกุล', nickname:'ชื่อเล่น', startDate:'วันเริ่มงาน' };
+function parseStartDateImportRow(colIdx, row, rowNo){
+  const val = key => { const i = colIdx[STARTDATE_IMPORT_COLUMNS[key]]; return i===undefined ? '' : (row[i]??''); };
+  const err = m => ({ error: `แถว ${rowNo}: ${m}` });
+  const codeRaw = String(val('code')).trim(), nameRaw = String(val('name')).trim(), nickRaw = String(val('nickname')).trim();
+  if(!codeRaw && !nameRaw && !nickRaw) return err('ไม่ได้ระบุพนักงาน');
+  // จับคู่ด้วยรหัสพนักงานก่อนเพราะไม่มีทางกำกวม แล้วค่อยชื่อ-นามสกุล แล้วชื่อเล่น
+  const emp = (codeRaw && db.employees.find(e=>(e.employeeCode||'').trim()===codeRaw))
+           || (nameRaw && db.employees.find(e=>e.name.trim()===nameRaw))
+           || (nickRaw && db.employees.find(e=>(e.nickname||'').trim()===nickRaw));
+  if(!emp) return err(`ไม่พบพนักงาน "${codeRaw||nameRaw||nickRaw}" ในระบบ`);
+  const startDate = parseImportDate(val('startDate'));
+  if(!startDate) return err(`คอลัมน์ "วันเริ่มงาน" อ่านไม่ได้ ("${val('startDate')}") — ไฟล์ .csv ต้องเป็นรูปแบบ DD-MM-YYYY (${emp.name})`);
+  return { emp, startDate };
+}
+async function readStartDateImportFile(file){
+  let table;
+  if(/\.(xlsx|xls)$/i.test(file.name)){
+    const wb = XLSX.read(await file.arrayBuffer(), { type:'array' });
+    table = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header:1, defval:'', raw:true });
+  } else {
+    table = parseCsvText(await file.text());
+  }
+  table = table.filter(r=>r.some(c=>String(c??'').trim()!==''));
+  if(!table.length) return { rows:[], errors:['ไฟล์ว่างเปล่าหรืออ่านไม่ได้'], skipped:[] };
+  const colIdx = {};
+  table[0].map(normalizeHeader).forEach((h,i)=>{ if(colIdx[h]===undefined) colIdx[h]=i; });
+  const requiredMissing = ['name','startDate'].map(k=>STARTDATE_IMPORT_COLUMNS[k]).filter(label=>colIdx[label]===undefined);
+  if(requiredMissing.length) return { rows:[], errors:[`ไฟล์ขาดคอลัมน์ที่จำเป็น: ${requiredMissing.join(', ')} (ต้องตั้งชื่อหัวคอลัมน์ให้ตรงเป๊ะ)`], skipped:[] };
+  const rows = [], errors = [], skipped = [];
+  const seen = new Set();
+  for(let i=1;i<table.length;i++){
+    const r = parseStartDateImportRow(colIdx, table[i], i+1);
+    if(r.error){ errors.push(r.error); continue; }
+    if(seen.has(r.emp.id)) continue; // กันแถวซ้ำของคนเดียวกันในไฟล์เดียวกัน เอาแถวแรกพอ
+    seen.add(r.emp.id);
+    if(r.emp.startDate === r.startDate){ skipped.push(`${r.emp.name} (ตรงกับข้อมูลเดิมอยู่แล้ว)`); continue; }
+    rows.push(r);
+  }
+  return { rows, errors, skipped };
+}
+let pendingStartDateImport = null;
+document.getElementById('checkStartDateImportBtn').onclick = async ()=>{
+  const msg = document.getElementById('importStartDateMsg');
+  const box = document.getElementById('startDateImportPreview');
+  const file = document.getElementById('importStartDateFile').files[0];
+  if(!file){ msg.className='msg err'; msg.textContent='กรุณาเลือกไฟล์ก่อน'; box.innerHTML=''; return; }
+  const { rows, errors, skipped } = await readStartDateImportFile(file);
+  pendingStartDateImport = rows;
+  msg.textContent = ''; msg.className = 'msg';
+  box.innerHTML = `
+    <div style="border:1px solid var(--border);border-radius:12px;padding:12px;margin-top:10px;font-size:12px;line-height:1.7;">
+      <div style="font-weight:600;color:${rows.length?'var(--green)':'var(--red)'};">พร้อมอัปเดต ${rows.length} คน</div>
+      ${rows.length?`<div style="margin-top:6px;color:var(--muted);">${rows.map(r=>`${r.emp.name}${r.emp.startDate?` (เดิม ${ddmmyyyy(r.emp.startDate)})`:' (เดิมยังไม่มี)'} → ${ddmmyyyy(r.startDate)}`).join('<br>')}</div>`:''}
+      ${skipped.length?`<div style="color:var(--amber);margin-top:6px;">ข้าม ${skipped.length} คน (ตรงกับข้อมูลเดิมอยู่แล้ว):<br>${skipped.join('<br>')}</div>`:''}
+      ${errors.length?`<div style="color:var(--red);margin-top:6px;">มีปัญหา ${errors.length} แถว:<br>${errors.join('<br>')}</div>`:''}
+      ${rows.length?`<button class="btn sm block" style="margin-top:10px;" id="doStartDateImportBtn">ยืนยันอัปเดต ${rows.length} คน</button>`:''}
+    </div>`;
+  const go = document.getElementById('doStartDateImportBtn');
+  if(go) go.onclick = runStartDateImport;
+};
+async function runStartDateImport(){
+  const msg = document.getElementById('importStartDateMsg');
+  const rows = pendingStartDateImport || [];
+  if(!rows.length) return;
+  const btn = document.getElementById('doStartDateImportBtn');
+  if(btn){ btn.disabled = true; btn.textContent = 'กำลังบันทึก…'; }
+  let ok = 0; const failed = [];
+  for(const r of rows){
+    const before = r.emp.startDate;
+    r.emp.startDate = r.startDate;
+    const res = await saveEmployeeRow(r.emp);
+    if(res && res.ok){ ok++; await logAudit('import_startdate', 'employee', r.emp.id, `นำเข้าวันเริ่มงานของ ${r.emp.name}: ${before?ddmmyyyy(before):'ยังไม่มี'} → ${ddmmyyyy(r.startDate)}`); }
+    else { r.emp.startDate = before; failed.push(r.emp.name); }
+  }
+  msg.className = failed.length ? 'msg err' : 'msg ok';
+  msg.innerHTML = `อัปเดตสำเร็จ ${ok} คน` + (failed.length?`<br>ไม่สำเร็จ ${failed.length}: ${failed.join(', ')}`:'');
+  document.getElementById('startDateImportPreview').innerHTML = '';
+  document.getElementById('importStartDateFile').value = '';
+  pendingStartDateImport = null;
+  renderAdminEmpList(); renderEmployeesView(); renderEmpSummary();
+}
 document.getElementById('importAttendanceBtn').onclick = async ()=>{
   const fileInput = document.getElementById('importAttendanceFile');
   const msg = document.getElementById('importAttendanceMsg');
