@@ -3553,7 +3553,17 @@ async function decideTransfer(id, status){
   t.status = status; t.decidedAt = new Date().toISOString(); await saveBranchTransferRow(t);
   const emp = db.employees.find(e=>e.id===t.employeeId);
   const targetLabel = transferTargetLabel(t.branchId);
-  if(db.settings.notifyTypes.leaveDecision && db.settings.centralChatId) await tgSendMessage(db.settings.centralToken, db.settings.centralChatId, `คำขอไปทำงาน ${targetLabel} ของ <b>${notifyName(emp)}</b> (${t.fromDate}${t.fromDate!==t.toDate?' – '+t.toDate:''}) ถูก${status==='approved'?'อนุมัติ':'ปฏิเสธ'}แล้ว`);
+  const rangeText = `${t.fromDate}${t.fromDate!==t.toDate?' – '+t.toDate:''}`;
+  if(db.settings.notifyTypes.leaveDecision && db.settings.centralChatId){
+    let text;
+    if(status==='approved'){
+      const approverName = session.role==='admin' ? 'เจ้าของ/HR' : (currentApprover()?.name?.trim().split(/\s+/)[0] || 'ผู้บริหาร');
+      text = `✅อนุมัติโดย : ${approverName}\n▪️${notifyName(emp)}\n▪️ไปทำงาน${targetLabel}${t.reason?' — '+t.reason:''}\n▪️วันที่ ${rangeText}`;
+    } else {
+      text = `❌คำขอไปทำงาน${targetLabel}ของ <b>${notifyName(emp)}</b> (${rangeText}) ถูกปฏิเสธแล้ว\nเหตุผลที่ยื่น: ${t.reason || '-'}`;
+    }
+    await tgSendMessage(db.settings.centralToken, db.settings.centralChatId, text);
+  }
   await pushNotification(emp.id, status==='approved'?'คำขอไปสาขาอื่นได้รับการอนุมัติ':'คำขอไปสาขาอื่นถูกปฏิเสธ', `${targetLabel} ${t.fromDate}${t.fromDate!==t.toDate?' – '+t.toDate:''}`);
   renderTransferList();
 }
