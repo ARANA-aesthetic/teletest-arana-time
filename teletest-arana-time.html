@@ -2804,10 +2804,10 @@ function renderEmployeeHome(){
       return `<div class="stat"><div class="t">${b.label}</div><div class="num" style="${color}">${hk.count}</div><div class="lbl">ครั้ง · รวม ${hk.hours} ชม.</div></div>`;
     }
     if(b.type==='quota'){
-      // แสดง "เหลือกี่วัน" เป็นตัวเลขหลัก เพราะเป็นสิ่งที่พนักงานอยากรู้ตอนจะยื่นใบลาจริงๆ
+      // ตัวเลขหลักเป็น "ใช้ไปแล้ว/สิทธิ์ทั้งหมด" (เช่น 1/7) ส่วนวันคงเหลือย้ายไปโชว์เป็นบรรทัดรอง
       const q = leaveQuotaFor(emp, b.key);
-      const num = q.eligible ? String(q.remaining) : '-';
-      const lbl = q.eligible ? `วันคงเหลือ · ใช้ไป ${q.used} จาก ${q.total}`
+      const num = q.eligible ? `${q.used}/${q.total}` : '-';
+      const lbl = q.eligible ? `วันที่ใช้สิทธิ์ · เหลือ ${q.remaining} วัน`
                              : `อายุงานยังไม่ครบ ${q.monthsNeeded===12?'1 ปี':'1 เดือน'}`;
       const warn = q.eligible && q.remaining===0 ? 'color:var(--red);' : color;
       return `<div class="stat"><div class="t">${b.label}</div><div class="num" style="${warn}">${num}</div><div class="lbl">${lbl}</div></div>`;
