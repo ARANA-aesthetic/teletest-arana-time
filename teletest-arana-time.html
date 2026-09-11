@@ -3544,7 +3544,7 @@ document.getElementById('submitOtBtn').onclick = async ()=>{
     renderOtTab();
     const br = currentBranch(emp);
     const newText = `${fmtDateShort(new Date(date))} ${hourStart}-${hourEnd}`;
-    const text = `🔧<b>${notifyName(emp)}</b> ขอแก้ไขคำขอ OT ที่อนุมัติแล้ว\nเดิม: ${oldText}\nใหม่: ${newText}\nเหตุผล: ${reason||'-'}`;
+    const text = `🔧<b>${notifyName(emp)}</b> ขอแก้ไขคำขอ OT ที่อนุมัติแล้ว\nเดิม: ${oldText}\nใหม่: ${newText}\nเหตุผล: ${reason||'-'}` + approveLinkLine('อนุมัติ OT');
     if(db.settings.notifyTypes.otSubmit && otRoomChatId()) await tgSendMessage(db.settings.centralToken, otRoomChatId(), text);
     await logAudit('request_edit', 'ot', ot.id, `ขอแก้ไข OT: ${oldText} → ${newText}`);
     setTimeout(()=>{ document.getElementById('otOverlay').classList.remove('show'); requestingEditOtId=null; }, 900);
@@ -3561,7 +3561,7 @@ document.getElementById('submitOtBtn').onclick = async ()=>{
   renderOtTab();
   const br = currentBranch(emp);
   const empLines = selectedIds.map((empId,i)=>{ const e = db.employees.find(x=>x.id===empId); return `${i+1}. ${notifyName(e)}`; }).join('\n');
-  const text = `▶️คำขอรออนุมัติ\nสาขา : ${br?.name||'-'}\nขอทำ OT วันที่ : ${date}\nเวลา : ${hourStart}-${hourEnd}\nรวม : ${otHoursText(hourStart,hourEnd)} ชม.\nเหตุผล : ${reason||'-'}\nพนักงานขอ OT\n${empLines}`;
+  const text = `▶️คำขอรออนุมัติ\nสาขา : ${br?.name||'-'}\nขอทำ OT วันที่ : ${date}\nเวลา : ${hourStart}-${hourEnd}\nรวม : ${otHoursText(hourStart,hourEnd)} ชม.\nเหตุผล : ${reason||'-'}\nพนักงานขอ OT\n${empLines}` + approveLinkLine('อนุมัติ OT');
   if(db.settings.notifyTypes.otSubmit && otRoomChatId()) await tgSendMessage(db.settings.centralToken, otRoomChatId(), text);
   await Promise.all(selectedIds.map(empId => pushNotification(empId, 'ส่งคำขอ OT แล้ว', `${date} เวลา ${hourStart}-${hourEnd} กำลังรอการอนุมัติ`)));
   setTimeout(()=>{ document.getElementById('otOverlay').classList.remove('show'); }, 900);
