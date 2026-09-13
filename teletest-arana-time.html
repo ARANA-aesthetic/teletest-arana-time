@@ -2120,8 +2120,8 @@ const approverToRow = a => ({ id:a.id, name:a.name, pin:a.pin||null, role:a.role
 
 // employeeName = ชื่อ ณ ตอนบันทึก ฐานข้อมูลเติมให้เองด้วย trigger (ดู sql/keep-employee-name-snapshot.sql)
 // อ่านมาใช้อย่างเดียว ไม่ต้องส่งกลับตอนบันทึก จะได้ไม่เผลอเขียนทับชื่อเดิมด้วยค่าว่าง
-const rowToLog = r => ({ id:r.id, employeeId:r.employee_id, employeeName:r.employee_name||'', type:r.type, time:r.time, branchId:r.branch_id, lateMinutes:r.late_minutes||0, sent:r.sent, acPointId:r.ac_point_id||null, cleanPointId:r.clean_point_id||null, leaveConflict:!!r.leave_conflict, corrected:!!r.corrected, manualEntry:!!r.manual_entry, manualBy:r.manual_by||null, manualReason:r.manual_reason||null });
-const logToRow = l => ({ id:l.id, employee_id:l.employeeId, type:l.type, time:l.time, branch_id:l.branchId||null, late_minutes:l.lateMinutes||0, sent:l.sent, ac_point_id:l.acPointId||null, clean_point_id:l.cleanPointId||null, leave_conflict:!!l.leaveConflict, corrected:!!l.corrected, manual_entry:!!l.manualEntry, manual_by:l.manualBy||null, manual_reason:l.manualReason||null });
+const rowToLog = r => ({ id:r.id, employeeId:r.employee_id, employeeName:r.employee_name||'', type:r.type, time:r.time, branchId:r.branch_id, lateMinutes:r.late_minutes||0, sent:r.sent, acPointId:r.ac_point_id||null, cleanPointId:r.clean_point_id||null, leaveConflict:!!r.leave_conflict, corrected:!!r.corrected, manualEntry:!!r.manual_entry, manualBy:r.manual_by||null, manualReason:r.manual_reason||null, confidence:r.confidence??null });
+const logToRow = l => ({ id:l.id, employee_id:l.employeeId, type:l.type, time:l.time, branch_id:l.branchId||null, late_minutes:l.lateMinutes||0, sent:l.sent, ac_point_id:l.acPointId||null, clean_point_id:l.cleanPointId||null, leave_conflict:!!l.leaveConflict, corrected:!!l.corrected, manual_entry:!!l.manualEntry, manual_by:l.manualBy||null, manual_reason:l.manualReason||null, confidence:l.confidence??null });
 const rowToWarningLetter = r => ({ id:r.id, employeeId:r.employee_id, companyId:r.company_id||null, subject:r.subject||'', issuedDate:r.issued_date, details:r.details||'', punishments:r.punishments||(r.punishment?[r.punishment]:['verbal']), warningNumber:r.warning_number||1, evidenceFileId:r.evidence_file_id||null, issuedBy:r.issued_by||'-', createdAt:r.created_at, signatures:r.signatures||{} });
 const warningLetterToRow = w => ({ id:w.id, employee_id:w.employeeId, company_id:w.companyId||null, subject:w.subject||null, issued_date:w.issuedDate, details:w.details||null, punishments:w.punishments&&w.punishments.length?w.punishments:['verbal'], warning_number:w.warningNumber||1, evidence_file_id:w.evidenceFileId||null, issued_by:w.issuedBy||null, created_at:w.createdAt, signatures:w.signatures||{} });
 const rowToCompany = r => ({ id:r.id, name:r.name||'', logoBase64:r.logo_base64||null, createdAt:r.created_at });
@@ -4678,9 +4678,9 @@ function renderInspectTab(){
       }
       else if(st.isHol){ statusText = 'วันหยุดบริษัท'; badgeClass='idle'; }
       else if(st.offsiteTransfer){ const tb = db.branches.find(b=>b.id===st.offsiteTransfer.branchId); statusText = `ทำงาน${tb?'สาขา '+tb.name:'นอกสถานที่'}`; badgeClass='offsite'; }
-      else if(st.inLog){ statusText = st.inLog.lateMinutes>0 ? `สาย ${st.inLog.lateMinutes} นาที (เข้า ${fmtTime(new Date(st.inLog.time))})` : `ตรงเวลา (เข้า ${fmtTime(new Date(st.inLog.time))})`; if(st.inLog.manualEntry) statusText += ` (แอดมินเพิ่มให้${st.inLog.manualReason?' — เหตุผล: '+st.inLog.manualReason:''})`; badgeClass = st.inLog.lateMinutes>0?'late':'approved'; }
+      else if(st.inLog){ statusText = st.inLog.lateMinutes>0 ? `สาย ${st.inLog.lateMinutes} นาที (เข้า ${fmtTime(new Date(st.inLog.time))})` : `ตรงเวลา (เข้า ${fmtTime(new Date(st.inLog.time))})`; if(st.inLog.manualEntry) statusText += ` (แอดมินเพิ่มให้${st.inLog.manualReason?' — เหตุผล: '+st.inLog.manualReason:''})`; else if(st.inLog.confidence!=null) statusText += ` · ยืนยันใบหน้า ${st.inLog.confidence}%`; badgeClass = st.inLog.lateMinutes>0?'late':'approved'; }
       else { statusText = 'ยังไม่เข้างาน'; badgeClass='rejected'; }
-      if(st.outLog) statusText += ` · ออก ${fmtTime(new Date(st.outLog.time))}`;
+      if(st.outLog) statusText += ` · ออก ${fmtTime(new Date(st.outLog.time))}${st.outLog.confidence!=null && !st.outLog.manualEntry?` (${st.outLog.confidence}%)`:''}`;
       const isAdmin = canManageApprovers();
       const canManualAdd = !st.leave && !st.isHol && !st.inLog && !st.offsiteTransfer && dateStr<=dateKey(new Date()) && isAdmin;
       // ปุ่มแก้ไข/ลบข้อมูลที่บันทึกไว้แล้ว — HR ใช้เองได้ ไม่ต้องรอทีมพัฒนา
@@ -7431,7 +7431,7 @@ async function finalizeScan(emp, confidence, pos, distance){
   if(distance!=null) text += `\nระยะห่างจากสาขา: ${distance} ม.`;
   document.getElementById('camStatusText').innerHTML = `ยืนยันตัวตนสำเร็จ<br>กำลังบันทึกและส่งแจ้งเตือน…`;
   const blob = await grabFrameBlob();
-  const logEntry = {id:uid(), employeeId:emp.id, type, time: now.toISOString(), branchId: br?.id, lateMinutes, sent:null, leaveConflict: (type==='IN' && conflictLeave) ? true : false};
+  const logEntry = {id:uid(), employeeId:emp.id, type, time: now.toISOString(), branchId: br?.id, lateMinutes, sent:null, leaveConflict: (type==='IN' && conflictLeave) ? true : false, confidence};
   db.logs.unshift(logEntry); await saveLogRow(logEntry);
   const notifyKey = type==='IN' ? 'checkin' : 'checkout';
   let anyOk = false;
@@ -7445,7 +7445,9 @@ async function finalizeScan(emp, confidence, pos, distance){
   const notifyOn = db.settings.notifyTypes[notifyKey];
   if(!notifyOn || anyOk){
     document.getElementById('camStatusText').innerHTML = !notifyOn ? 'บันทึกสำเร็จ' : 'บันทึกสำเร็จ — ส่งแจ้งเตือนแล้ว';
-    setTimeout(closeCamera, 1400);
+    // ออกงานแล้วให้ออกจากระบบอัตโนมัติทันที กันไม่ให้เครื่อง (โดยเฉพาะมือถือส่วนกลางที่ใช้กันหลายคน) ค้างอยู่
+    // หน้าแรกของคนที่เพิ่งออกงาน จนคนต่อไปหยิบไปกดสแกนเข้างานสวมสิทธิ์ได้โดยไม่ต้องเลือกชื่อ/ใส่ PIN ใหม่เลย
+    setTimeout(()=>{ closeCamera(); if(type==='OUT') doLogout(); }, 1400);
   } else {
     showCheckinSendFailUI(logEntry, text, br, type);
   }
@@ -7457,7 +7459,7 @@ function showCheckinSendFailUI(logEntry, caption, br, type){
   const retryBtn = document.createElement('button'); retryBtn.className='btn'; retryBtn.textContent='ลองส่งซ้ำ';
   retryBtn.onclick = ()=> retryCheckinPhoto(logEntry, caption, br, type, retryBtn);
   const closeBtn = document.createElement('button'); closeBtn.className='btn gray'; closeBtn.textContent='ปิด';
-  closeBtn.onclick = closeCamera;
+  closeBtn.onclick = ()=>{ closeCamera(); if(type==='OUT') doLogout(); };
   foot.appendChild(retryBtn); foot.appendChild(closeBtn);
 }
 async function retryCheckinPhoto(logEntry, caption, br, type, btn){
@@ -7470,7 +7472,7 @@ async function retryCheckinPhoto(logEntry, caption, br, type, btn){
     document.getElementById('camRing').className = 'camring match';
     document.getElementById('camStatusText').innerHTML = 'ส่งรูปสำเร็จแล้ว ✅';
     document.getElementById('camFoot').innerHTML = '';
-    setTimeout(closeCamera, 1200);
+    setTimeout(()=>{ closeCamera(); if(type==='OUT') doLogout(); }, 1200);
   } else {
     btn.disabled = false; btn.textContent = 'ลองส่งซ้ำ';
   }
