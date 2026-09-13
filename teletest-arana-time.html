@@ -5462,10 +5462,28 @@ function renderLeaveLists(){
   const allListEl = document.getElementById('allLeaveList');
   allListEl.innerHTML = all.length ? all.map(l=>{
     const emp = db.employees.find(e=>e.id===l.employeeId);
-    return `<div class="listrow"><div class="info"><div class="name">${emp?.name||'-'} · ${leaveLabel(l.kind)}</div><div class="meta">${leaveRangeText(l)}</div></div><span class="badge ${l.status}">${leaveStatusLabel(l.status)}</span>${canApproveLeave() ? `<button class="btn ghost sm" data-admineditleave="${l.id}" style="margin-left:8px;">แก้ไข</button><button class="btn-mini icononly" data-admindeleteleave="${l.id}" title="ลบถาวร (ไม่แจ้งเตือน)" style="margin-left:6px;">${TRASH_ICON_SVG}</button>` : ''}</div>`;
+    const needsEvidence = EVIDENCE_REQUIRED_KINDS.includes(l.kind);
+    const hasEvidence = !!(l.evidenceFileId || l.evidenceSent);
+    // เฉพาะประเภทลาที่ต้องมีหลักฐาน — โชว์สถานะ + ปุ่มดูรูป (ถ้ามีไฟล์จริง) หรือปุ่มยืนยันด้วยมือ
+    // (เผื่อกรณีพนักงานส่งรูปเข้ากลุ่มเทเลแกรมโดยตรง ไม่ผ่านแอป จึงไม่มีไฟล์ให้ดู แต่ HR เห็นแล้วว่าส่งจริง)
+    const evidenceHtml = !needsEvidence ? '' : hasEvidence
+      ? `<div class="meta" style="color:var(--green);">📎 มีหลักฐานแล้ว${l.evidenceFileId?` <span class="resendlink" data-viewphoto2="${l.evidenceFileId}">· ดูรูป</span>`:' (ยืนยันด้วยมือ ไม่มีไฟล์ในระบบ)'}</div>`
+      : `<div class="meta" style="color:var(--red);">📎 ยังไม่มีหลักฐาน${canApproveLeave()?` <span class="resendlink" data-confirmevidence="${l.id}">· ยืนยันว่าได้รับแล้ว</span>`:''}</div>`;
+    return `<div class="listrow"><div class="info"><div class="name">${emp?.name||'-'} · ${leaveLabel(l.kind)}</div><div class="meta">${leaveRangeText(l)}</div>${evidenceHtml}</div><span class="badge ${l.status}">${leaveStatusLabel(l.status)}</span>${canApproveLeave() ? `<button class="btn ghost sm" data-admineditleave="${l.id}" style="margin-left:8px;">แก้ไข</button><button class="btn-mini icononly" data-admindeleteleave="${l.id}" title="ลบถาวร (ไม่แจ้งเตือน)" style="margin-left:6px;">${TRASH_ICON_SVG}</button>` : ''}</div>`;
   }).join('') : '<div class="empty">ไม่มีประวัติในช่วงที่เลือก</div>';
   allListEl.querySelectorAll('[data-admineditleave]').forEach(b=> b.onclick = ()=> openAdminLeaveEdit(b.dataset.admineditleave));
   allListEl.querySelectorAll('[data-admindeleteleave]').forEach(b=> b.onclick = ()=> adminDeleteLeave(b.dataset.admindeleteleave));
+  allListEl.querySelectorAll('[data-viewphoto2]').forEach(b=> b.onclick = ()=> viewTelegramPhoto(b.dataset.viewphoto2));
+  allListEl.querySelectorAll('[data-confirmevidence]').forEach(b=> b.onclick = ()=> confirmLeaveEvidenceManually(b.dataset.confirmevidence));
+}
+async function confirmLeaveEvidenceManually(id){
+  const leave = db.leaves.find(l=>l.id===id); if(!leave) return;
+  if(!confirm('ยืนยันว่าพนักงานส่งหลักฐานการลาแล้วจริง (เช่น ส่งเข้ากลุ่มเทเลแกรมโดยตรง)? ระบบจะหยุดแจ้งเตือน "ยังไม่ได้ส่งหลักฐาน" ของรายการนี้')) return;
+  leave.evidenceSent = true;
+  // PATCH เฉพาะคอลัมน์นี้ ไม่แตะ evidence_file_id เดิม (ยังคง null ต่อไป เพราะไม่มีไฟล์จริงในระบบ)
+  await sbPatchRow('leaves', leave.id, { evidence_sent: true });
+  await logAudit('evidence_sent', 'leave', leave.id, `ยืนยันด้วยมือว่าพนักงานส่งหลักฐานแล้ว (${leaveLabel(leave.kind)} ${leaveRangeText(leave)}) — ไม่มีไฟล์ในระบบ`);
+  renderLeaveLists();
 }
 function renderLeaveEditRequests(empIds){
   const pendingEdits = db.leaves.filter(l=>l.editRequest && empIds.has(l.employeeId));
