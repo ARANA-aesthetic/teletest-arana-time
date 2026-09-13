@@ -2081,6 +2081,25 @@ async function sbUpsertRow(table, row, conflictCol='id'){
     return { ok:true };
   }catch(e){ console.error('sbUpsertRow', table, e); return { ok:false, error: e.message }; }
 }
+// sbUpsertRow เขียนทับ "ทั้งแถว" เสมอ — ถ้าเครื่องที่กดบันทึกมีข้อมูลค้างเก่า (เช่น เปิดหน้าอนุมัติ
+// ทิ้งไว้นานแล้วมีคนอื่นแก้แถวเดียวกันไปก่อน) ค่าที่ไม่ได้ตั้งใจแก้ (เช่น evidence_file_id ที่เพิ่งถูก
+// เซ็ตจากอีกเครื่อง) จะถูกเขียนทับกลับเป็นค่าเก่าไปด้วยแบบเงียบๆ — ใช้ sbPatchRow แทนเมื่อจะแก้แค่
+// บางคอลัมน์ของแถวที่มีอยู่แล้ว (PATCH แก้เฉพาะคอลัมน์ที่ส่งไปเท่านั้น คอลัมน์อื่นไม่ถูกแตะต้อง)
+async function sbPatchRow(table, id, patch){
+  try{
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?id=eq.${id}`, {
+      method:'PATCH',
+      headers: sbHeaders({ 'Content-Type':'application/json' }),
+      body: JSON.stringify(patch)
+    });
+    if(!res.ok){
+      const errBody = await res.text().catch(()=> '');
+      console.error('sbPatchRow failed', table, res.status, errBody);
+      return { ok:false, error: errBody || `HTTP ${res.status}` };
+    }
+    return { ok:true };
+  }catch(e){ console.error('sbPatchRow', table, e); return { ok:false, error: e.message }; }
+}
 // ★ เคยมีฟังก์ชัน sbReplaceAll() ตรงนี้ — ลบทั้งตารางแล้วเขียนกลับใหม่
 // ถอดออกถาวรเมื่อ 28 ส.ค. 2569 เพราะเป็นต้นเหตุข้อมูลเสียหายจริง: เครื่องที่เปิดหน้าเว็บ
 // เวอร์ชันเก่าค้างไว้เรียกฟังก์ชันนี้ ทำให้ตาราง employees/branches ถูกลบทั้งตารางแล้วเขียนกลับ
@@ -3151,7 +3170,9 @@ document.getElementById('saveAdminLeaveEditBtn').onclick = async ()=>{
   const oldFrom = leave.from, employeeId = leave.employeeId;
   Object.assign(leave, {kind, from, to, hourStart, hourEnd, reason});
   const after = `${leaveLabel(leave.kind)} ${leaveRangeText(leave)}`;
-  await saveLeaveRow(leave);
+  // ใช้ PATCH แก้เฉพาะคอลัมน์ที่ HR แก้จริง — กันไม่ให้ evidence_file_id/evidence_sent ที่อาจเพิ่ง
+  // ถูกเซ็ตจากเครื่องพนักงาน (ขณะที่หน้าจอ HR ยังถือข้อมูลเก่าค้างไว้) ถูกเขียนทับหายไป
+  await sbPatchRow('leaves', leave.id, { kind: leave.kind, from_date: leave.from, to_date: leave.to, from_time: leave.hourStart||null, to_time: leave.hourEnd||null, reason: leave.reason||null });
   await logAudit('edit_by_admin', 'leave', leave.id, `HR แก้ไขข้อมูลใบลาโดยตรง: ${before} → ${after}`);
   document.getElementById('adminLeaveEditOverlay').classList.remove('show');
   adminEditingLeaveId = null;
@@ -3311,6 +3332,10 @@ document.getElementById('submitLeaveBtn').onclick = async ()=>{
       const r = await tgSendPhoto(db.settings.centralToken, db.settings.centralChatId, evidenceFile, text);
       leave.evidenceSent = r.ok; leave.evidenceFileId = r.fileId || null;
       await saveLeaveRow(leave); renderLeaveTab();
+      // บันทึกไว้ใน audit log แยกต่างหาก เผื่อค่า evidence_file_id ในแถวใบลาถูกเขียนทับหายทีหลัง
+      // (จากจุดบันทึกอื่นที่ข้อมูลค้างเก่า) HR จะยังมีร่องรอยให้เช็คว่าเคยส่งสำเร็จจริงหรือไม่
+      await logAudit(r.ok?'evidence_sent':'evidence_send_failed', 'leave', leave.id,
+        `${r.ok?'ส่งหลักฐานการลาสำเร็จตอนยื่นคำขอ':'ส่งหลักฐานการลาไม่สำเร็จตอนยื่นคำขอ'}: ${leaveLabel(kind)} ${rangeText}`);
     } else {
       await tgSendMessage(db.settings.centralToken, db.settings.centralChatId, text);
     }
@@ -3347,6 +3372,10 @@ lateEvidenceInput.addEventListener('change', async (e)=>{
   leave.evidenceFileId = r.fileId || leave.evidenceFileId;
   leave.evidenceSent = r.ok;
   await saveLeaveRow(leave);
+  // บันทึกไว้ใน audit log แยกต่างหาก เผื่อค่า evidence_file_id ในแถวใบลาถูกเขียนทับหายทีหลัง
+  // (จากจุดบันทึกอื่นที่ข้อมูลค้างเก่า) HR จะยังมีร่องรอยให้เช็คว่าเคยส่งสำเร็จจริงหรือไม่
+  await logAudit(r.ok?'evidence_sent':'evidence_send_failed', 'leave', leave.id,
+    `${r.ok?'แนบหลักฐานการลาภายหลังสำเร็จ':'แนบหลักฐานการลาภายหลังไม่สำเร็จ'}: ${leaveLabel(leave.kind)} ${ddmmyyyy(leave.from)}`);
   renderLeaveTab();
   await pushNotification(emp.id, r.ok ? 'ส่งหลักฐานการลาแล้ว' : 'ส่งหลักฐานการลาไม่สำเร็จ',
     r.ok ? `${leaveLabel(leave.kind)} ${ddmmyyyy(leave.from)} — ส่งเข้ากลุ่มอนุมัติเรียบร้อย` : 'ลองใหม่อีกครั้ง');
@@ -5475,7 +5504,11 @@ async function decideLeaveEdit(id, decision){
   }
   const newText = `${leaveLabel(leave.kind)} ${leaveRangeText(leave)}`;
   leave.editRequest = null;
-  await saveLeaveRow(leave);
+  // PATCH เฉพาะคอลัมน์ที่เปลี่ยนจริง — กันไม่ให้ evidence_file_id/evidence_sent ที่อาจเพิ่งถูกเซ็ต
+  // จากเครื่องพนักงาน (ขณะหน้าจอ HR ยังถือข้อมูลเก่าค้างไว้) ถูกเขียนทับหายไป
+  const editPatch = { edit_request: null };
+  if(decision==='approved') Object.assign(editPatch, { kind: leave.kind, from_date: leave.from, to_date: leave.to, from_time: leave.hourStart||null, to_time: leave.hourEnd||null, reason: leave.reason||null });
+  await sbPatchRow('leaves', leave.id, editPatch);
   if(decision==='approved') await markLeaveForResync(leave.id);
   await logAudit(decision==='approved'?'approve_edit':'reject_edit', 'leave', leave.id,
     decision==='approved' ? `อนุมัติการแก้ไขใบลา: ${oldText} → ${newText}` : `ปฏิเสธการแก้ไขใบลา (คงค่าเดิม: ${oldText})`);
@@ -5512,7 +5545,11 @@ document.getElementById('exportLeaveReportBtn').onclick = ()=>{
 async function decideLeave(id, status){
   if(!canApproveLeave()){ alert('ไม่มีสิทธิ์อนุมัติใบลา ต้องเป็นเจ้าของ/HR/ผู้จัดการ'); return; }
   const leave = db.leaves.find(l=>l.id===id); if(!leave) return;
-  leave.status = status; leave.decidedAt = new Date().toISOString(); await saveLeaveRow(leave); await markLeaveForResync(leave.id);
+  leave.status = status; leave.decidedAt = new Date().toISOString();
+  // PATCH เฉพาะสถานะ+เวลาตัดสิน — กันไม่ให้ evidence_file_id/evidence_sent ที่อาจเพิ่งถูกเซ็ต
+  // จากเครื่องพนักงาน (ขณะหน้าจออนุมัติของ HR ยังถือข้อมูลเก่าค้างไว้) ถูกเขียนทับหายไป
+  await sbPatchRow('leaves', leave.id, { status: leave.status, decided_at: leave.decidedAt });
+  await markLeaveForResync(leave.id);
   await logAudit(status, 'leave', leave.id, `${status==='approved'?'อนุมัติ':'ปฏิเสธ'}ใบลาของพนักงาน (${leaveLabel(leave.kind)} ${leave.from}${leave.from!==leave.to?' – '+leave.to:''})`);
   // ถ้าใบลานี้ยื่น/อนุมัติย้อนหลัง (หลังพนักงานเช็กอินไปแล้ว) นาทีสายที่บันทึกไว้ตอนสแกนจะยังไม่รู้จักใบลานี้
   // ต้องคำนวณใหม่ให้ทันทีที่อนุมัติ โดยเฉพาะลาเป็นชั่วโมงที่ครอบคลุมต้นกะซึ่งมีผลเลื่อนฐานเวลาสาย
