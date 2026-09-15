@@ -3717,6 +3717,8 @@ function renderTransferList(){
 async function decideTransfer(id, status){
   if(!canApproveLeave()){ alert('ไม่มีสิทธิ์อนุมัติ ต้องเป็นเจ้าของ/HR/ผู้จัดการ'); return; }
   const t = db.branchTransfers.find(x=>x.id===id); if(!t) return;
+  // กันกดอนุมัติ/ปฏิเสธซ้ำเหมือนที่แก้ไว้ใน decideLeave — จุดนี้ไม่มีการเช็คสถานะก่อนมาแต่แรกเช่นกัน
+  if(t.status!=='pending') return;
   t.status = status; t.decidedAt = new Date().toISOString(); await saveBranchTransferRow(t);
   const emp = db.employees.find(e=>e.id===t.employeeId);
   const targetLabel = transferTargetLabel(t.branchId);
@@ -5713,6 +5715,9 @@ document.getElementById('exportLeaveReportBtn').onclick = ()=>{
 async function decideLeave(id, status){
   if(!canApproveLeave()){ alert('ไม่มีสิทธิ์อนุมัติใบลา ต้องเป็นเจ้าของ/HR/ผู้จัดการ'); return; }
   const leave = db.leaves.find(l=>l.id===id); if(!leave) return;
+  // กันกดอนุมัติ/ปฏิเสธซ้ำ (เช่น เน็ตช้าจนรายการยังไม่ตัดออกจากลิสต์ทัน แล้วกดซ้ำ) — ไม่งั้นจะส่ง
+  // ข้อความสรุปเข้ากลุ่มซ้ำหลายรอบ ทั้งที่จริงมีแค่การตัดสินใจเดียว (เคยเกิดจริง 3 ครั้งติดกัน)
+  if(leave.status!=='pending') return;
   leave.status = status; leave.decidedAt = new Date().toISOString();
   // PATCH เฉพาะสถานะ+เวลาตัดสิน — กันไม่ให้ evidence_file_id/evidence_sent ที่อาจเพิ่งถูกเซ็ต
   // จากเครื่องพนักงาน (ขณะหน้าจออนุมัติของ HR ยังถือข้อมูลเก่าค้างไว้) ถูกเขียนทับหายไป
