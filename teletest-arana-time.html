@@ -1518,6 +1518,15 @@
     <label>เหตุผล</label>
     <textarea id="adminLeaveReason" placeholder="ระบุเหตุผลการลา"></textarea>
 
+    <div id="adminLeaveEvidenceSection" class="hidden">
+      <label>หลักฐานการลา</label>
+      <div id="adminLeaveEvidenceStatus" style="font-size:12.5px;color:var(--muted);margin-bottom:6px;"></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button type="button" class="btn ghost sm hidden" id="adminLeaveEvidenceViewBtn">ดูรูป</button>
+        <button type="button" class="btn ghost sm" id="adminLeaveEvidenceAttachBtn">แนบ/เปลี่ยนรูปหลักฐานแทนพนักงาน</button>
+      </div>
+    </div>
+
     <div class="modalfoot">
       <button class="btn block" id="saveAdminLeaveEditBtn">บันทึกการแก้ไข</button>
       <button class="btn gray" id="closeAdminLeaveEditBtn">ยกเลิก</button>
@@ -3094,12 +3103,26 @@ function openAdminLeaveCreate(){
   setDateVal('adminLeaveFrom', today); setDateVal('adminLeaveTo', today); setDateVal('adminLeaveSingleDate', today);
   document.getElementById('adminLeaveHourStart').value=''; document.getElementById('adminLeaveHourEnd').value='';
   document.getElementById('adminLeaveReason').value = '';
+  document.getElementById('adminLeaveEvidenceSection').classList.add('hidden');
   document.getElementById('adminLeaveEditOverlay').classList.add('show');
+}
+function renderAdminLeaveEvidenceSection(leave){
+  const statusEl = document.getElementById('adminLeaveEvidenceStatus');
+  const viewBtn = document.getElementById('adminLeaveEvidenceViewBtn');
+  const hasEvidence = !!(leave.evidenceFileId || leave.evidenceSent);
+  statusEl.textContent = hasEvidence
+    ? `มีหลักฐานแล้ว${leave.evidenceFileId?'':' (ยืนยันด้วยมือ ไม่มีไฟล์ในระบบ)'}`
+    : 'ยังไม่มีหลักฐาน';
+  statusEl.style.color = hasEvidence ? 'var(--green)' : 'var(--red)';
+  viewBtn.classList.toggle('hidden', !leave.evidenceFileId);
+  viewBtn.onclick = ()=> leave.evidenceFileId && viewTelegramPhoto(leave.evidenceFileId);
 }
 function openAdminLeaveEdit(leaveId){
   if(!canApproveLeave()){ alert('ไม่มีสิทธิ์แก้ไข ต้องเป็นเจ้าของ/HR/ผู้จัดการ'); return; }
   const leave = db.leaves.find(l=>l.id===leaveId); if(!leave) return;
   adminEditingLeaveId = leaveId;
+  document.getElementById('adminLeaveEvidenceSection').classList.remove('hidden');
+  renderAdminLeaveEvidenceSection(leave);
   document.querySelector('#adminLeaveEditOverlay h3').textContent = 'แก้ไขข้อมูลใบลา (HR)';
   document.getElementById('adminLeaveEmpWrap').classList.add('hidden');
   document.getElementById('adminLeaveStatusWrap').classList.add('hidden');
@@ -3124,6 +3147,39 @@ function openAdminLeaveEdit(leaveId){
   document.getElementById('adminLeaveEditOverlay').classList.add('show');
 }
 document.getElementById('closeAdminLeaveEditBtn').onclick = ()=> document.getElementById('adminLeaveEditOverlay').classList.remove('show');
+// -- HR แนบ/เปลี่ยนรูปหลักฐานแทนพนักงาน (จากป๊อปอัพแก้ไขใบลา) — ยืดหยุ่นไว้เผื่อพนักงานใช้แอปไม่คล่อง
+// หรือส่งรูปมาทางอื่น (LINE/ถ่ายเอกสารมาให้) ใช้ path ส่งเข้า Telegram เดียวกับตอนพนักงานแนบเอง เพื่อให้
+// ได้ file_id มาเก็บไว้ดูย้อนหลังได้เหมือนกันทุกกรณี ไม่ใช่แค่ยืนยันด้วยมือเฉยๆ
+const adminLeaveEvidenceInput = document.createElement('input');
+adminLeaveEvidenceInput.type='file'; adminLeaveEvidenceInput.accept='image/*'; adminLeaveEvidenceInput.id='adminLeaveEvidenceInput'; adminLeaveEvidenceInput.style.display='none';
+document.body.appendChild(adminLeaveEvidenceInput);
+document.getElementById('adminLeaveEvidenceAttachBtn').onclick = ()=>{
+  if(!adminEditingLeaveId){ alert('บันทึกใบลานี้ก่อน แล้วค่อยเปิดมาแนบรูปอีกครั้ง'); return; }
+  adminLeaveEvidenceInput.click();
+};
+adminLeaveEvidenceInput.addEventListener('change', async (e)=>{
+  const file = e.target.files[0]; e.target.value='';
+  const leave = db.leaves.find(l=>l.id===adminEditingLeaveId);
+  if(!file || !leave) return;
+  const btn = document.getElementById('adminLeaveEvidenceAttachBtn');
+  btn.disabled = true; btn.textContent = 'กำลังส่ง…';
+  const emp = db.employees.find(e=>e.id===leave.employeeId);
+  const br = db.branches.find(b=>b.id===emp?.branchId);
+  const caption = `✅ส่งหลักฐานการลา (HR แนบแทนพนักงาน)\n${notifyName(emp)} ${ddmmyyyy(leave.from)}\nประเภทการลา : ${leaveLabel(leave.kind)}`;
+  const targetChatId = leave.status==='approved' ? br?.chatIdLeaveApproval : db.settings.centralChatId;
+  const r = await tgSendPhoto(db.settings.centralToken, targetChatId, file, caption);
+  if(r.ok){
+    leave.evidenceFileId = r.fileId || leave.evidenceFileId; leave.evidenceSent = true;
+    await sbPatchRow('leaves', leave.id, { evidence_file_id: leave.evidenceFileId, evidence_sent: true });
+    await logAudit('evidence_sent', 'leave', leave.id, `HR แนบหลักฐานแทนพนักงาน ${emp?.name||'-'} (${leaveLabel(leave.kind)} ${leaveRangeText(leave)})`);
+    renderAdminLeaveEvidenceSection(leave);
+    renderLeaveLists();
+  } else {
+    await logAudit('evidence_send_failed', 'leave', leave.id, `HR แนบหลักฐานแทนพนักงาน ${emp?.name||'-'} ไม่สำเร็จ (${leaveLabel(leave.kind)} ${leaveRangeText(leave)})`);
+    alert('ส่งรูปไม่สำเร็จ (' + (r.reason||'ไม่ทราบสาเหตุ') + ') ลองใหม่อีกครั้ง');
+  }
+  btn.disabled = false; btn.textContent = 'แนบ/เปลี่ยนรูปหลักฐานแทนพนักงาน';
+});
 document.getElementById('adminLeaveType').addEventListener('change', ()=>{
   const isHourly = HOURLY_KINDS.includes(document.getElementById('adminLeaveType').value);
   document.getElementById('adminLeaveDateRangeFields').classList.toggle('hidden', isHourly);
@@ -5006,7 +5062,12 @@ function buildMonthReport(){
         }
         // ยังไม่ได้นำเข้าประวัติเข้า-ออกงานก่อนวันที่ตั้งไว้ (ถ้ามี) — ไม่นับเป็นขาดงาน ถือว่ายังไม่มีข้อมูล
         if(db.settings.attendanceStartDate && dateKey(d) < db.settings.attendanceStartDate && !inLog){ cell.na = true; return cell; }
-        if(leave){ cell.code = leaveAbbrev(leave.kind); cell.leaveKind = leave.kind; cell.leaveHours = leaveHoursNum(leave); }
+        if(leave){
+          cell.code = leaveAbbrev(leave.kind); cell.leaveKind = leave.kind; cell.leaveHours = leaveHoursNum(leave);
+          cell.leaveId = leave.id;
+          cell.needsEvidence = EVIDENCE_REQUIRED_KINDS.includes(leave.kind);
+          cell.hasEvidence = !!(leave.evidenceFileId || leave.evidenceSent);
+        }
         else if(isHoliday(d) || offWeekly){ cell.code = RPT_CODE_OFF; cell.off = true; }
         else if(isApprovedTransferOnDate(e.id, dateKey(d))){ cell.code = RPT_CODE_OFFSITE; cell.off = true; }
         else if(inLog) cell.code = RPT_CODE_WORK;
@@ -5057,13 +5118,15 @@ function renderReportsTab(){
   const titles = { leave:'ตารางขาด-ลา รายวัน', late:'ตารางนาทีที่มาสาย รายวัน', ot:'ตารางชั่วโมง OT รายวัน (อนุมัติแล้ว)', summary:'สรุปรวมทั้งเดือน' };
   document.getElementById('reportTitle').textContent = titles[reportView];
   document.getElementById('reportLegend').innerHTML = reportView==='leave'
-    ? RPT_LEGEND.map(([c,t,style])=>`<span><b style="${style||''}">${c}</b> ${t}</span>`).join('') : '';
+    ? RPT_LEGEND.map(([c,t,style])=>`<span><b style="${style||''}">${c}</b> ${t}</span>`).join('')
+      + `<span><b style="background:#FEF9C3;padding:1px 5px;border-radius:3px;">■</b> ยังไม่แนบหลักฐาน (กดที่ช่องวันลาเพื่อดู/แก้ไข/แนบรูปได้)</span>` : '';
 
   const rpt = buildMonthReport();
   const table = document.getElementById('reportTable');
   if(!rpt.groups.length){ table.innerHTML = `<tbody><tr><td style="border:none;"><div class="empty">ไม่มีพนักงานในสาขาที่เลือก</div></td></tr></tbody>`; return; }
   table.className = (reportView==='summary' ? 'rpttable rpt-summary' : 'rpttable rpt-daily') + ` rpt-view-${reportView}`;
   table.innerHTML = reportView==='summary' ? summaryTableHTML(rpt) : dailyTableHTML(rpt, reportView);
+  table.querySelectorAll('[data-leavecell]').forEach(td=> td.onclick = ()=> openAdminLeaveEdit(td.dataset.leavecell));
 }
 
 // กำหนดความกว้างคอลัมน์ผ่าน <colgroup> คู่กับ table-layout:fixed
@@ -5308,7 +5371,7 @@ function dailyTableHTML(rpt, view){
       html += `<tr><td class="namecol">${r.emp.name}${r.emp.nickname?` (${r.emp.nickname})`:''}</td>`;
       r.cells.forEach(c=>{
         const wk = c.day.getDay()===0||c.day.getDay()===6;
-        let txt = '', color = '';
+        let txt = '', color = '', extraAttr = '';
         if(view==='leave'){
           txt = c.code;
           if(c.training) color='color:var(--blue);font-weight:700;';
@@ -5317,6 +5380,11 @@ function dailyTableHTML(rpt, view){
           else if(c.code===RPT_CODE_OFFSITE) color='color:var(--blue);font-weight:600;';
           else if(c.code===RPT_CODE_WORK) color='color:var(--text);';
           else if(c.leaveKind) color = RPT_KIND_COLOR[c.leaveKind] || 'color:var(--pink-dark);font-weight:600;';
+          // กดที่วันลาไหนก็ได้เพื่อเปิดดู/แก้ไข/แนบหลักฐานได้เลย — ช่องที่ต้องมีหลักฐานแต่ยังไม่แนบ
+          // ไฮไลต์พื้นเหลืองไว้ให้กวาดตาเจอง่ายๆ โดยไม่กระทบสี/รูปแบบตัวอักษรเดิมของตาราง
+          if(c.leaveId){
+            extraAttr = ` data-leavecell="${c.leaveId}" title="กดเพื่อดู/แก้ไข/แนบหลักฐาน" style="cursor:pointer;${color}${c.needsEvidence && !c.hasEvidence ? 'background:#FEF9C3;' : ''}"`;
+          }
         }
         else if(view==='late'){
           // วันที่ลาเป็นชั่วโมง (ไม่ใช่ลาเต็มวัน) cell.code จะถูกตั้งเป็นรหัสใบลาแทน WORK แต่ยังมีการ
@@ -5324,7 +5392,7 @@ function dailyTableHTML(rpt, view){
           if(c.code===RPT_CODE_WORK || (c.leaveKind && HOURLY_KINDS.includes(c.leaveKind))){ txt = c.late; color = c.late>0 ? 'color:var(--amber);font-weight:600;' : 'color:var(--text);'; }
         }
         else { if(c.ot>0){ txt = c.ot; color='color:var(--green);font-weight:600;'; } }
-        html += `<td class="${wk?'weekend':''}" style="${color}">${txt}</td>`;
+        html += extraAttr ? `<td class="${wk?'weekend':''}"${extraAttr}>${txt}</td>` : `<td class="${wk?'weekend':''}" style="${color}">${txt}</td>`;
       });
       const tot = view==='leave' ? (r.summary.absent + r.summary.leaveDays)
         : view==='late' ? r.summary.lateMinutes : r.summary.otHours;
