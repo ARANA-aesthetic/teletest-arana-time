@@ -5160,8 +5160,9 @@ function renderReportsTab(){
     : reportView==='late'
     ? `<span><b style="color:var(--red);">AWOL</b> ไม่มีทั้งสแกนเข้า-ออก และไม่ได้แจ้งลา (หายไปทั้งวัน)</span>`
       + `<span><b style="color:var(--amber);">?IN</b> มีสแกนออกงาน แต่ไม่มีสแกนเข้างาน</span>`
-      + `<span><b style="color:var(--amber);">⚠</b> สแกนเข้างานแล้ว แต่ยังไม่ได้สแกนออกงาน (สายไม่มาก)</span>`
-      + `<span><b style="color:var(--red);">❗</b> สายเกิน 5 ชม. + ไม่มีสแกนออก — อาจลืมสแกนเข้าตอนเช้า</span>` : '';
+      + `<span><b style="color:var(--amber);">⚠</b> สแกนเข้างานแล้ว แต่น่าจะลืมสแกนออก (สายไม่เกิน 5 ชม. + ไม่มีสแกนออก)</span>`
+      + `<span><b style="color:var(--red);">❗</b> น่าจะลืมสแกนเข้า (สายเกิน 5 ชม. + ไม่มีสแกนออก)</span>`
+      + `<span><b style="color:#EA580C;">❕</b> มีสแกนเข้า-ออกครบ แต่เวลาผิดปกติ (สายเกิน 5 ชม.)</span>` : '';
 
   const rpt = buildMonthReport();
   const table = document.getElementById('reportTable');
@@ -5457,6 +5458,9 @@ function dailyTableHTML(rpt, view){
               if(c.late>=300){ color='color:var(--red);font-weight:700;'; extraAttr = ` title="สายผิดปกติมาก + ไม่มีสแกนออก — อาจเป็นลืมสแกนเข้าตอนเช้า (เวลาที่บันทึกอาจเป็นตอนเลิกงานแทน) ควรสอบถามพนักงาน" style="${color}"`; txt = `${txt||0}❗`; }
               else { extraAttr = ` title="ยังไม่ได้สแกนออกงาน" style="${color}"`; txt = `${txt||0}⚠`; }
             }
+            // มีทั้งเข้า-ออกงานจริง แต่นาทีสายผิดปกติมาก (เกิน 5 ชม.) — ไม่ใช่แค่ลืมสแกนฝั่งเดียวแบบ 2 เคส
+            // ข้างบน แต่เวลาที่บันทึกดูผิดปกติ (เช่น สแกนทั้งสองครั้งกระชั้นชิดกันตอนเย็น) ควรตรวจสอบเวลา
+            else if(c.late>=300){ color='color:#EA580C;font-weight:700;'; extraAttr = ` title="มีทั้งสแกนเข้า-ออกงาน แต่นาทีสายผิดปกติมาก (เกิน 5 ชม.) — ควรตรวจสอบว่าเวลาที่บันทึกถูกต้องหรือไม่" style="${color}"`; txt = `${txt}❕`; }
           }
           else if(c.code===RPT_CODE_ABSENT){
             // AWOL (สีแดง) เฉพาะไม่มีทั้งสแกนเข้าและสแกนออกเลย ไม่ได้แจ้งลาด้วย — ถือว่าหายไปทั้งวันจริง
