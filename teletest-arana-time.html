@@ -5383,7 +5383,10 @@ function dailyTableHTML(rpt, view){
           // กดที่วันลาไหนก็ได้เพื่อเปิดดู/แก้ไข/แนบหลักฐานได้เลย — ช่องที่ต้องมีหลักฐานแต่ยังไม่แนบ
           // ไฮไลต์พื้นเหลืองไว้ให้กวาดตาเจอง่ายๆ โดยไม่กระทบสี/รูปแบบตัวอักษรเดิมของตาราง
           if(c.leaveId){
-            extraAttr = ` data-leavecell="${c.leaveId}" title="กดเพื่อดู/แก้ไข/แนบหลักฐาน" style="cursor:pointer;${color}${c.needsEvidence && !c.hasEvidence ? 'background:#FEF9C3;' : ''}"`;
+            // ไฮไลต์เฉพาะวันลาที่มาถึงแล้ว (ไม่ไฮไลต์ลาล่วงหน้าที่ยังไม่ถึงวัน ให้สอดคล้องกับตอนที่
+            // ระบบเริ่มแจ้งเตือนจริงตอน 23:30 — กันไม่ให้ดูเหมือนต้องรีบแนบทั้งที่ยังไม่ถึงเวลา)
+            const evidenceOverdue = c.needsEvidence && !c.hasEvidence && c.day <= new Date();
+            extraAttr = ` data-leavecell="${c.leaveId}" title="กดเพื่อดู/แก้ไข/แนบหลักฐาน" style="cursor:pointer;${color}${evidenceOverdue ? 'background:#FEF9C3;' : ''}"`;
           }
         }
         else if(view==='late'){
