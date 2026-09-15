@@ -142,6 +142,7 @@
   .pickrow:active{background:var(--pink-pale);}
   .badge{font-size:11px;font-weight:600;padding:4px 10px;border-radius:99px;font-family:'Prompt',sans-serif;white-space:nowrap;}
   .badge.idle{background:#F3F4F6;color:#9CA3AF;}
+  .badge.pretrain{background:#EFF6FF;color:var(--blue);}
   .badge.offsite{background:#EEF2FF;color:var(--blue);}
   .badge.in{background:var(--pink-pale);color:var(--pink-dark);}
   .badge.out{background:#EEF2FF;color:var(--blue);}
@@ -317,9 +318,12 @@
   .rpttable .namecol{position:sticky;left:0;background:#fff;text-align:left;z-index:1;}
   .rpttable thead .namecol{background:var(--pink-pale);z-index:2;}
   .rpttable .brrow td,.rpttable.rpt-view-leave .brrow td{background:#FFFBFD;text-align:left;font-weight:600;color:var(--pink-dark);padding-left:7px;}
-  /* ล็อกแถวชื่อสาขาไว้ใต้หัวตารางเสมอ (เลื่อนดูรายชื่อล่างๆ ยังรู้ว่าอยู่สาขาไหน) — top อ้างอิงความสูง
-     จริงของ thead ที่วัดไว้จาก JS (renderReportsTab) เผื่อกรณี thead ขึ้น 2 บรรทัดในตารางสรุปเดือน */
-  .rpttable .brrow td{position:sticky;top:var(--rpt-thead-h, 32px);z-index:1;}
+  /* ล็อกป้ายชื่อสาขาไว้ที่มุมซ้ายบนเสมอ (ใต้หัวตาราง เหนือชื่อพนักงาน) — ลองปักหมุด td ที่ colspan
+     ครอบทุกคอลัมน์ตรงๆ ก่อนแล้วพบว่าเบราว์เซอร์ไม่รองรับ sticky แนวนอนกับ td แบบ colspan เต็มแถว
+     (ปักแนวตั้ง top ได้ปกติ แต่ left ไม่ติดจริง เลื่อนขวาแล้วยังหายไปกับตาราง) จึงแยกป้ายชื่อสาขาออกมา
+     เป็น td.namecol เดี่ยวๆ ต่างหาก (เหมือนคอลัมน์ชื่อพนักงานที่ปักหมุดซ้าย-บนได้จริงอยู่แล้ว) ส่วน td
+     ที่เหลือของแถวเป็นแค่แถบสีพื้นหลัง ไม่ต้อง sticky เพราะไม่มีเนื้อหาต้องเห็นตลอด */
+  .rpttable .brrow .namecol{position:sticky;top:var(--rpt-thead-h, 32px);left:0;z-index:2;background:#FFFBFD;}
   .rpttable .weekend{background:#FAFAFA;}
   .rpttable .totcol{background:#FFF9FC;font-weight:600;}
   /* ข้อมูลถูกโหลดตอนเข้าระบบครั้งเดียว ถ้าเปิดหน้าค้างไว้ทั้งวันจะไม่เห็นการสแกนที่เกิดหลังจากนั้น
@@ -1030,6 +1034,10 @@
         <div class="branchselect"><select id="inspectBranchFilter"></select></div>
         <label style="margin-top:0;">วันที่ต้องการดู</label>
         <div id="inspectDate_holder"></div>
+        <label style="display:flex;align-items:center;gap:6px;margin-top:8px;font-weight:400;font-size:12.5px;color:var(--muted);">
+          <input type="checkbox" id="inspectShowPretrain" style="width:auto;margin:0;">
+          แสดงพนักงานที่ยังไม่ถึงวันเริ่มงาน (สำหรับบันทึกเทรนงานย้อนหลัง)
+        </label>
       </section>
       <section>
         <div class="sectitle">สถานะพนักงานรายวัน</div>
@@ -4722,6 +4730,7 @@ function initInspectTab(){
     document.getElementById('inspectDate_holder').innerHTML = dateSelectHTML('inspectDate');
     setDateVal('inspectDate', dateKey(new Date()));
     wireDateChange('inspectDate', renderInspectTab);
+    document.getElementById('inspectShowPretrain').onchange = renderInspectTab;
   }
 }
 function renderInspectTab(){
@@ -4729,11 +4738,15 @@ function renderInspectTab(){
   const dateStr = getDateVal('inspectDate') || dateKey(new Date());
   const dKey = new Date(dateStr+'T00:00:00').toDateString();
   const branches = branchVal==='all' ? db.branches : db.branches.filter(b=>b.id===branchVal);
+  // เปิดสวิตช์นี้ชั่วคราวเมื่อ HR ต้องการบันทึก "เทรนงาน" ย้อนหลังให้พนักงานที่ยังไม่ถึงวันเริ่มงานจริง
+  // (ปกติซ่อนไว้ ไม่ให้รกรายชื่อประจำวันด้วยคนที่ยังไม่เริ่มงานจริง) กด "ลืมสแกน" ได้ตามปกติเมื่อเปิดแล้ว
+  // ระบบจะตีความเป็นเทรนงานอัตโนมัติอยู่แล้วในหน้ารายงาน (เทียบวันที่บันทึกกับวันเริ่มงานในโปรไฟล์)
+  const showPretrain = document.getElementById('inspectShowPretrain').checked;
 
   // Employee daily status
   let empHtml = '';
   branches.forEach(br=>{
-    const emps = db.employees.filter(e=>e.branchId===br.id && countsOn(e, new Date(dateStr+'T00:00:00')));
+    const emps = db.employees.filter(e=>e.branchId===br.id && (countsOn(e, new Date(dateStr+'T00:00:00')) || (showPretrain && !isHiddenEmployee(e))));
     if(!emps.length) return;
     empHtml += `<div style="font-weight:600;font-size:12.5px;color:var(--pink-dark);padding:10px 0 4px;">${br.name}</div>`;
     emps.forEach(e=>{
@@ -4758,6 +4771,7 @@ function renderInspectTab(){
       else if(st.isHol){ statusText = 'วันหยุดบริษัท'; badgeClass='idle'; }
       else if(st.offsiteTransfer){ const tb = db.branches.find(b=>b.id===st.offsiteTransfer.branchId); statusText = `ทำงาน${tb?'สาขา '+tb.name:'นอกสถานที่'}`; badgeClass='offsite'; }
       else if(st.inLog){ statusText = st.inLog.lateMinutes>0 ? `สาย ${st.inLog.lateMinutes} นาที (เข้า ${fmtTime(new Date(st.inLog.time))})` : `ตรงเวลา (เข้า ${fmtTime(new Date(st.inLog.time))})`; if(st.inLog.manualEntry) statusText += ` (แอดมินเพิ่มให้${st.inLog.manualReason?' — เหตุผล: '+st.inLog.manualReason:''})`; else if(st.inLog.confidence!=null) statusText += ` · ยืนยันใบหน้า ${st.inLog.confidence}%`; badgeClass = st.inLog.lateMinutes>0?'late':'approved'; }
+      else if(!countsOn(e, new Date(dateStr+'T00:00:00'))){ statusText = 'ยังไม่ถึงวันเริ่มงาน (บันทึกเป็นเทรนงานได้)'; badgeClass='pretrain'; }
       else { statusText = 'ยังไม่เข้างาน'; badgeClass='rejected'; }
       if(st.outLog) statusText += ` · ออก ${fmtTime(new Date(st.outLog.time))}${st.outLog.confidence!=null && !st.outLog.manualEntry?` (${st.outLog.confidence}%)`:''}`;
       const isAdmin = canManageApprovers();
@@ -4771,7 +4785,7 @@ function renderInspectTab(){
         if(st.offsiteTransfer) editBtns += `<button class="btn-mini icononly" data-offsitedel="${st.offsiteTransfer.id}" title="ลบบันทึกนอกสถานที่" style="margin-left:6px;">${TRASH_ICON_SVG}</button>`;
       }
       const manualBtn = canManualAdd ? `<button class="btn ghost sm" data-manualcheckin="${e.id}" style="margin-left:8px;">ลืมสแกน</button><button class="btn ghost sm" data-offsiteadd="${e.id}" style="margin-left:6px;">ทำงานนอกสถานที่</button>` : '';
-      empHtml += `<div class="listrow" style="flex-wrap:wrap;"><div class="avatar">${e.name.trim()[0]||'?'}</div><div class="info"><div class="name">${e.name}</div><div class="meta">${statusText}</div></div><span class="badge ${badgeClass}">${badgeClass==='late'?'สาย':badgeClass==='approved'?'ตรงเวลา':badgeClass==='pending'?'ลา':badgeClass==='idle'?'หยุด':badgeClass==='offsite'?'นอกสถานที่':'ขาด'}</span>${manualBtn}${editBtns}</div>`;
+      empHtml += `<div class="listrow" style="flex-wrap:wrap;"><div class="avatar">${e.name.trim()[0]||'?'}</div><div class="info"><div class="name">${e.name}</div><div class="meta">${statusText}</div></div><span class="badge ${badgeClass}">${badgeClass==='late'?'สาย':badgeClass==='approved'?'ตรงเวลา':badgeClass==='pending'?'ลา':badgeClass==='idle'?'หยุด':badgeClass==='pretrain'?'ก่อนเริ่มงาน':badgeClass==='offsite'?'นอกสถานที่':'ขาด'}</span>${manualBtn}${editBtns}</div>`;
     });
   });
   document.getElementById('inspectEmpStatusList').innerHTML = empHtml || '<div class="empty">ไม่มีพนักงานในสาขาที่เลือก</div>';
@@ -5398,7 +5412,10 @@ function dailyTableHTML(rpt, view){
   html += `<th class="totcol">${totLabel}</th></tr></thead><tbody>`;
   const span = rpt.days.length + 2;
   rpt.groups.forEach(g=>{
-    html += `<tr class="brrow"><td colspan="${span}">${g.branch.name}</td></tr>`;
+    // แยกเป็น 2 เซลล์ (namecol + ส่วนที่เหลือ) แทนเซลล์เดียว colspan เต็มแถว เพราะ sticky บน td ที่
+    // colspan ครอบทุกคอลัมน์ใช้ไม่ได้จริงกับการเลื่อนแนวนอน (เบราว์เซอร์ไม่ปักหมุดให้) ต้องใช้ namecol
+    // แบบเดียวกับคอลัมน์ชื่อพนักงานที่ปักหมุดซ้าย-บนได้จริงอยู่แล้วแทน
+    html += `<tr class="brrow"><td class="namecol">${g.branch.name}</td><td colspan="${span-1}"></td></tr>`;
     g.rows.forEach(r=>{
       html += `<tr><td class="namecol">${r.emp.name}${r.emp.nickname?` (${r.emp.nickname})`:''}</td>`;
       r.cells.forEach(c=>{
@@ -5461,7 +5478,10 @@ function summaryTableHTML(rpt){
   html += `<th>ลาเป็นชม. (ป่วย) ครั้ง</th><th>ลาชม. ป่วย<br><span style="font-weight:400;font-size:10px;">ไม่หักเงิน</span></th><th>ลาเป็นชม. (กิจ) ครั้ง</th><th>ลาชม. กิจ<br><span style="font-weight:400;font-size:10px;">หักเงิน</span></th><th class="totcol">OT (ชม.)</th></tr></thead><tbody>`;
   const span = 6 + kindCols.length + 5;
   rpt.groups.forEach(g=>{
-    html += `<tr class="brrow"><td colspan="${span}">${g.branch.name}</td></tr>`;
+    // แยกเป็น 2 เซลล์ (namecol + ส่วนที่เหลือ) แทนเซลล์เดียว colspan เต็มแถว เพราะ sticky บน td ที่
+    // colspan ครอบทุกคอลัมน์ใช้ไม่ได้จริงกับการเลื่อนแนวนอน (เบราว์เซอร์ไม่ปักหมุดให้) ต้องใช้ namecol
+    // แบบเดียวกับคอลัมน์ชื่อพนักงานที่ปักหมุดซ้าย-บนได้จริงอยู่แล้วแทน
+    html += `<tr class="brrow"><td class="namecol">${g.branch.name}</td><td colspan="${span-1}"></td></tr>`;
     g.rows.forEach(r=>{
       const s = r.summary;
       html += `<tr><td class="namecol">${r.emp.name}${r.emp.nickname?` (${r.emp.nickname})`:''}</td>`
