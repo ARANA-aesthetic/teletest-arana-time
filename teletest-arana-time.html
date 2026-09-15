@@ -317,6 +317,9 @@
   .rpttable .namecol{position:sticky;left:0;background:#fff;text-align:left;z-index:1;}
   .rpttable thead .namecol{background:var(--pink-pale);z-index:2;}
   .rpttable .brrow td,.rpttable.rpt-view-leave .brrow td{background:#FFFBFD;text-align:left;font-weight:600;color:var(--pink-dark);padding-left:7px;}
+  /* ล็อกแถวชื่อสาขาไว้ใต้หัวตารางเสมอ (เลื่อนดูรายชื่อล่างๆ ยังรู้ว่าอยู่สาขาไหน) — top อ้างอิงความสูง
+     จริงของ thead ที่วัดไว้จาก JS (renderReportsTab) เผื่อกรณี thead ขึ้น 2 บรรทัดในตารางสรุปเดือน */
+  .rpttable .brrow td{position:sticky;top:var(--rpt-thead-h, 32px);z-index:1;}
   .rpttable .weekend{background:#FAFAFA;}
   .rpttable .totcol{background:#FFF9FC;font-weight:600;}
   /* ข้อมูลถูกโหลดตอนเข้าระบบครั้งเดียว ถ้าเปิดหน้าค้างไว้ทั้งวันจะไม่เห็นการสแกนที่เกิดหลังจากนั้น
@@ -1525,8 +1528,8 @@
     <div id="adminLeaveEvidenceSection" class="hidden">
       <label>หลักฐานการลา</label>
       <div id="adminLeaveEvidenceStatus" style="font-size:12.5px;color:var(--muted);margin-bottom:6px;"></div>
+      <div id="adminLeaveEvidenceImgWrap" class="hidden"></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
-        <button type="button" class="btn ghost sm hidden" id="adminLeaveEvidenceViewBtn">ดูรูป</button>
         <button type="button" class="btn ghost sm" id="adminLeaveEvidenceAttachBtn">แนบ/เปลี่ยนรูปหลักฐานแทนพนักงาน</button>
       </div>
     </div>
@@ -3112,14 +3115,30 @@ function openAdminLeaveCreate(){
 }
 function renderAdminLeaveEvidenceSection(leave){
   const statusEl = document.getElementById('adminLeaveEvidenceStatus');
-  const viewBtn = document.getElementById('adminLeaveEvidenceViewBtn');
   const hasEvidence = !!(leave.evidenceFileId || leave.evidenceSent);
   statusEl.textContent = hasEvidence
     ? `มีหลักฐานแล้ว${leave.evidenceFileId?'':' (ยืนยันด้วยมือ ไม่มีไฟล์ในระบบ)'}`
     : 'ยังไม่มีหลักฐาน';
   statusEl.style.color = hasEvidence ? 'var(--green)' : 'var(--red)';
-  viewBtn.classList.toggle('hidden', !leave.evidenceFileId);
-  viewBtn.onclick = ()=> leave.evidenceFileId && viewTelegramPhoto(leave.evidenceFileId);
+  loadAdminLeaveEvidenceImage(leave.evidenceFileId);
+}
+// โชว์รูปหลักฐานฝังอยู่ในกล่องแก้ไขใบลากล่องเดียวกันเลย (ไม่ต้องเปิดป๊อปอัพซ้อนอีกชั้น) กดปิดครั้งเดียวจบ
+async function loadAdminLeaveEvidenceImage(fileId){
+  const wrap = document.getElementById('adminLeaveEvidenceImgWrap');
+  if(!fileId){ wrap.classList.add('hidden'); wrap.innerHTML = ''; return; }
+  wrap.classList.remove('hidden');
+  wrap.innerHTML = '<div class="empty">กำลังโหลดรูปภาพ…</div>';
+  const token = db.settings.centralToken;
+  try{
+    const res = await fetch(`https://api.telegram.org/bot${token}/getFile?file_id=${fileId}`);
+    const data = await res.json();
+    if(data.ok){
+      const url = `https://api.telegram.org/file/bot${token}/${data.result.file_path}`;
+      wrap.innerHTML = `<img src="${url}" style="max-width:100%;border-radius:12px;margin:4px 0 10px;">`;
+    } else {
+      wrap.innerHTML = '<div class="empty">ไม่พบรูปภาพ (อาจถูกลบจาก Telegram แล้ว หรือรูปหมดอายุ)</div>';
+    }
+  }catch(e){ wrap.innerHTML = '<div class="empty">เปิดรูปภาพไม่สำเร็จ ลองใหม่อีกครั้ง</div>'; }
 }
 function openAdminLeaveEdit(leaveId){
   if(!canApproveLeave()){ alert('ไม่มีสิทธิ์แก้ไข ต้องเป็นเจ้าของ/HR/ผู้จัดการ'); return; }
@@ -3149,8 +3168,6 @@ function openAdminLeaveEdit(leaveId){
   }
   document.getElementById('adminLeaveReason').value = leave.reason||'';
   document.getElementById('adminLeaveEditOverlay').classList.add('show');
-  // มีรูปอยู่แล้วก็โชว์เลยทันที ไม่ต้องให้กดปุ่ม "ดูรูป" ซ้ำอีกที (ลดขั้นตอนตอนกดเข้ามาจากตารางรายงาน)
-  if(leave.evidenceFileId) viewTelegramPhoto(leave.evidenceFileId);
 }
 document.getElementById('closeAdminLeaveEditBtn').onclick = ()=> document.getElementById('adminLeaveEditOverlay').classList.remove('show');
 // -- HR แนบ/เปลี่ยนรูปหลักฐานแทนพนักงาน (จากป๊อปอัพแก้ไขใบลา) — ยืดหยุ่นไว้เผื่อพนักงานใช้แอปไม่คล่อง
@@ -5058,6 +5075,8 @@ function buildMonthReport(){
         const offWeekly = (br.weeklyOffDays||[]).includes(d.getDay()) || (e.weeklyOffDays||[]).includes(d.getDay());
         const leave = db.leaves.find(l=>l.employeeId===e.id && l.status==='approved' && new Date(l.from+'T00:00:00')<=d && d<=new Date(l.to+'T00:00:00'));
         const inLog = db.logs.find(l=>l.employeeId===e.id && l.type==='IN' && todayKey(new Date(l.time))===d.toDateString());
+        const outLog = db.logs.find(l=>l.employeeId===e.id && l.type==='OUT' && todayKey(new Date(l.time))===d.toDateString());
+        cell.hasOut = !!outLog;
         if(inLog) cell.late = inLog.lateMinutes||0;
         db.otRequests.filter(o=>o.employeeId===e.id && o.status==='approved' && o.date===dateKey(d)).forEach(o=>{ cell.ot += otHours(o); });
         // ก่อนถึงวันเริ่มงานจริงแต่มีการสแกนเข้างาน = ช่วงเทรนงาน (แสดง 0 สีน้ำเงินแยกจากวันทำงานปกติ)
@@ -5125,7 +5144,11 @@ function renderReportsTab(){
   document.getElementById('reportTitle').textContent = titles[reportView];
   document.getElementById('reportLegend').innerHTML = reportView==='leave'
     ? RPT_LEGEND.map(([c,t,style])=>`<span><b style="${style||''}">${c}</b> ${t}</span>`).join('')
-      + `<span><b style="background:#FEF9C3;padding:1px 5px;border-radius:3px;">■</b> ยังไม่แนบหลักฐาน (กดที่ช่องวันลาเพื่อดู/แก้ไข/แนบรูปได้)</span>` : '';
+      + `<span><b style="background:#FEF9C3;padding:1px 5px;border-radius:3px;">■</b> ยังไม่แนบหลักฐาน (กดที่ช่องวันลาเพื่อดู/แก้ไข/แนบรูปได้)</span>`
+    : reportView==='late'
+    ? `<span><b style="color:var(--red);">AWOL</b> ไม่มีทั้งสแกนเข้า-ออก และไม่ได้แจ้งลา (หายไปทั้งวัน)</span>`
+      + `<span><b style="color:var(--amber);">?IN</b> มีสแกนออกงาน แต่ไม่มีสแกนเข้างาน</span>`
+      + `<span><b style="color:var(--amber);">⚠</b> สแกนเข้างานแล้ว แต่ยังไม่ได้สแกนออกงาน</span>` : '';
 
   const rpt = buildMonthReport();
   const table = document.getElementById('reportTable');
@@ -5133,6 +5156,9 @@ function renderReportsTab(){
   table.className = (reportView==='summary' ? 'rpttable rpt-summary' : 'rpttable rpt-daily') + ` rpt-view-${reportView}`;
   table.innerHTML = reportView==='summary' ? summaryTableHTML(rpt) : dailyTableHTML(rpt, reportView);
   table.querySelectorAll('[data-leavecell]').forEach(td=> td.onclick = ()=> openAdminLeaveEdit(td.dataset.leavecell));
+  // วัดความสูงจริงของหัวตาราง (บางมุมมองหัวขึ้น 2 บรรทัด) ไว้เป็นจุดที่แถวชื่อสาขาจะไปล็อกต่อท้าย
+  const theadH = table.querySelector('thead')?.getBoundingClientRect().height;
+  if(theadH) table.style.setProperty('--rpt-thead-h', theadH+'px');
 }
 
 // กำหนดความกว้างคอลัมน์ผ่าน <colgroup> คู่กับ table-layout:fixed
@@ -5396,9 +5422,26 @@ function dailyTableHTML(rpt, view){
           }
         }
         else if(view==='late'){
+          if(c.leaveKind && !HOURLY_KINDS.includes(c.leaveKind)){
+            // ลาเต็มวัน (ไม่ใช่ลาเป็นชั่วโมง) — โชว์รหัสประเภทลาแทนเว้นว่างไว้ จะได้รู้ทันทีว่าไม่มี
+            // เวลาเข้างานเพราะลา ไม่ใช่ลืมสแกน (ไม่กระทบสูตรนับนาทีสายรวมเลย แค่เปลี่ยนสิ่งที่แสดง)
+            txt = c.code; color = RPT_KIND_COLOR[c.leaveKind] || 'color:var(--pink-dark);font-weight:600;';
+          }
           // วันที่ลาเป็นชั่วโมง (ไม่ใช่ลาเต็มวัน) cell.code จะถูกตั้งเป็นรหัสใบลาแทน WORK แต่ยังมีการ
           // เช็กอินเข้างานจริงในวันนั้น (นาทีสายคำนวณเผื่อช่วงลาให้แล้ว) ต้องยังแสดงในรายงานมาสายด้วย
-          if(c.code===RPT_CODE_WORK || (c.leaveKind && HOURLY_KINDS.includes(c.leaveKind))){ txt = c.late; color = c.late>0 ? 'color:var(--amber);font-weight:600;' : 'color:var(--text);'; }
+          else if(c.code===RPT_CODE_WORK || (c.leaveKind && HOURLY_KINDS.includes(c.leaveKind))){
+            txt = c.late; color = c.late>0 ? 'color:var(--amber);font-weight:600;' : 'color:var(--text);';
+            // ลืมสแกนออก — ต่อสัญลักษณ์เล็กๆ ท้ายตัวเลขสาย ไม่กระทบขนาดช่อง/แถวเลย เพราะตารางล็อก
+            // ความกว้างคอลัมน์ไว้แน่นอนด้วย table-layout:fixed + ตัดข้อความล้นด้วย ellipsis อยู่แล้ว
+            if(!c.hasOut) extraAttr = ` title="ยังไม่ได้สแกนออกงาน" style="${color}"`, txt = `${txt||0}⚠`;
+          }
+          else if(c.code===RPT_CODE_ABSENT){
+            // AWOL (สีแดง) เฉพาะไม่มีทั้งสแกนเข้าและสแกนออกเลย ไม่ได้แจ้งลาด้วย — ถือว่าหายไปทั้งวันจริง
+            // ต้องติดต่อถามพนักงาน ส่วนกรณีมีสแกนออกแต่ไม่มีสแกนเข้า แยกออกมาต่างหาก ไม่ใช่ขาดงานจริง
+            // (แค่ลืมสแกนฝั่งเดียว) เพื่อให้ HR รู้ว่าควรถามพนักงานเรื่องไหนก่อนขอหลักฐานเพิ่ม
+            if(c.hasOut){ txt = '?IN'; color = 'color:var(--amber);font-weight:600;'; extraAttr = ` title="มีสแกนออกงาน แต่ไม่มีสแกนเข้างาน" style="${color}"`; }
+            else { txt = RPT_CODE_ABSENT; color = 'color:var(--red);font-weight:600;'; }
+          }
         }
         else { if(c.ot>0){ txt = c.ot; color='color:var(--green);font-weight:600;'; } }
         html += extraAttr ? `<td class="${wk?'weekend':''}"${extraAttr}>${txt}</td>` : `<td class="${wk?'weekend':''}" style="${color}">${txt}</td>`;
@@ -5544,13 +5587,13 @@ function renderLeaveLists(){
     // เฉพาะประเภทลาที่ต้องมีหลักฐาน — โชว์สถานะ + ปุ่มดูรูป (ถ้ามีไฟล์จริง) หรือปุ่มยืนยันด้วยมือ
     // (เผื่อกรณีพนักงานส่งรูปเข้ากลุ่มเทเลแกรมโดยตรง ไม่ผ่านแอป จึงไม่มีไฟล์ให้ดู แต่ HR เห็นแล้วว่าส่งจริง)
     const evidenceHtml = !needsEvidence ? '' : hasEvidence
-      ? `<div class="meta" style="color:var(--green);">📎 มีหลักฐานแล้ว${l.evidenceFileId?` <span class="resendlink" data-viewphoto2="${l.evidenceFileId}">· ดูรูป</span>`:' (ยืนยันด้วยมือ ไม่มีไฟล์ในระบบ)'}</div>`
+      ? `<div class="meta" style="color:var(--green);">📎 มีหลักฐานแล้ว${l.evidenceFileId?` <span class="resendlink" data-viewphoto2="${l.id}">· ดูรูป</span>`:' (ยืนยันด้วยมือ ไม่มีไฟล์ในระบบ)'}</div>`
       : `<div class="meta" style="color:var(--red);">📎 ยังไม่มีหลักฐาน${canApproveLeave()?` <span class="resendlink" data-confirmevidence="${l.id}">· ยืนยันว่าได้รับแล้ว</span>`:''}</div>`;
     return `<div class="listrow"><div class="info"><div class="name">${emp?.name||'-'} · ${leaveLabel(l.kind)}</div><div class="meta">${leaveRangeText(l)}</div>${evidenceHtml}</div><span class="badge ${l.status}">${leaveStatusLabel(l.status)}</span>${canApproveLeave() ? `<button class="btn ghost sm" data-admineditleave="${l.id}" style="margin-left:8px;">แก้ไข</button><button class="btn-mini icononly" data-admindeleteleave="${l.id}" title="ลบถาวร (ไม่แจ้งเตือน)" style="margin-left:6px;">${TRASH_ICON_SVG}</button>` : ''}</div>`;
   }).join('') : '<div class="empty">ไม่มีประวัติในช่วงที่เลือก</div>';
   allListEl.querySelectorAll('[data-admineditleave]').forEach(b=> b.onclick = ()=> openAdminLeaveEdit(b.dataset.admineditleave));
   allListEl.querySelectorAll('[data-admindeleteleave]').forEach(b=> b.onclick = ()=> adminDeleteLeave(b.dataset.admindeleteleave));
-  allListEl.querySelectorAll('[data-viewphoto2]').forEach(b=> b.onclick = ()=> viewTelegramPhoto(b.dataset.viewphoto2));
+  allListEl.querySelectorAll('[data-viewphoto2]').forEach(b=> b.onclick = ()=> openAdminLeaveEdit(b.dataset.viewphoto2));
   allListEl.querySelectorAll('[data-confirmevidence]').forEach(b=> b.onclick = ()=> confirmLeaveEvidenceManually(b.dataset.confirmevidence));
 }
 async function confirmLeaveEvidenceManually(id){
