@@ -142,7 +142,6 @@
   .pickrow:active{background:var(--pink-pale);}
   .badge{font-size:11px;font-weight:600;padding:4px 10px;border-radius:99px;font-family:'Prompt',sans-serif;white-space:nowrap;}
   .badge.idle{background:#F3F4F6;color:#9CA3AF;}
-  .badge.pretrain{background:#EFF6FF;color:var(--blue);}
   .badge.offsite{background:#EEF2FF;color:var(--blue);}
   .badge.in{background:var(--pink-pale);color:var(--pink-dark);}
   .badge.out{background:#EEF2FF;color:var(--blue);}
@@ -1034,10 +1033,6 @@
         <div class="branchselect"><select id="inspectBranchFilter"></select></div>
         <label style="margin-top:0;">วันที่ต้องการดู</label>
         <div id="inspectDate_holder"></div>
-        <label style="display:flex;align-items:center;gap:6px;margin-top:8px;font-weight:400;font-size:12.5px;color:var(--muted);">
-          <input type="checkbox" id="inspectShowPretrain" style="width:auto;margin:0;">
-          แสดงพนักงานที่ยังไม่ถึงวันเริ่มงาน (สำหรับบันทึกเทรนงานย้อนหลัง)
-        </label>
       </section>
       <section>
         <div class="sectitle">สถานะพนักงานรายวัน</div>
@@ -1773,6 +1768,15 @@
     <select id="editEmpBranch"></select>
     <label>วันที่เริ่มงาน</label>
     <div id="editEmpStartDate_holder"></div>
+    <div id="editEmpTrainSection" class="hidden">
+      <label>บันทึกเทรนงานย้อนหลัง (สำหรับวันก่อนวันเริ่มงานจริงด้านบน)</label>
+      <div class="row2">
+        <div id="editEmpTrainDate_holder"></div>
+        <input type="time" id="editEmpTrainTime">
+      </div>
+      <button type="button" class="btn ghost sm" id="editEmpAddTrainBtn" style="margin-bottom:6px;">เพิ่มบันทึกเทรนงาน</button>
+      <div class="msg" id="editEmpTrainMsg"></div>
+    </div>
     <label>วันที่พ้นสภาพ / ลาออก (เว้นว่างไว้ถ้ายังทำงานอยู่)</label>
     <div id="editEmpResignDate_holder"></div>
     <div style="color:var(--muted);font-size:11.5px;margin:-4px 0 10px;">ใส่วันที่แล้วระบบจะไม่นับขาดงานตั้งแต่วันถัดจากวันนี้เป็นต้นไป และไม่แจ้งเตือนถึงคนนี้อีก — ประวัติเดิมยังอยู่ครบสำหรับทำเงินเดือนงวดสุดท้าย</div>
@@ -4730,7 +4734,6 @@ function initInspectTab(){
     document.getElementById('inspectDate_holder').innerHTML = dateSelectHTML('inspectDate');
     setDateVal('inspectDate', dateKey(new Date()));
     wireDateChange('inspectDate', renderInspectTab);
-    document.getElementById('inspectShowPretrain').onchange = renderInspectTab;
   }
 }
 function renderInspectTab(){
@@ -4738,15 +4741,11 @@ function renderInspectTab(){
   const dateStr = getDateVal('inspectDate') || dateKey(new Date());
   const dKey = new Date(dateStr+'T00:00:00').toDateString();
   const branches = branchVal==='all' ? db.branches : db.branches.filter(b=>b.id===branchVal);
-  // เปิดสวิตช์นี้ชั่วคราวเมื่อ HR ต้องการบันทึก "เทรนงาน" ย้อนหลังให้พนักงานที่ยังไม่ถึงวันเริ่มงานจริง
-  // (ปกติซ่อนไว้ ไม่ให้รกรายชื่อประจำวันด้วยคนที่ยังไม่เริ่มงานจริง) กด "ลืมสแกน" ได้ตามปกติเมื่อเปิดแล้ว
-  // ระบบจะตีความเป็นเทรนงานอัตโนมัติอยู่แล้วในหน้ารายงาน (เทียบวันที่บันทึกกับวันเริ่มงานในโปรไฟล์)
-  const showPretrain = document.getElementById('inspectShowPretrain').checked;
 
   // Employee daily status
   let empHtml = '';
   branches.forEach(br=>{
-    const emps = db.employees.filter(e=>e.branchId===br.id && (countsOn(e, new Date(dateStr+'T00:00:00')) || (showPretrain && !isHiddenEmployee(e))));
+    const emps = db.employees.filter(e=>e.branchId===br.id && countsOn(e, new Date(dateStr+'T00:00:00')));
     if(!emps.length) return;
     empHtml += `<div style="font-weight:600;font-size:12.5px;color:var(--pink-dark);padding:10px 0 4px;">${br.name}</div>`;
     emps.forEach(e=>{
@@ -4771,7 +4770,6 @@ function renderInspectTab(){
       else if(st.isHol){ statusText = 'วันหยุดบริษัท'; badgeClass='idle'; }
       else if(st.offsiteTransfer){ const tb = db.branches.find(b=>b.id===st.offsiteTransfer.branchId); statusText = `ทำงาน${tb?'สาขา '+tb.name:'นอกสถานที่'}`; badgeClass='offsite'; }
       else if(st.inLog){ statusText = st.inLog.lateMinutes>0 ? `สาย ${st.inLog.lateMinutes} นาที (เข้า ${fmtTime(new Date(st.inLog.time))})` : `ตรงเวลา (เข้า ${fmtTime(new Date(st.inLog.time))})`; if(st.inLog.manualEntry) statusText += ` (แอดมินเพิ่มให้${st.inLog.manualReason?' — เหตุผล: '+st.inLog.manualReason:''})`; else if(st.inLog.confidence!=null) statusText += ` · ยืนยันใบหน้า ${st.inLog.confidence}%`; badgeClass = st.inLog.lateMinutes>0?'late':'approved'; }
-      else if(!countsOn(e, new Date(dateStr+'T00:00:00'))){ statusText = 'ยังไม่ถึงวันเริ่มงาน (บันทึกเป็นเทรนงานได้)'; badgeClass='pretrain'; }
       else { statusText = 'ยังไม่เข้างาน'; badgeClass='rejected'; }
       if(st.outLog) statusText += ` · ออก ${fmtTime(new Date(st.outLog.time))}${st.outLog.confidence!=null && !st.outLog.manualEntry?` (${st.outLog.confidence}%)`:''}`;
       const isAdmin = canManageApprovers();
@@ -4785,7 +4783,7 @@ function renderInspectTab(){
         if(st.offsiteTransfer) editBtns += `<button class="btn-mini icononly" data-offsitedel="${st.offsiteTransfer.id}" title="ลบบันทึกนอกสถานที่" style="margin-left:6px;">${TRASH_ICON_SVG}</button>`;
       }
       const manualBtn = canManualAdd ? `<button class="btn ghost sm" data-manualcheckin="${e.id}" style="margin-left:8px;">ลืมสแกน</button><button class="btn ghost sm" data-offsiteadd="${e.id}" style="margin-left:6px;">ทำงานนอกสถานที่</button>` : '';
-      empHtml += `<div class="listrow" style="flex-wrap:wrap;"><div class="avatar">${e.name.trim()[0]||'?'}</div><div class="info"><div class="name">${e.name}</div><div class="meta">${statusText}</div></div><span class="badge ${badgeClass}">${badgeClass==='late'?'สาย':badgeClass==='approved'?'ตรงเวลา':badgeClass==='pending'?'ลา':badgeClass==='idle'?'หยุด':badgeClass==='pretrain'?'ก่อนเริ่มงาน':badgeClass==='offsite'?'นอกสถานที่':'ขาด'}</span>${manualBtn}${editBtns}</div>`;
+      empHtml += `<div class="listrow" style="flex-wrap:wrap;"><div class="avatar">${e.name.trim()[0]||'?'}</div><div class="info"><div class="name">${e.name}</div><div class="meta">${statusText}</div></div><span class="badge ${badgeClass}">${badgeClass==='late'?'สาย':badgeClass==='approved'?'ตรงเวลา':badgeClass==='pending'?'ลา':badgeClass==='idle'?'หยุด':badgeClass==='offsite'?'นอกสถานที่':'ขาด'}</span>${manualBtn}${editBtns}</div>`;
     });
   });
   document.getElementById('inspectEmpStatusList').innerHTML = empHtml || '<div class="empty">ไม่มีพนักงานในสาขาที่เลือก</div>';
@@ -5905,6 +5903,12 @@ function openEmpEditor(empId){
     const toggleBtn = document.getElementById('toggleActiveEmpBtn');
     toggleBtn.classList.remove('hidden');
     toggleBtn.textContent = e.active===false ? 'เปิดการใช้งาน' : 'ปิดการใช้งาน';
+    // ต้องมีพนักงานอยู่แล้วถึงจะบันทึกเทรนงานย้อนหลังให้ได้ (ตอน "เพิ่มพนักงาน" ยังไม่มี id ให้ผูก)
+    document.getElementById('editEmpTrainSection').classList.remove('hidden');
+    document.getElementById('editEmpTrainDate_holder').innerHTML = dateSelectHTML('editEmpTrainDate');
+    setDateVal('editEmpTrainDate', e.startDate || dateKey(new Date()));
+    document.getElementById('editEmpTrainTime').value = e.shiftStart || '09:00';
+    document.getElementById('editEmpTrainMsg').textContent = '';
   } else {
     document.getElementById('empEditTitle').textContent = 'เพิ่มพนักงาน';
     document.getElementById('editEmpCode').value = nextEmployeeCode();
@@ -5924,10 +5928,35 @@ function openEmpEditor(empId){
     document.getElementById('empHomeLocationLink').classList.add('hidden');
     document.getElementById('deleteEmpBtn').classList.add('hidden');
     document.getElementById('toggleActiveEmpBtn').classList.add('hidden');
+    document.getElementById('editEmpTrainSection').classList.add('hidden');
   }
   document.getElementById('empEditOverlay').classList.add('show');
 }
 document.getElementById('closeEmpEditBtn').onclick = ()=> document.getElementById('empEditOverlay').classList.remove('show');
+// บันทึกเทรนงานย้อนหลัง — แยกออกมาจาก "ลืมสแกน" ปกติเพราะกรณีนั้น hardcode คิดสาย 30 นาทีตามนโยบาย
+// ลืมสแกนของพนักงานจริง ซึ่งไม่ควรใช้กับวันเทรนงาน (ยังไม่ได้เป็นพนักงานจริงตามสัญญา ไม่มีนโยบายสายด้วย)
+// หน้ารายงานจะตีความเป็น "เทรนงาน" อัตโนมัติอยู่แล้วจากการเทียบวันที่บันทึกกับวันเริ่มงานในโปรไฟล์
+document.getElementById('editEmpAddTrainBtn').onclick = async ()=>{
+  if(!canManageApprovers()){ alert('ไม่มีสิทธิ์ ต้องเป็นเจ้าของ/HR เท่านั้น'); return; }
+  const msg = document.getElementById('editEmpTrainMsg');
+  const emp = db.employees.find(e=>e.id===editingEmpId); if(!emp) return;
+  const dateStr = getDateVal('editEmpTrainDate');
+  const time = document.getElementById('editEmpTrainTime').value;
+  if(!dateStr || !time){ msg.className='msg err'; msg.textContent='กรุณาระบุวันที่และเวลา'; return; }
+  if(dateStr > dateKey(new Date())){ msg.className='msg err'; msg.textContent='เลือกวันที่ในอนาคตไม่ได้'; return; }
+  const already = db.logs.some(l=>l.employeeId===emp.id && l.type==='IN' && todayKey(new Date(l.time))===new Date(dateStr+'T00:00:00').toDateString());
+  if(already){ msg.className='msg err'; msg.textContent='มีบันทึกเวลาเข้างานวันนี้อยู่แล้ว'; return; }
+  const br = currentBranch(emp);
+  const manualBy = session.role==='admin' ? 'เจ้าของ/HR' : (currentApprover()?.name || 'ผู้บริหาร');
+  const logEntry = {
+    id:uid(), employeeId:emp.id, type:'IN', time:new Date(`${dateStr}T${time}:00`).toISOString(),
+    branchId:br?.id||null, lateMinutes:0, sent:false, manualEntry:true, manualBy, manualReason:'บันทึกเทรนงานย้อนหลัง'
+  };
+  db.logs.unshift(logEntry); await saveLogRow(logEntry);
+  await logAudit('add_training_checkin', 'log', logEntry.id, `เพิ่มบันทึกเทรนงานย้อนหลังให้ ${emp.name} วันที่ ${ddmmyyyy(dateStr)} เวลา ${time}`);
+  msg.className='msg ok'; msg.textContent='บันทึกเทรนงานเรียบร้อย';
+  renderOverviewStats();
+};
 document.getElementById('saveEmpEditBtn').onclick = async ()=>{
   const name = document.getElementById('editEmpName').value.trim();
   const nickname = document.getElementById('editEmpNickname').value.trim();
