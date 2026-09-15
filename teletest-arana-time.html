@@ -295,7 +295,11 @@
   .segbar{display:flex;gap:6px;background:var(--pink-pale);padding:4px;border-radius:12px;}
   .segbtn{flex:1;border:none;background:transparent;padding:8px 4px;border-radius:9px;font-family:'Sarabun',sans-serif;font-size:12.5px;font-weight:600;color:var(--pink-dark);cursor:pointer;}
   .segbtn.active{background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.08);}
-  .rptscroll{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+  /* overflow-x:auto เพียงอย่างเดียวทำให้กลายเป็น scroll container ของตัวเอง (แม้จะไม่ได้ตั้งใจ)
+     ผลคือ thead/namecol ที่ตั้ง position:sticky ไว้แล้วจะอ้างอิงกรอบนี้แทนหน้าเว็บ แต่กรอบนี้สูงเท่า
+     เนื้อหาพอดี ไม่เคยเลื่อนแนวตั้งเอง (หน้าเว็บเป็นคนเลื่อนแทน) sticky จึงไม่ทำงานเลยจริงๆ ต้องกำหนด
+     max-height + overflow-y:auto ให้กรอบนี้เลื่อนแนวตั้งเองจริงๆ ตัวหัวตาราง/คอลัมน์ชื่อจะได้ค้างจริง */
+  .rptscroll{overflow-x:auto;-webkit-overflow-scrolling:touch;max-height:70vh;overflow-y:auto;}
   /* table-layout:fixed + colgroup = ทุกช่องหลังคอลัมน์ชื่อกว้างเท่ากันเป๊ะทุกคอลัมน์
      (ถ้าปล่อยให้เบราว์เซอร์คำนวณเอง ช่องที่มีข้อความยาวเช่น Sick/N จะกว้างกว่าช่องที่ว่าง) */
   .rpttable{border-collapse:collapse;font-size:11.5px;white-space:nowrap;font-variant-numeric:tabular-nums;table-layout:fixed;min-width:max-content;}
@@ -3145,6 +3149,8 @@ function openAdminLeaveEdit(leaveId){
   }
   document.getElementById('adminLeaveReason').value = leave.reason||'';
   document.getElementById('adminLeaveEditOverlay').classList.add('show');
+  // มีรูปอยู่แล้วก็โชว์เลยทันที ไม่ต้องให้กดปุ่ม "ดูรูป" ซ้ำอีกที (ลดขั้นตอนตอนกดเข้ามาจากตารางรายงาน)
+  if(leave.evidenceFileId) viewTelegramPhoto(leave.evidenceFileId);
 }
 document.getElementById('closeAdminLeaveEditBtn').onclick = ()=> document.getElementById('adminLeaveEditOverlay').classList.remove('show');
 // -- HR แนบ/เปลี่ยนรูปหลักฐานแทนพนักงาน (จากป๊อปอัพแก้ไขใบลา) — ยืดหยุ่นไว้เผื่อพนักงานใช้แอปไม่คล่อง
