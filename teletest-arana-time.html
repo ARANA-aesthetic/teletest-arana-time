@@ -728,6 +728,7 @@
     <!-- HOME -->
     <div id="etabHome">
       <div id="unsentPhotoBanner" class="hidden"></div>
+      <div id="pendingSaveBanner" class="hidden"></div>
       <section>
         <div class="card scancard">
           <div class="scanring">◎</div>
@@ -2230,7 +2231,7 @@ async function saveDB(){
   ]);
 }
 
-async function saveLogRow(row){ await sbUpsertRow('logs', logToRow(row)); }
+async function saveLogRow(row){ return await sbUpsertRow('logs', logToRow(row)); }
 async function saveLeaveRow(row){ await sbUpsertRow('leaves', leaveToRow(row)); }
 async function saveOtRow(row){ await sbUpsertRow('ot_requests', otToRow(row)); }
 async function saveWarningLetterRow(row){ await sbUpsertRow('warning_letters', warningLetterToRow(row)); }
@@ -2925,6 +2926,7 @@ function renderEmployeeHome(){
     if(log) resendCheckinPhotoInput(log);
   });
   renderUnsentPhotoBanner();
+  renderPendingSaveBanner();
 
   const br = currentBranch(emp);
   document.getElementById('qaGroom').classList.toggle('hidden', (emp.department||'').trim() !== 'หน้าร้าน');
@@ -2971,6 +2973,55 @@ function renderUnsentPhotoBanner(){
   document.getElementById('unsentResendBtn').onclick = ()=> resendCheckinPhotoInput(failed);
   document.getElementById('unsentDismissBtn').onclick = ()=>{ unsentBannerDismissed.add(failed.id); renderUnsentPhotoBanner(); };
 }
+
+// -- รายการสแกนที่บันทึกเวลาลงฐานข้อมูลไม่สำเร็จแม้ลองซ้ำอัตโนมัติแล้ว (ดู finalizeScan) --
+// เก็บไว้ในเครื่องเท่านั้น (ยังไม่มีข้อมูลจริงในระบบให้ผูกไว้เลย) เผื่อกดลองบันทึกใหม่ได้ทีหลัง
+const PENDING_SCAN_KEY = 'aranaPendingScanRetry';
+function getPendingScans(){ try{ return JSON.parse(localStorage.getItem(PENDING_SCAN_KEY)||'[]'); }catch(e){ return []; } }
+function savePendingScans(arr){ try{ localStorage.setItem(PENDING_SCAN_KEY, JSON.stringify(arr)); }catch(e){} }
+function addPendingScan(entry){ const arr = getPendingScans(); arr.push(entry); savePendingScans(arr); }
+function removePendingScan(tempId){ savePendingScans(getPendingScans().filter(x=>x.tempId!==tempId)); }
+function renderPendingSaveBanner(){
+  const emp = currentEmployee(); if(!emp) return;
+  const el = document.getElementById('pendingSaveBanner'); if(!el) return;
+  const mine = getPendingScans().filter(x=>x.employeeId===emp.id);
+  if(!mine.length){ el.classList.add('hidden'); el.innerHTML=''; return; }
+  const p = mine[mine.length-1];
+  el.classList.remove('hidden');
+  el.innerHTML = `<div class="unsentbanner">
+    <div class="bicon">!</div>
+    <div class="btext">
+      <div class="btitle">บันทึกเวลา${p.type==='IN'?'เข้า':'ออก'}งาน ${fmtTime(new Date(p.time))} น. ไม่สำเร็จ</div>
+      <div class="bsub">ระบบลองบันทึกให้อัตโนมัติแล้วแต่ยังไม่ผ่าน (ไม่ได้ส่งรูปเข้ากลุ่มด้วย) — กดลองใหม่อีกครั้ง หรือแจ้ง HR ถ้ายังไม่ได้</div>
+      <div class="bactions"><button class="btn amber" id="pendingSaveRetryBtn">ลองบันทึกใหม่</button></div>
+    </div>
+  </div>`;
+  document.getElementById('pendingSaveRetryBtn').onclick = (e)=> retryPendingScan(p.tempId, e.target);
+}
+async function retryPendingScan(tempId, btn){
+  btn.disabled = true; btn.textContent = 'กำลังลอง…';
+  const pending = getPendingScans().find(x=>x.tempId===tempId);
+  if(!pending) return;
+  const logEntry = { id:uid(), employeeId:pending.employeeId, type:pending.type, time:pending.time, branchId:pending.branchId, lateMinutes:pending.lateMinutes, sent:null, leaveConflict:pending.leaveConflict, confidence:pending.confidence };
+  const r = await saveLogRow(logEntry);
+  if(r.ok){
+    db.logs.unshift(logEntry);
+    removePendingScan(tempId);
+    const br = db.branches.find(b=>b.id===pending.branchId);
+    const notifyKey = pending.type==='IN' ? 'checkin' : 'checkout';
+    // ไม่มีรูปเดิมเก็บสำรองไว้ (ไม่ได้เก็บ blob ในเครื่อง) จึงส่งเป็นข้อความแทนรูปตอนบันทึกย้อนหลังสำเร็จ
+    let anyOk = false;
+    if(db.settings.notifyTypes[notifyKey] && br?.chatIdCheckinout){
+      const result = await tgSendMessage(db.settings.centralToken, br.chatIdCheckinout, pending.text + '\n(บันทึกย้อนหลัง — ระบบมีปัญหาชั่วคราวตอนสแกนจริง)');
+      anyOk = result.ok;
+    }
+    logEntry.sent = anyOk; await saveLogRow(logEntry);
+    renderEmployeeHome();
+  } else {
+    btn.disabled = false; btn.textContent = 'ลองบันทึกใหม่';
+    alert('ยังบันทึกไม่สำเร็จ ลองใหม่อีกครั้ง หรือแจ้ง HR ถ้ายังไม่ได้');
+  }
+}
 let checkinResendTarget = null;
 const checkinResendInput = document.createElement('input');
 checkinResendInput.type='file'; checkinResendInput.accept='image/*'; checkinResendInput.capture='user'; checkinResendInput.id='checkinResendInput'; checkinResendInput.style.display='none';
@@ -2981,7 +3032,9 @@ checkinResendInput.addEventListener('change', async (e)=>{
   const logEntry = checkinResendTarget; checkinResendTarget = null;
   const emp = db.employees.find(x=>x.id===logEntry.employeeId);
   const br = db.branches.find(x=>x.id===logEntry.branchId);
-  const caption = `✅${notifyName(emp)}\n${logEntry.type==='IN'?'เข้างาน':'ออกงาน'} เวลา ${fmtTime(new Date(logEntry.time))} น.${logEntry.lateMinutes>0?`\nสาย ${logEntry.lateMinutes} นาที`:''}\nส่งอีกครั้ง(ไม่สำเร็จ)`;
+  // เดิมฝังคำว่า "(ไม่สำเร็จ)" ไว้ในแคปชั่นแบบตายตัว ขึ้นแบบนั้นเสมอไม่ว่าการส่งซ้ำครั้งนี้จะสำเร็จ
+  // จริงหรือไม่ก็ตาม (เป็นข้อความที่พิมพ์ผิดตั้งแต่แรก) ทำให้รูปที่ส่งสำเร็จจริงกลับดูเหมือนส่งไม่สำเร็จ
+  const caption = `✅${notifyName(emp)}\n${logEntry.type==='IN'?'เข้างาน':'ออกงาน'} เวลา ${fmtTime(new Date(logEntry.time))} น.${logEntry.lateMinutes>0?`\nสาย ${logEntry.lateMinutes} นาที`:''}\n(ส่งซ้ำ)`;
   const anyOk = await gatedTelegramPhoto(logEntry.type==='IN'?'checkin':'checkout', br?.chatIdCheckinout, file, caption);
   logEntry.sent = anyOk; await saveLogRow(logEntry);
   renderEmployeeHome();
@@ -7781,7 +7834,28 @@ async function finalizeScan(emp, confidence, pos, distance){
   document.getElementById('camStatusText').innerHTML = `ยืนยันตัวตนสำเร็จ<br>กำลังบันทึกและส่งแจ้งเตือน…`;
   const blob = await grabFrameBlob();
   const logEntry = {id:uid(), employeeId:emp.id, type, time: now.toISOString(), branchId: br?.id, lateMinutes, sent:null, leaveConflict: (type==='IN' && conflictLeave) ? true : false, confidence};
-  db.logs.unshift(logEntry); await saveLogRow(logEntry);
+  // ต้องมั่นใจว่าบันทึกเวลาลงฐานข้อมูลสำเร็จก่อนเสมอ ค่อยส่งรูปเข้า Telegram — เคยเกิดเคสจริงที่บันทึก
+  // ลงฐานข้อมูลล้มเหลวเงียบๆ แต่รูปกลับส่งเข้ากลุ่มสำเร็จแยกกันไปได้ (คนละคำขอเครือข่ายกัน) กลายเป็น
+  // "รูปมีในกลุ่มแต่ในระบบไม่มีข้อมูลเวลา" พนักงานไม่มีอะไรให้กดส่งซ้ำได้เลย จึงลองบันทึกซ้ำอัตโนมัติ
+  // ก่อน 2 รอบ (เผื่อเน็ตสะดุดชั่วครู่) แล้วค่อย fallback เป็นรายการค้างในเครื่องให้กดลองใหม่ทีหลัง
+  let saveResult = await saveLogRow(logEntry);
+  for(let attempt=1; !saveResult.ok && attempt<=2; attempt++){
+    document.getElementById('camStatusText').innerHTML = `กำลังบันทึก… (ลองใหม่ ${attempt}/2)`;
+    await new Promise(r=>setTimeout(r, 1500));
+    saveResult = await saveLogRow(logEntry);
+  }
+  if(!saveResult.ok){
+    addPendingScan({ tempId:uid(), employeeId:emp.id, type, time:logEntry.time, branchId:logEntry.branchId, lateMinutes, leaveConflict:logEntry.leaveConflict, confidence, text });
+    document.getElementById('camRing').className = 'camring warn';
+    document.getElementById('camStatusText').innerHTML = `บันทึกเวลา${type==='IN'?'เข้า':'ออก'}งานไม่สำเร็จ<br><b style="color:var(--red);">ระบบมีปัญหาชั่วคราว ลองใหม่ไม่ผ่าน</b><br>กดลองใหม่ได้ที่หน้าแรกอีกครั้ง`;
+    const foot = document.getElementById('camFoot'); foot.innerHTML = '';
+    const closeBtn2 = document.createElement('button'); closeBtn2.className='btn gray'; closeBtn2.textContent='ปิด';
+    closeBtn2.onclick = closeCamera;
+    foot.appendChild(closeBtn2);
+    renderEmployeeHome();
+    return;
+  }
+  db.logs.unshift(logEntry);
   const notifyKey = type==='IN' ? 'checkin' : 'checkout';
   let anyOk = false;
   if(db.settings.notifyTypes[notifyKey] && br?.chatIdCheckinout){
