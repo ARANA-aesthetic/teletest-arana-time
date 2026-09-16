@@ -1039,6 +1039,15 @@
         <div class="card" id="inspectEmpStatusList" style="padding:0 16px;"></div>
       </section>
       <section>
+        <div class="sectitle">สแกนผิดปกติ (วันที่เลือก)</div>
+        <div class="card" id="inspectAnomalyList" style="padding:0 16px;"></div>
+      </section>
+      <section>
+        <div class="sectitle">ส่งรูป/ข้อความไม่สำเร็จ (วันที่เลือก)</div>
+        <div style="color:var(--muted);font-size:11.5px;margin:-4px 0 8px;">แค่แสดงให้เห็นภาพรวม — รายการเช็กอิน/ปิดแอร์/ความสะอาด/ความเรียบร้อย ให้พนักงานกดส่งซ้ำเองที่หน้าแรกของตัวเอง ยกเว้นหลักฐานการลาที่ HR แนบแทนได้จากปุ่มด้านล่าง</div>
+        <div class="card" id="inspectSendFailList" style="padding:0 16px;"></div>
+      </section>
+      <section>
         <div class="sectitle">จุดปิดแอร์</div>
         <div class="card" id="inspectAcList" style="padding:0 16px;"></div>
       </section>
@@ -4750,6 +4759,23 @@ function empStatusOnDate(empId, dateStr){
   const offsiteTransfer = isApprovedTransferOnDate(empId, dateStr) ? db.branchTransfers.find(t=>t.employeeId===empId && t.status==='approved' && t.fromDate<=dateStr && t.toDate>=dateStr) : null;
   return { inLog, outLog, leave, isHol, offsiteTransfer };
 }
+// สแกนผิดปกติแบบเดียวกับตาราง "มาสาย" ของหน้ารายงาน (buildMonthReport/dailyTableHTML) แต่ใช้
+// ตรวจแบบวันเดียวสำหรับหน้า "ตรวจ" — คืน null ถ้าวันนั้นปกติดี (ไม่ต้องเช็ค/มีเหตุผลรองรับอยู่แล้ว)
+function classifyAttendanceAnomaly(emp, br, dateStr){
+  const dObj = new Date(dateStr+'T00:00:00');
+  const st = empStatusOnDate(emp.id, dateStr);
+  if(st.leave || st.isHol || st.offsiteTransfer) return null;
+  const offWeekly = (br.weeklyOffDays||[]).includes(dObj.getDay()) || (emp.weeklyOffDays||[]).includes(dObj.getDay());
+  if(offWeekly) return null;
+  const hasIn = !!st.inLog, hasOut = !!st.outLog;
+  const late = st.inLog?.lateMinutes || 0;
+  if(!hasIn && !hasOut) return { badge:'AWOL', label:'ไม่มีทั้งสแกนเข้า-ออก และไม่ได้แจ้งลา', color:'var(--red)' };
+  if(!hasIn && hasOut) return { badge:'?IN', label:'มีสแกนออกงาน แต่ไม่มีสแกนเข้างาน', color:'var(--amber)' };
+  if(hasIn && !hasOut && late>=300) return { badge:'❗', label:`สาย ${late} นาที + ไม่มีสแกนออก — อาจลืมสแกนเข้าตอนเช้า`, color:'var(--red)' };
+  if(hasIn && !hasOut) return { badge:'⚠', label:`สาย ${late} นาที + ยังไม่ได้สแกนออกงาน`, color:'var(--amber)' };
+  if(hasIn && hasOut && late>=300) return { badge:'❕', label:`สาย ${late} นาที (มีสแกนออกแล้ว) — เวลาน่าจะผิดปกติ`, color:'#EA580C' };
+  return null;
+}
 function initInspectTab(){
   const sel = document.getElementById('inspectBranchFilter');
   if(!sel.dataset.wired){
@@ -4761,7 +4787,7 @@ function initInspectTab(){
     wireDateChange('inspectDate', renderInspectTab);
   }
 }
-function renderInspectTab(){
+async function renderInspectTab(){
   const branchVal = document.getElementById('inspectBranchFilter').value;
   const dateStr = getDateVal('inspectDate') || dateKey(new Date());
   const dKey = new Date(dateStr+'T00:00:00').toDateString();
@@ -4816,6 +4842,43 @@ function renderInspectTab(){
   document.querySelectorAll('[data-offsiteadd]').forEach(b=> b.onclick = ()=> addRetroactiveOffsite(b.dataset.offsiteadd, dateStr));
   document.querySelectorAll('[data-logaddout]').forEach(b=> b.onclick = ()=> openLogAdd(b.dataset.logaddout, dateStr, 'OUT'));
   document.querySelectorAll('[data-offsitedel]').forEach(b=> b.onclick = ()=> deleteOffsiteRecord(b.dataset.offsitedel));
+
+  // สแกนผิดปกติ — เอาตรรกะเดียวกับสัญลักษณ์ในตาราง "มาสาย" ของหน้ารายงาน (AWOL/?IN/⚠/❗/❕) มาให้ดู
+  // แบบรายวันตรงนี้เลย จะได้ไม่ต้องสลับไปเปิดหน้ารายงานทุกครั้งที่อยากรีเช็คภาพรวมของวันนั้น
+  let anomalyHtml = '';
+  branches.forEach(br=>{
+    const emps = db.employees.filter(e=>e.branchId===br.id && countsOn(e, new Date(dateStr+'T00:00:00')));
+    const rows = [];
+    emps.forEach(e=>{
+      const a = classifyAttendanceAnomaly(e, br, dateStr);
+      if(a) rows.push({emp:e, a});
+    });
+    if(!rows.length) return;
+    anomalyHtml += `<div style="font-weight:600;font-size:12.5px;color:var(--pink-dark);padding:10px 0 4px;">${br.name}</div>`;
+    rows.forEach(({emp,a})=>{
+      anomalyHtml += `<div class="listrow"><div class="info"><div class="name">${emp.name}${emp.nickname?` (${emp.nickname})`:''}</div><div class="meta" style="color:${a.color};font-weight:600;">${a.badge} ${a.label}</div></div></div>`;
+    });
+  });
+  document.getElementById('inspectAnomalyList').innerHTML = anomalyHtml || '<div class="empty">ไม่พบรายการผิดปกติในวันที่เลือก</div>';
+
+  // ส่งไม่สำเร็จ — เฉพาะรูป/ข้อความที่พนักงานเป็นคนกดส่งเอง (เช็กอิน/ออก/ปิดแอร์/ความสะอาด/ความเรียบร้อย
+  // ใช้ logs.sent=false, หลักฐานการลาใช้ audit log 'evidence_send_failed') แค่โชว์ให้เห็นภาพรวม ไม่ใช่
+  // ปุ่มส่งซ้ำจากตรงนี้ (ให้พนักงานกดเองที่หน้าแรกตามเดิม) ยกเว้นหลักฐานการลาที่ HR แนบแทนได้อยู่แล้ว
+  let failHtml = '';
+  const empIdsInView = new Set(branches.flatMap(br=>db.employees.filter(e=>e.branchId===br.id).map(e=>e.id)));
+  const typeLabels2 = {IN:'เช็กอิน', OUT:'เช็กเอาท์', AC:'แจ้งปิดแอร์', CLEAN:'ตรวจความสะอาด', GROOM:'ความเรียบร้อยประจำวัน'};
+  const failedLogs = db.logs.filter(l=> l.sent===false && empIdsInView.has(l.employeeId) && todayKey(new Date(l.time))===dKey);
+  failedLogs.forEach(l=>{
+    const emp = db.employees.find(e=>e.id===l.employeeId);
+    failHtml += `<div class="listrow"><div class="info"><div class="name">${emp?.name||'-'}</div><div class="meta" style="color:var(--red);">${typeLabels2[l.type]||l.type} เวลา ${fmtTime(new Date(l.time))} — ส่งรูปไม่สำเร็จ (ให้พนักงานกดส่งซ้ำเอง)</div></div></div>`;
+  });
+  const auditRows = await fetchAuditLogInRange(dateStr, dateStr);
+  const failedEvidence = auditRows.filter(a=> a.action==='evidence_send_failed');
+  failedEvidence.forEach(a=>{
+    failHtml += `<div class="listrow"><div class="info"><div class="name">หลักฐานการลา</div><div class="meta" style="color:var(--red);">${a.details||'-'}</div></div><button class="btn ghost sm" data-fixevidence="${a.target_id}">แนบรูปแทนพนักงาน</button></div>`;
+  });
+  document.getElementById('inspectSendFailList').innerHTML = failHtml || '<div class="empty">ไม่พบรายการส่งไม่สำเร็จในวันที่เลือก</div>';
+  document.querySelectorAll('[data-fixevidence]').forEach(b=> b.onclick = ()=> openAdminLeaveEdit(b.dataset.fixevidence));
 
   // AC points
   let acHtml = '';
