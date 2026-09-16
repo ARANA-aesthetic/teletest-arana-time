@@ -1310,6 +1310,28 @@
             <div class="sectitle">การแจ้งเตือน (Telegram)</div>
             <div class="card" id="notifyTypesEditor"></div>
           </section>
+          <section data-pane="notify">
+            <div class="sectitle">เวลาส่งแจ้งเตือนอัตโนมัติ</div>
+            <div class="card">
+              <label>สรุปลา + มาสายประจำวัน</label>
+              <input type="time" id="schedDailyLeave">
+              <label style="margin-top:10px;">สรุปลาเป็นชั่วโมง</label>
+              <input type="time" id="schedHourlyCheckin">
+              <label style="margin-top:10px;">ปิดแอร์/ความสะอาด/ความเรียบร้อย (รอบหลักประจำวัน)</label>
+              <input type="time" id="schedFacilityMain">
+              <label style="margin-top:10px;">ช่วงเตือนซ้ำรายชั่วโมง (เฉพาะจุดที่ยังไม่ครบ)</label>
+              <div class="row2">
+                <div><label style="font-weight:400;font-size:11.5px;">เริ่ม</label><input type="time" id="schedFacilityFollowupStart"></div>
+                <div><label style="font-weight:400;font-size:11.5px;">สิ้นสุด</label><input type="time" id="schedFacilityFollowupEnd"></div>
+              </div>
+              <label style="margin-top:10px;">เตือนหลักฐานการลาที่ยังไม่แนบ</label>
+              <input type="time" id="schedMissingEvidence">
+              <label style="margin-top:10px;">เตือนปิดแอร์</label>
+              <input type="time" id="schedAcReminder">
+              <div class="msg" id="schedMsg"></div>
+              <button class="btn sm" style="margin-top:10px;" id="saveSchedBtn">บันทึกเวลา</button>
+            </div>
+          </section>
         </div>
       </div>
 
@@ -2226,12 +2248,12 @@ async function saveBranchRow(row){
   return await sbUpsertRow('branches', branchToRow(row));
 }
 
-async function sbCallFunction(fnName){
+async function sbCallFunction(fnName, args){
   try{
     const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fnName}`, {
       method:'POST',
       headers: sbHeaders({ 'Content-Type':'application/json' }),
-      body: JSON.stringify({})
+      body: JSON.stringify(args||{})
     });
     if(!res.ok){
       const errBody = await res.text().catch(()=> '');
@@ -4114,6 +4136,7 @@ function enterAdminView(){
   document.getElementById('gsheetUrl').value = db.settings.gsheetWebappUrl;
   document.getElementById('gsheetSecret').value = db.settings.gsheetSecret;
   renderGsheetLastSync();
+  loadReminderSchedule();
   applyOverviewPreset();
   document.querySelector('#adminView [data-atab="Settings"]').classList.remove('hidden');
   document.getElementById('adminDropdown').querySelector('.dname').textContent = 'เจ้าของ / HR';
@@ -7416,6 +7439,65 @@ document.getElementById('testDailyLeaveBtn').onclick = (e)=> runScheduledTest(e.
 document.getElementById('testAcReminderBtn').onclick = (e)=> runScheduledTest(e.target, 'send_ac_missing_reminder', 'เตือนปิดแอร์');
 document.getElementById('testFacilityReminderBtn').onclick = (e)=> runScheduledTest(e.target, 'send_facility_missing_reminder', 'เตือนความสะอาด/ความเรียบร้อย');
 document.getElementById('testMissingScanBtn').onclick = (e)=> runScheduledTest(e.target, 'send_missing_scan_reminder', 'สรุปคนลืมสแกนเข้า-ออกงาน');
+
+// -- เวลาส่งแจ้งเตือนอัตโนมัติ ปรับเองได้จากแอป (ไม่ต้องขอให้ทีมพัฒนาไปแก้ pg_cron ให้อีก) --
+// เก็บ schedule จริงไว้ที่ pg_cron ฝั่ง Supabase เหมือนเดิม (ไม่ได้มีสำเนาซ้ำไว้ในตาราง settings)
+// หน้านี้แค่อ่าน/เขียนผ่าน RPC ที่เปิดไว้เฉพาะชื่องานที่กำหนด กัน SQL แปลกปลอมจากฝั่ง client
+// cron เก็บเวลาเป็น UTC เสมอ ต้อง +7 ชั่วโมงให้เป็นเวลาไทยตอนแสดงผล และ -7 ตอนบันทึกกลับ
+function parseCronToIct(cronStr){
+  const parts = (cronStr||'').trim().split(/\s+/);
+  const minute = parseInt(parts[0],10)||0;
+  const hourPart = parts[1]||'0';
+  if(hourPart.includes('-')){
+    const [h1,h2] = hourPart.split('-').map(n=>parseInt(n,10));
+    return { hour:(h1+7)%24, endHour:(h2+7)%24, minute };
+  }
+  return { hour:(parseInt(hourPart,10)+7)%24, minute };
+}
+async function loadReminderSchedule(){
+  const r = await sbCallFunction('get_reminder_times');
+  if(!r.ok || !r.data) return;
+  const map = r.data;
+  const setTimeInput = (id, hour, minute)=>{ const el=document.getElementById(id); if(el && hour!=null) el.value = `${String(hour).padStart(2,'0')}:${String(minute).padStart(2,'0')}`; };
+  if(map['daily-leave-summary']){ const t=parseCronToIct(map['daily-leave-summary']); setTimeInput('schedDailyLeave', t.hour, t.minute); }
+  if(map['hourly-leave-checkin-summary']){ const t=parseCronToIct(map['hourly-leave-checkin-summary']); setTimeInput('schedHourlyCheckin', t.hour, t.minute); }
+  if(map['facility-missing-reminder']){ const t=parseCronToIct(map['facility-missing-reminder']); setTimeInput('schedFacilityMain', t.hour, t.minute); }
+  if(map['facility-missing-hourly-followup']){ const t=parseCronToIct(map['facility-missing-hourly-followup']); setTimeInput('schedFacilityFollowupStart', t.hour, t.minute); setTimeInput('schedFacilityFollowupEnd', t.endHour, t.minute); }
+  if(map['missing-leave-evidence-reminder']){ const t=parseCronToIct(map['missing-leave-evidence-reminder']); setTimeInput('schedMissingEvidence', t.hour, t.minute); }
+  if(map['ac-missing-reminder']){ const t=parseCronToIct(map['ac-missing-reminder']); setTimeInput('schedAcReminder', t.hour, t.minute); }
+}
+document.getElementById('saveSchedBtn').onclick = async ()=>{
+  const msg = document.getElementById('schedMsg');
+  const btn = document.getElementById('saveSchedBtn');
+  btn.disabled = true; msg.className='msg'; msg.textContent = 'กำลังบันทึก…';
+  const simpleJobs = [
+    { name:'daily-leave-summary', el:'schedDailyLeave' },
+    { name:'hourly-leave-checkin-summary', el:'schedHourlyCheckin' },
+    { name:'facility-missing-reminder', el:'schedFacilityMain' },
+    { name:'missing-leave-evidence-reminder', el:'schedMissingEvidence' },
+    { name:'ac-missing-reminder', el:'schedAcReminder' }
+  ];
+  try{
+    for(const j of simpleJobs){
+      const val = document.getElementById(j.el).value; if(!val) continue;
+      const [h,m] = val.split(':').map(Number);
+      const r = await sbCallFunction('update_reminder_time', {p_job_name:j.name, p_hour:h, p_minute:m});
+      if(!r.ok) throw new Error(`${j.name}: ${r.error}`);
+    }
+    const startVal = document.getElementById('schedFacilityFollowupStart').value;
+    const endVal = document.getElementById('schedFacilityFollowupEnd').value;
+    if(startVal && endVal){
+      const [sh,sm] = startVal.split(':').map(Number);
+      const [eh] = endVal.split(':').map(Number);
+      const r = await sbCallFunction('update_reminder_time', {p_job_name:'facility-missing-hourly-followup', p_hour:sh, p_minute:sm, p_end_hour:eh});
+      if(!r.ok) throw new Error(`ช่วงเตือนซ้ำรายชั่วโมง: ${r.error}`);
+    }
+    msg.className='msg ok'; msg.textContent = 'บันทึกเวลาเรียบร้อย มีผลตั้งแต่รอบถัดไปเลย';
+  }catch(e){
+    msg.className='msg err'; msg.textContent = 'บันทึกไม่สำเร็จ: ' + e.message;
+  }
+  btn.disabled = false;
+};
 
 function renderGsheetLastSync(){
   const el = document.getElementById('gsheetLastSync');
