@@ -5224,9 +5224,16 @@ function buildMonthReport(){
   const groups = branches.map(br=>{
     // ตัดคนที่ไม่ได้เป็นพนักงานเลยสักวันในเดือนที่เลือก (ยังไม่เริ่มงาน หรือ พ้นสภาพไปก่อนหน้า)
     // ไม่งั้นจะขึ้นเป็นแถวว่างทั้งแถวปนมากับคนที่ทำงานอยู่จริง
+    // เรียงตามอายุงาน (วันที่เริ่มงานก่อน-หลัง) แทนเรียงตามชื่อ — ใช้รูปแบบเดียวกับตอนออกรหัส
+    // พนักงานใหม่ (คนที่ยังไม่กรอกวันที่เริ่มงานจะถูกจัดไว้ท้ายสุด เรียงตามชื่อ)
     const emps = db.employees
       .filter(e=>e.branchId===br.id && !isHiddenEmployee(e) && days.some(d=>countsOn(e,d)))
-      .sort((a,b)=>a.name.localeCompare(b.name,'th'));
+      .sort((a,b)=>{
+        if(a.startDate && b.startDate) return a.startDate.localeCompare(b.startDate) || a.name.localeCompare(b.name,'th');
+        if(a.startDate) return -1;
+        if(b.startDate) return 1;
+        return a.name.localeCompare(b.name,'th');
+      });
     return { branch: br, rows: emps.map(e=>{
       const cells = days.map(d=>{
         const cell = { day:d, code:'', late:0, ot:0, off:false };
