@@ -6200,17 +6200,25 @@ document.getElementById('saveEmpEditBtn').onclick = async ()=>{
   }
   if(resignDate && startDate && resignDate < startDate){ msg.className='msg err'; msg.textContent='วันที่พ้นสภาพต้องไม่อยู่ก่อนวันที่เริ่มงาน'; return; }
   if(probationPassedDate && startDate && probationPassedDate < startDate){ msg.className='msg err'; msg.textContent='วันที่ผ่านประเมินต้องไม่อยู่ก่อนวันที่เริ่มงาน'; return; }
-  let empToSave;
   if(editingEmpId){
     const e = db.employees.find(x=>x.id===editingEmpId);
     Object.assign(e, {name, nickname, department, jobTitle, branchId, startDate, probationPassedDate, shiftStart, shiftEnd, email, employeeCode, resignDate, weeklyOffDays: editEmpWeeklyOffDays.slice()});
     if(pinInput) e.pin = pinInput;
-    empToSave = e;
+    // แก้เฉพาะคอลัมน์ที่ฟอร์มนี้จัดการจริง (PATCH) แทนเขียนทับทั้งแถว (upsert) — กันไม่ให้ข้อมูลคอลัมน์
+    // อื่นที่ฟอร์มนี้ไม่ได้แตะ (descriptor, active, pendingDescriptor* ฯลฯ) ที่อาจถูกแก้จากจุดอื่นไปแล้ว
+    // ระหว่างที่หน้าจอนี้เปิดค้างไว้ ถูกเขียนทับกลับเป็นค่าเก่าไปด้วยแบบเงียบๆ (เคยเกิดจริงกับวันที่
+    // เริ่มงานของอารียา — แก้ตรงๆ ไปแล้วแต่โดนหน้าจอที่เปิดค้างเขียนทับกลับ)
+    const patch = { name, nickname: nickname||null, department: department||null, job_title: jobTitle||null,
+      branch_id: branchId||null, start_date: startDate||null, probation_passed_date: probationPassedDate||null,
+      shift_start: shiftStart||null, shift_end: shiftEnd||null, email: email||null, employee_code: employeeCode||null,
+      resign_date: resignDate||null, weekly_off_days: editEmpWeeklyOffDays.slice() };
+    if(pinInput) patch.pin = pinInput;
+    await sbPatchRow('employees', e.id, patch);
   } else {
-    empToSave = {id:uid(), name, nickname, department, jobTitle, branchId, startDate, probationPassedDate, shiftStart, shiftEnd, email, employeeCode, resignDate, weeklyOffDays: editEmpWeeklyOffDays.slice(), pin: pinInput||null, descriptor:null, homeLat:null, homeLng:null};
+    const empToSave = {id:uid(), name, nickname, department, jobTitle, branchId, startDate, probationPassedDate, shiftStart, shiftEnd, email, employeeCode, resignDate, weeklyOffDays: editEmpWeeklyOffDays.slice(), pin: pinInput||null, descriptor:null, homeLat:null, homeLng:null};
     db.employees.push(empToSave);
+    await saveEmployeeRow(empToSave);
   }
-  await saveEmployeeRow(empToSave);
   document.getElementById('empEditOverlay').classList.remove('show');
   renderAdminEmpList(); renderEmpSummary(); renderEmpSelect();
 };
@@ -6232,14 +6240,14 @@ document.getElementById('deleteEmpBtn').onclick = async ()=>{
 document.getElementById('toggleActiveEmpBtn').onclick = async ()=>{
   const e = db.employees.find(x=>x.id===editingEmpId); if(!e) return;
   e.active = e.active===false ? true : false;
-  await saveEmployeeRow(e);
+  await sbPatchRow('employees', e.id, { active: e.active });
   await logAudit(e.active===false?'deactivate':'activate', 'employee', e.id, `${e.active===false?'ปิด':'เปิด'}การใช้งานพนักงาน ${e.name}`);
   document.getElementById('toggleActiveEmpBtn').textContent = e.active===false ? 'เปิดการใช้งาน' : 'ปิดการใช้งาน';
   renderAdminEmpList(); renderEmpSelect();
 };
 document.getElementById('resetPinBtn').onclick = async ()=>{
   const e = db.employees.find(x=>x.id===editingEmpId); if(!e) return;
-  e.pin = null; await saveEmployeeRow(e);
+  e.pin = null; await sbPatchRow('employees', e.id, { pin: null });
   document.getElementById('empEditMsg').className='msg ok';
   document.getElementById('empEditMsg').textContent = 'รีเซ็ต PIN แล้ว พนักงานจะตั้ง PIN ใหม่ตอนล็อกอินครั้งถัดไป';
 };
