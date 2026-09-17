@@ -1800,6 +1800,10 @@
     <select id="editEmpBranch"></select>
     <label>วันที่เริ่มงาน</label>
     <div id="editEmpStartDate_holder"></div>
+    <label>ผ่านประเมินวันที่ (เว้นว่างได้ถ้ายังทดลองงานอยู่ หรือไม่ต้องการแยกช่วงทดลองงาน)</label>
+    <div style="color:var(--muted);font-size:11.5px;margin:-4px 0 6px;">ใช้แค่กำหนดสีในรายงานว่าวันไหนยังอยู่ช่วงทดลองงาน (ขึ้น "1" สีน้ำเงิน) ไม่กระทบการนับขาดงาน/ลาเลย — นับเต็มตามปกติตั้งแต่วันที่เริ่มงานด้านบนอยู่แล้ว</div>
+    <div id="editEmpProbationDate_holder"></div>
+    <button class="btn ghost sm" style="margin:6px 0 10px;" id="clearProbationDateBtn">ล้างค่า (ไม่แยกช่วงทดลองงาน)</button>
     <div id="editEmpTrainSection" class="hidden">
       <label>บันทึกเทรนงานย้อนหลัง (สำหรับวันก่อนวันเริ่มงานจริงด้านบน)</label>
       <div class="row2">
@@ -2176,8 +2180,8 @@ async function sbPatchRow(table, id, patch){
 const rowToBranch = r => ({ id:r.id, name:r.name, lat:r.lat, lng:r.lng, radius:r.radius, chatIdCheckinout:r.chat_id_checkinout||'', chatIdFacility:r.chat_id_facility||'', chatIdLeaveApproval:r.chat_id_leave_approval||'', weeklyOffDays:r.weekly_off_days||[], acPoints:r.ac_points||[], cleaningPoints:r.cleaning_points||[] });
 const branchToRow = b => ({ id:b.id, name:b.name, lat:b.lat, lng:b.lng, radius:b.radius, chat_id_checkinout:b.chatIdCheckinout||'', chat_id_facility:b.chatIdFacility||'', chat_id_leave_approval:b.chatIdLeaveApproval||'', weekly_off_days:b.weeklyOffDays||[], ac_points:b.acPoints||[], cleaning_points:b.cleaningPoints||[] });
 
-const rowToEmployee = r => ({ id:r.id, name:r.name, employeeCode:r.employee_code||'', resignDate:r.resign_date||'', nickname:r.nickname||'', department:r.department||'', jobTitle:r.job_title||'', branchId:r.branch_id||'', startDate:r.start_date||'', shiftStart:r.shift_start||'', shiftEnd:r.shift_end||'', email:r.email||'', pin:r.pin||null, descriptor:r.descriptor||null, homeLat:r.home_lat??null, homeLng:r.home_lng??null, active:r.active!==false, pendingDescriptor:r.pending_descriptor||null, pendingDescriptorPhotoId:r.pending_descriptor_photo_id||null, pendingDescriptorAt:r.pending_descriptor_at||null, weeklyOffDays:r.weekly_off_days||[] });
-const employeeToRow = e => ({ id:e.id, name:e.name, employee_code:e.employeeCode||null, resign_date:e.resignDate||null, nickname:e.nickname||null, department:e.department||null, job_title:e.jobTitle||null, branch_id:e.branchId||null, start_date:e.startDate||null, shift_start:e.shiftStart||null, shift_end:e.shiftEnd||null, email:e.email||null, pin:e.pin||null, descriptor:e.descriptor||null, home_lat:e.homeLat??null, home_lng:e.homeLng??null, active:e.active!==false, pending_descriptor:e.pendingDescriptor||null, pending_descriptor_photo_id:e.pendingDescriptorPhotoId||null, pending_descriptor_at:e.pendingDescriptorAt||null, weekly_off_days:e.weeklyOffDays||[] });
+const rowToEmployee = r => ({ id:r.id, name:r.name, employeeCode:r.employee_code||'', resignDate:r.resign_date||'', nickname:r.nickname||'', department:r.department||'', jobTitle:r.job_title||'', branchId:r.branch_id||'', startDate:r.start_date||'', probationPassedDate:r.probation_passed_date||'', shiftStart:r.shift_start||'', shiftEnd:r.shift_end||'', email:r.email||'', pin:r.pin||null, descriptor:r.descriptor||null, homeLat:r.home_lat??null, homeLng:r.home_lng??null, active:r.active!==false, pendingDescriptor:r.pending_descriptor||null, pendingDescriptorPhotoId:r.pending_descriptor_photo_id||null, pendingDescriptorAt:r.pending_descriptor_at||null, weeklyOffDays:r.weekly_off_days||[] });
+const employeeToRow = e => ({ id:e.id, name:e.name, employee_code:e.employeeCode||null, resign_date:e.resignDate||null, nickname:e.nickname||null, department:e.department||null, job_title:e.jobTitle||null, branch_id:e.branchId||null, start_date:e.startDate||null, probation_passed_date:e.probationPassedDate||null, shift_start:e.shiftStart||null, shift_end:e.shiftEnd||null, email:e.email||null, pin:e.pin||null, descriptor:e.descriptor||null, home_lat:e.homeLat??null, home_lng:e.homeLng??null, active:e.active!==false, pending_descriptor:e.pendingDescriptor||null, pending_descriptor_photo_id:e.pendingDescriptorPhotoId||null, pending_descriptor_at:e.pendingDescriptorAt||null, weekly_off_days:e.weeklyOffDays||[] });
 
 const rowToApprover = r => ({ id:r.id, name:r.name, pin:r.pin||null, role:r.role||'hr' });
 const approverToRow = a => ({ id:a.id, name:a.name, pin:a.pin||null, role:a.role||'hr' });
@@ -5262,6 +5266,9 @@ function buildMonthReport(){
         else if(isApprovedTransferOnDate(e.id, dateKey(d))){ cell.code = RPT_CODE_OFFSITE; cell.off = true; }
         else if(inLog) cell.code = RPT_CODE_WORK;
         else if(d <= lastClosedDay) cell.code = RPT_CODE_ABSENT;
+        // ทำเครื่องหมายสีน้ำเงินไว้เฉยๆ ว่ายังอยู่ช่วงทดลองงาน (ก่อนวันที่ "ผ่านประเมิน") — แค่กำหนดสี
+        // ให้ดูง่ายว่าใครยังทดลองงานอยู่ ไม่กระทบการนับขาดงาน/ลาเลย (นับเต็มตามปกติตั้งแต่วันเริ่มงานแล้ว)
+        if(cell.code===RPT_CODE_WORK && e.probationPassedDate && dateKey(d) < e.probationPassedDate) cell.training = true;
         return cell;
       });
       // ลาเป็นชั่วโมงต้องแยก ป่วย/กิจ เพราะมีผลต่างกันกับเงินเดือน (ป่วยไม่หัก กิจหัก)
@@ -5270,7 +5277,10 @@ function buildMonthReport(){
         if(c.na) return;
         s.otHours += c.ot;
         if(c.late>0){ s.lateCount++; s.lateMinutes += c.late; }
-        if(c.training){ s.training++; return; }
+        // เดิม "เทรนงาน" ไม่นับเป็นวันทำงานจริง (return ทิ้งเลย) เพราะสมัยก่อนช่วงก่อนวันเริ่มงานไม่นับ
+        // อะไรทั้งนั้น — ตอนนี้ cell.training เป็นแค่การทำเครื่องหมายสีระหว่างช่วงทดลองงาน (วันที่นับเป็น
+        // RPT_CODE_WORK อยู่แล้วจริงๆ) จึงต้องนับเป็น "มาทำงาน" (s.present) ต่อไปตามปกติด้วย ไม่ return แล้ว
+        if(c.training) s.training++;
         if(c.leaveKind){
           if(HOURLY_KINDS.includes(c.leaveKind)){
             if(c.leaveKind==='hourly_sick'){ s.hourSick += c.leaveHours||0; s.hourSickCount++; }
@@ -6041,11 +6051,13 @@ function openEmpEditor(empId){
   sel.innerHTML = db.branches.map(b=>`<option value="${b.id}">${b.name}</option>`).join('');
   document.getElementById('empEditMsg').textContent='';
   document.getElementById('editEmpResignDate_holder').innerHTML = dateSelectHTML('editEmpResignDate');
+  document.getElementById('editEmpProbationDate_holder').innerHTML = dateSelectHTML('editEmpProbationDate');
   if(empId){
     const e = db.employees.find(x=>x.id===empId);
     document.getElementById('empEditTitle').textContent = 'แก้ไขพนักงาน';
     document.getElementById('editEmpCode').value = e.employeeCode||'';
     setDateVal('editEmpResignDate', e.resignDate||'');
+    setDateVal('editEmpProbationDate', e.probationPassedDate||'');
     document.getElementById('editEmpName').value = e.name;
     document.getElementById('editEmpNickname').value = e.nickname||'';
     document.getElementById('editEmpDept').value = e.department||'';
@@ -6085,6 +6097,7 @@ function openEmpEditor(empId){
     document.getElementById('empEditTitle').textContent = 'เพิ่มพนักงาน';
     document.getElementById('editEmpCode').value = nextEmployeeCode();
     setDateVal('editEmpResignDate', '');
+    setDateVal('editEmpProbationDate', '');
     document.getElementById('editEmpName').value = '';
     document.getElementById('editEmpNickname').value = '';
     document.getElementById('editEmpDept').value = '';
@@ -6176,6 +6189,7 @@ document.getElementById('saveEmpEditBtn').onclick = async ()=>{
   const pinInput = document.getElementById('editEmpPin').value.trim();
   const employeeCode = document.getElementById('editEmpCode').value.trim();
   const resignDate = getDateVal('editEmpResignDate') || '';
+  const probationPassedDate = getDateVal('editEmpProbationDate') || '';
   const msg = document.getElementById('empEditMsg');
   if(!name){ msg.className='msg err'; msg.textContent='กรุณากรอกชื่อ'; return; }
   if(pinInput && !/^\d{4}$/.test(pinInput)){ msg.className='msg err'; msg.textContent='PIN ต้องเป็นตัวเลข 4 หลัก'; return; }
@@ -6185,20 +6199,22 @@ document.getElementById('saveEmpEditBtn').onclick = async ()=>{
     if(dup){ msg.className='msg err'; msg.textContent=`รหัส ${employeeCode} ถูกใช้กับ ${dup.name} อยู่แล้ว`; return; }
   }
   if(resignDate && startDate && resignDate < startDate){ msg.className='msg err'; msg.textContent='วันที่พ้นสภาพต้องไม่อยู่ก่อนวันที่เริ่มงาน'; return; }
+  if(probationPassedDate && startDate && probationPassedDate < startDate){ msg.className='msg err'; msg.textContent='วันที่ผ่านประเมินต้องไม่อยู่ก่อนวันที่เริ่มงาน'; return; }
   let empToSave;
   if(editingEmpId){
     const e = db.employees.find(x=>x.id===editingEmpId);
-    Object.assign(e, {name, nickname, department, jobTitle, branchId, startDate, shiftStart, shiftEnd, email, employeeCode, resignDate, weeklyOffDays: editEmpWeeklyOffDays.slice()});
+    Object.assign(e, {name, nickname, department, jobTitle, branchId, startDate, probationPassedDate, shiftStart, shiftEnd, email, employeeCode, resignDate, weeklyOffDays: editEmpWeeklyOffDays.slice()});
     if(pinInput) e.pin = pinInput;
     empToSave = e;
   } else {
-    empToSave = {id:uid(), name, nickname, department, jobTitle, branchId, startDate, shiftStart, shiftEnd, email, employeeCode, resignDate, weeklyOffDays: editEmpWeeklyOffDays.slice(), pin: pinInput||null, descriptor:null, homeLat:null, homeLng:null};
+    empToSave = {id:uid(), name, nickname, department, jobTitle, branchId, startDate, probationPassedDate, shiftStart, shiftEnd, email, employeeCode, resignDate, weeklyOffDays: editEmpWeeklyOffDays.slice(), pin: pinInput||null, descriptor:null, homeLat:null, homeLng:null};
     db.employees.push(empToSave);
   }
   await saveEmployeeRow(empToSave);
   document.getElementById('empEditOverlay').classList.remove('show');
   renderAdminEmpList(); renderEmpSummary(); renderEmpSelect();
 };
+document.getElementById('clearProbationDateBtn').onclick = ()=> setDateVal('editEmpProbationDate', '');
 document.getElementById('deleteEmpBtn').onclick = async ()=>{
   const e = db.employees.find(x=>x.id===editingEmpId); if(!e) return;
   if(!confirm(`ลบ ${e.name} ถาวร? ประวัติเข้างาน/ใบลาที่เคยบันทึกไว้จะยังอยู่ในระบบแต่จะเรียกดูชื่อพนักงานไม่ได้อีก แนะนำให้ใช้ "ปิดการใช้งาน" แทนถ้าไม่แน่ใจ`)) return;
