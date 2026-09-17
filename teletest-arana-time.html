@@ -6113,16 +6113,23 @@ document.getElementById('closeEmpEditBtn').onclick = ()=> document.getElementByI
 function renderTrainDayChecks(){
   const emp = db.employees.find(e=>e.id===editingEmpId);
   const el = document.getElementById('editEmpTrainDayChecks'); if(!el || !emp) return;
+  const br = db.branches.find(b=>b.id===emp.branchId);
   const fromStr = getDateVal('editEmpTrainFrom'), toStr = getDateVal('editEmpTrainTo');
   if(!fromStr || !toStr || fromStr > toStr){ el.innerHTML = '<div class="empty">กรุณาเลือกช่วงวันที่ให้ถูกต้อง</div>'; return; }
   const todayStr = dateKey(new Date());
   let html = '';
   for(let d=fromStr; d<=toStr && d<=todayStr; d=addDaysKey(d,1)){
     const already = db.logs.some(l=>l.employeeId===emp.id && l.type==='IN' && todayKey(new Date(l.time))===new Date(d+'T00:00:00').toDateString());
+    const dow = new Date(d+'T00:00:00').getDay();
+    // วันหยุดประจำสัปดาห์ของพนักงานคนนี้ (หรือของสาขา) ไม่ติ๊กไว้ให้อัตโนมัติ — เดิมติ๊กไว้ให้ทุกวัน
+    // แม้แต่วันหยุดประจำสัปดาห์ ถ้า HR ไม่ทันสังเกตแล้วกดบันทึกเลย จะกลายเป็นบันทึกวันหยุดเป็นวันทำงาน
+    // ไปด้วย (เคยเกิดจริง) ยังติ๊กเพิ่มเองได้ถ้าเธอมาทำงานจริงในวันหยุดประจำสัปดาห์
+    const isWeeklyOff = (emp.weeklyOffDays||[]).includes(dow) || (br?.weeklyOffDays||[]).includes(dow);
     const wk = new Date(d+'T00:00:00').toLocaleDateString('th-TH', {weekday:'short'});
+    const checkedAttr = already ? '' : (isWeeklyOff ? '' : 'checked');
     html += `<label style="display:flex;align-items:center;gap:8px;padding:4px 0;font-weight:400;${already?'color:var(--muted);':''}">
-      <input type="checkbox" data-trainday="${d}" style="width:auto;margin:0;" ${already?'disabled':'checked'}>
-      ${ddmmyyyy(d)} (${wk})${already?' — มีบันทึกแล้ว':''}
+      <input type="checkbox" data-trainday="${d}" style="width:auto;margin:0;" ${already?'disabled':''} ${checkedAttr}>
+      ${ddmmyyyy(d)} (${wk})${already?' — มีบันทึกแล้ว':(isWeeklyOff?' — วันหยุดประจำสัปดาห์':'')}
     </label>`;
   }
   el.innerHTML = html || '<div class="empty">ไม่มีวันในช่วงที่เลือก (เลือกวันในอนาคตไม่ได้)</div>';
