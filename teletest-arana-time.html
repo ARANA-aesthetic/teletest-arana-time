@@ -2338,6 +2338,30 @@ function getPosition(){
     navigator.geolocation.getCurrentPosition(pos=>resolve({lat:pos.coords.latitude,lng:pos.coords.longitude}), ()=>resolve(null), {enableHighAccuracy:true, timeout:8000});
   });
 }
+// ขอพิกัดสำหรับยื่นใบลา: อธิบายเหตุผลก่อนขอสิทธิ์ (เฉพาะตอนที่ยังไม่เคยตัดสินใจ/เช็กสถานะล่วงหน้าไม่ได้)
+// ถ้าสุดท้ายไม่ได้พิกัดมา ให้คืนค่า null พร้อมเตือนวิธีแก้ไข ผู้เรียกต้อง "ไม่บันทึกใบลา" ต่อเมื่อได้ null
+async function requestLeaveLocationOrBlock(){
+  let state = 'prompt';
+  try{
+    if(navigator.permissions && navigator.permissions.query){
+      const status = await navigator.permissions.query({name:'geolocation'});
+      state = status.state;
+    }
+  }catch(e){ state = 'prompt'; }
+
+  if(state === 'denied'){
+    alert('ไม่สามารถบันทึกได้ กรุณาเปิดอนุญาตตำแหน่งของคุณ\n\nวิธีเปิด:\nAndroid/Chrome: แตะไอคอนรูปกุญแจ/ตัว i ข้างช่อง URL > สิทธิ์การเข้าถึง (Permissions) > ตำแหน่ง (Location) > อนุญาต\niPhone/Safari: ตั้งค่า (Settings) > Safari > ตำแหน่งที่ตั้ง (Location) หรือ ตั้งค่า > ความเป็นส่วนตัว > บริการหาตำแหน่ง > Safari Websites > อนุญาต/ถาม (ต้องเปิดบริการหาตำแหน่งของทั้งเครื่องด้วย)');
+    return null;
+  }
+  if(state !== 'granted'){
+    alert('กรุณาเปิดอนุญาตตำแหน่งของคุณ เพื่อให้ระบบ ARANA TIME บันทึกการแจ้งลา');
+  }
+  const pos = await getPosition();
+  if(!pos){
+    alert('ไม่สามารถบันทึกได้ กรุณาเปิดอนุญาตตำแหน่งของคุณ\n\nวิธีเปิด:\nAndroid/Chrome: แตะไอคอนรูปกุญแจ/ตัว i ข้างช่อง URL > สิทธิ์การเข้าถึง (Permissions) > ตำแหน่ง (Location) > อนุญาต\niPhone/Safari: ตั้งค่า (Settings) > Safari > ตำแหน่งที่ตั้ง (Location) หรือ ตั้งค่า > ความเป็นส่วนตัว > บริการหาตำแหน่ง > Safari Websites > อนุญาต/ถาม (ต้องเปิดบริการหาตำแหน่งของทั้งเครื่องด้วย)');
+  }
+  return pos;
+}
 
 /* ห้อง Telegram ของ OT — เดิมอ่านจากช่อง "Chat ID กลุ่มขอ OT" อย่างเดียว ถ้าเว้นว่างไว้
    ระบบจะข้ามการส่งเงียบๆ ทั้งตอนยื่นและตอนอนุมัติ โดยไม่มีอะไรฟ้อง (เคยเกิดมาแล้วจริง)
@@ -3189,6 +3213,35 @@ document.getElementById('leaveType').addEventListener('change', ()=>{
   document.getElementById('leaveDateRangeFields').classList.toggle('hidden', isHourly);
   document.getElementById('leaveHourlyFields').classList.toggle('hidden', !isHourly);
 });
+// ร่างยื่นใบลาใหม่ (กันข้อมูลหายถ้าแท็บถูกปิด/รีโหลดระหว่างออกไปเปิดสิทธิ์ตำแหน่ง) — ใช้เฉพาะตอน "ยื่นใหม่" เท่านั้น
+function leaveDraftKey(){ const emp = currentEmployee(); return `aranaLeaveDraft_${emp?.id||'anon'}`; }
+function saveLeaveDraft(){
+  if(editingLeaveId || requestingEditLeaveId) return;
+  try{
+    const draft = {
+      kind: document.getElementById('leaveType').value,
+      from: getDateVal('leaveFrom'), to: getDateVal('leaveTo'),
+      singleDate: getDateVal('leaveSingleDate'),
+      hourStart: document.getElementById('leaveHourStart').value,
+      hourEnd: document.getElementById('leaveHourEnd').value,
+      reason: document.getElementById('leaveReason').value
+    };
+    localStorage.setItem(leaveDraftKey(), JSON.stringify(draft));
+  }catch(e){}
+}
+function loadLeaveDraft(){
+  try{ return JSON.parse(localStorage.getItem(leaveDraftKey())||'null'); }catch(e){ return null; }
+}
+function clearLeaveDraft(){
+  try{ localStorage.removeItem(leaveDraftKey()); }catch(e){}
+}
+['leaveType','leaveHourStart','leaveHourEnd','leaveReason'].forEach(id=>{
+  document.getElementById(id).addEventListener('input', saveLeaveDraft);
+  document.getElementById(id).addEventListener('change', saveLeaveDraft);
+});
+wireDateChange('leaveFrom', saveLeaveDraft);
+wireDateChange('leaveTo', saveLeaveDraft);
+wireDateChange('leaveSingleDate', saveLeaveDraft);
 
 // -- แก้ไขข้อมูลใบลาโดยตรงจากฝั่ง HR (ไม่ผ่านขั้นตอนขออนุมัติ) — กรณีพนักงานยื่นข้อมูลผิด/ระบบผิด --
 let adminEditingLeaveId = null;
@@ -3407,7 +3460,8 @@ function openLeaveForm(leaveId){
   const existing = editingLeaveId ? db.leaves.find(l=>l.id===editingLeaveId) : null;
   document.getElementById('leaveFormTitle').textContent = existing ? 'แก้ไขใบลา' : 'ยื่นใบลา';
   document.getElementById('leaveFormMsg').textContent='';
-  const kind = existing ? existing.kind : 'sick_cert';
+  const draft = !existing ? loadLeaveDraft() : null;
+  const kind = existing ? existing.kind : (draft?.kind || 'sick_cert');
   document.getElementById('leaveType').value = kind;
   const isHourly = HOURLY_KINDS.includes(kind);
   document.getElementById('leaveDateRangeFields').classList.toggle('hidden', isHourly);
@@ -3423,6 +3477,17 @@ function openLeaveForm(leaveId){
       setDateVal('leaveSingleDate',''); document.getElementById('leaveHourStart').value=''; document.getElementById('leaveHourEnd').value='';
     }
     document.getElementById('leaveReason').value = existing.reason||'';
+  } else if(draft){
+    if(isHourly){
+      setDateVal('leaveSingleDate', draft.singleDate||'');
+      document.getElementById('leaveHourStart').value = draft.hourStart||'';
+      document.getElementById('leaveHourEnd').value = draft.hourEnd||'';
+      setDateVal('leaveFrom',''); setDateVal('leaveTo','');
+    } else {
+      setDateVal('leaveFrom', draft.from||''); setDateVal('leaveTo', draft.to||'');
+      setDateVal('leaveSingleDate',''); document.getElementById('leaveHourStart').value=''; document.getElementById('leaveHourEnd').value='';
+    }
+    document.getElementById('leaveReason').value = draft.reason||'';
   } else {
     setDateVal('leaveFrom',''); setDateVal('leaveTo','');
     setDateVal('leaveSingleDate',''); document.getElementById('leaveHourStart').value=''; document.getElementById('leaveHourEnd').value='';
@@ -3493,14 +3558,14 @@ document.getElementById('submitLeaveBtn').onclick = async ()=>{
   }
   let locationLat=null, locationLng=null, locationAddress=null;
   if(EVIDENCE_REQUIRED_KINDS.includes(kind)){
-    const pos = await getPosition();
-    if(pos){
-      locationLat = pos.lat; locationLng = pos.lng;
-      locationAddress = await reverseGeocodeThai(pos.lat, pos.lng);
-    }
+    const pos = await requestLeaveLocationOrBlock();
+    if(!pos){ return; }
+    locationLat = pos.lat; locationLng = pos.lng;
+    locationAddress = await reverseGeocodeThai(pos.lat, pos.lng);
   }
   const leave = {id:uid(), employeeId:emp.id, kind, from, to, hourStart, hourEnd, reason, status:'pending', requestedAt:new Date().toISOString(), evidenceSent:null, evidenceFileId:null, locationLat, locationLng, locationAddress};
   db.leaves.push(leave); await saveLeaveRow(leave);
+  clearLeaveDraft();
   msg.className='msg ok'; msg.textContent='ส่งใบลาเรียบร้อย รออนุมัติจาก HR';
   showSubmitSuccessPopup(`${leaveLabel(kind)} ${leaveRangeText(leave)}\nไม่ต้องส่งซ้ำ — ระบบส่งคำขอเข้ากลุ่มรออนุมัติแล้ว`);
   renderLeaveTab();
