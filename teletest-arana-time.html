@@ -2106,13 +2106,13 @@ function sbHeaders(extra){
 // ตั้งต้นจาก defaultDB() (สาขา b1/b2/b3/hq ที่ Chat ID ว่าง) ถ้าเผลอกดบันทึกตอนนั้น
 // ค่าตั้งต้นจะทับข้อมูลจริงทั้งหมด จึงต้องล็อกปุ่มบันทึกไว้จนกว่าจะโหลดใหม่ได้ครบ
 let sbLoadFailed = [];
-async function sbSelectAll(table){
+async function sbSelectAll(table, filterQuery){
   const PAGE = 1000;
   let out = [], from = 0;
   const markFailed = ()=>{ if(!sbLoadFailed.includes(table)) sbLoadFailed.push(table); };
   try{
     for(;;){
-      const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?select=*`, {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?select=*${filterQuery?('&'+filterQuery):''}`, {
         headers: { ...sbHeaders(), 'Range-Unit':'items', 'Range':`${from}-${from+PAGE-1}` }
       });
       if(!res.ok){ markFailed(); return from===0 ? [] : out; }
@@ -2210,28 +2210,59 @@ const notiToRow = n => ({ id:n.id, employee_id:n.employeeId, title:n.title, body
 const rowToSettings = r => ({ centralToken:r.central_token||'', centralChatId:r.central_chat_id||'', otChatId:r.ot_chat_id||'', graceMinutes:r.grace_minutes??15, adminPassword:r.admin_password||'admin1234', holidays:r.holidays||[], notifyTypes:r.notify_types||{}, telegramRooms:r.telegram_rooms||[], gsheetWebappUrl:r.gsheet_webapp_url||'', gsheetSecret:r.gsheet_secret||'', gsheetLastSync:r.gsheet_last_sync||null, shiftOverrides:r.shift_overrides||[], attendanceStartDate:r.attendance_start_date||null });
 const settingsToRow = s => ({ id:1, central_token:s.centralToken||'', central_chat_id:s.centralChatId||'', ot_chat_id:s.otChatId||'', grace_minutes:s.graceMinutes??15, admin_password:s.adminPassword||'admin1234', holidays:s.holidays||[], notify_types:s.notifyTypes||{}, telegram_rooms:s.telegramRooms||[], gsheet_webapp_url:s.gsheetWebappUrl||'', gsheet_secret:s.gsheetSecret||'', shift_overrides:s.shiftOverrides||[], attendance_start_date:s.attendanceStartDate||null });
 
+// โหลดตารางพื้นฐาน (ไม่รวม logs/leaves/ot_requests/notifications ที่โตไม่หยุดและโตตามจำนวนพนักงาน)
+// ตารางเหล่านั้นจะโหลดแยกแบบเจาะจง (loadEmployeeScopedData/loadAdminScopedData) หลังรู้ตัวตน/สิทธิ์ผู้ใช้แล้ว
+// เพื่อลด Supabase egress ที่เดิมโหลดประวัติของพนักงานทุกคนลงเครื่องพนักงานทุกคนที่เปิดแอป
 async function loadDB(){
   sbLoadFailed = [];
-  const [branchRows, empRows, approverRows, logRows, leaveRows, otRows, transferRows, notiRows, settingsRows, warningRows, companyRows] = await Promise.all([
-    sbSelectAll('branches'), sbSelectAll('employees'), sbSelectAll('approvers'), sbSelectAll('logs'),
-    sbSelectAll('leaves'), sbSelectAll('ot_requests'), sbSelectAll('branch_transfers'), sbSelectAll('notifications'), sbSelectAll('settings'),
+  const [branchRows, empRows, approverRows, transferRows, settingsRows, warningRows, companyRows] = await Promise.all([
+    sbSelectAll('branches'), sbSelectAll('employees'), sbSelectAll('approvers'),
+    sbSelectAll('branch_transfers'), sbSelectAll('settings'),
     sbSelectAll('warning_letters'), sbSelectAll('companies')
   ]);
   db = defaultDB();
   if(branchRows.length) db.branches = branchRows.map(rowToBranch);
   db.employees = empRows.map(rowToEmployee);
   db.approvers = approverRows.map(rowToApprover);
-  db.logs = logRows.map(rowToLog);
-  db.leaves = leaveRows.map(rowToLeave);
-  db.otRequests = otRows.map(rowToOt);
   db.branchTransfers = transferRows.map(rowToBranchTransfer);
-  db.notifications = notiRows.map(rowToNoti);
   db.warningLetters = warningRows.map(rowToWarningLetter);
   db.companies = companyRows.map(rowToCompany);
   if(settingsRows.length) db.settings = { ...defaultDB().settings, ...rowToSettings(settingsRows[0]) };
   db.settings.notifyTypes = { ...defaultDB().settings.notifyTypes, ...(db.settings.notifyTypes||{}) };
   db.settings.telegramRooms = db.settings.telegramRooms || [];
   db.settings.shiftOverrides = db.settings.shiftOverrides || [];
+}
+// เรียกหลังรู้ว่าเป็นพนักงานคนไหน (login สำเร็จ/resume session) — ดึงเฉพาะ logs/leaves/ot_requests/notifications ของคนนั้น
+// ปลอดภัยเพราะทุกหน้าจอฝั่งพนักงาน (สรุปยอด Home, ใบลาของฉัน, OT ของฉัน, แจ้งเตือน, export CSV ของตัวเอง) กรองด้วย employeeId ของตัวเองอยู่แล้วทุกจุด
+async function loadEmployeeScopedData(employeeId){
+  const filter = `employee_id=eq.${employeeId}`;
+  const [logRows, leaveRows, otRows, notiRows] = await Promise.all([
+    sbSelectAll('logs', filter), sbSelectAll('leaves', filter), sbSelectAll('ot_requests', filter), sbSelectAll('notifications', filter)
+  ]);
+  db.logs = logRows.map(rowToLog);
+  db.leaves = leaveRows.map(rowToLeave);
+  db.otRequests = otRows.map(rowToOt);
+  db.notifications = notiRows.map(rowToNoti);
+}
+// เรียกหลัง login เป็นแอดมิน/ผู้บริหาร — ต้องเห็นข้อมูลของพนักงานทุกคนจริงๆ (รายงาน/อนุมัติ/ตรวจ) จึงโหลดทั้งหมดเหมือนเดิม
+async function loadAdminScopedData(){
+  const [logRows, leaveRows, otRows, notiRows] = await Promise.all([
+    sbSelectAll('logs'), sbSelectAll('leaves'), sbSelectAll('ot_requests'), sbSelectAll('notifications')
+  ]);
+  db.logs = logRows.map(rowToLog);
+  db.leaves = leaveRows.map(rowToLeave);
+  db.otRequests = otRows.map(rowToOt);
+  db.notifications = notiRows.map(rowToNoti);
+}
+// รีเฟรชเฉพาะ 3 ตารางที่แท็บรายงานใช้จริง (logs/leaves/ot_requests) แทนการโหลดทุกตารางซ้ำแบบ loadDB() เต็มรูปแบบ
+// เพื่อลด Supabase egress จากปุ่ม "รีเฟรชรายงาน" ที่ HR กดซ้ำได้หลายรอบต่อเซสชัน
+async function loadReportTablesOnly(){
+  const [logRows, leaveRows, otRows] = await Promise.all([
+    sbSelectAll('logs'), sbSelectAll('leaves'), sbSelectAll('ot_requests')
+  ]);
+  db.logs = logRows.map(rowToLog);
+  db.leaves = leaveRows.map(rowToLeave);
+  db.otRequests = otRows.map(rowToOt);
 }
 async function saveDB(){
   await Promise.all([
@@ -2764,11 +2795,13 @@ async function submitPin(){
     pinTargetEmp.pin = pinBuffer; await saveEmployeeRow(pinTargetEmp);
     session = {role:'employee', employeeId:pinTargetEmp.id}; pinBuffer='';
     rememberLogin('employee', pinTargetEmp.id); persistSession();
+    await loadEmployeeScopedData(pinTargetEmp.id);
     if(!pinTargetEmp.descriptor){ enterEmployeeView(); openCamera('enroll', pinTargetEmp); } else enterEmployeeView();
   } else {
     if(pinBuffer !== pinTargetEmp.pin){ msg.textContent='PIN ไม่ถูกต้อง'; pinBuffer=''; renderPinDots(); return; }
     session = {role:'employee', employeeId:pinTargetEmp.id}; pinBuffer='';
     rememberLogin('employee', pinTargetEmp.id); persistSession();
+    await loadEmployeeScopedData(pinTargetEmp.id);
     if(!pinTargetEmp.descriptor){ enterEmployeeView(); openCamera('enroll', pinTargetEmp); } else enterEmployeeView();
   }
 }
@@ -2830,17 +2863,19 @@ async function submitApproverPin(){
     approverPinTarget.pin = approverPinBuffer; await saveApproverRow(approverPinTarget);
     session = {role:'approver', approverId:approverPinTarget.id, approverRole:approverPinTarget.role}; approverPinBuffer='';
     rememberLogin('approver', approverPinTarget.id); persistSession();
+    await loadAdminScopedData();
     enterApproverView();
   } else {
     if(approverPinBuffer !== approverPinTarget.pin){ msg.textContent='PIN ไม่ถูกต้อง'; approverPinBuffer=''; renderApproverPinDots(); return; }
     session = {role:'approver', approverId:approverPinTarget.id, approverRole:approverPinTarget.role}; approverPinBuffer='';
     rememberLogin('approver', approverPinTarget.id); persistSession();
+    await loadAdminScopedData();
     enterApproverView();
   }
 }
-document.getElementById('adminLoginBtn').onclick = ()=>{
+document.getElementById('adminLoginBtn').onclick = async ()=>{
   const pass = document.getElementById('adminPassInput').value;
-  if(pass === db.settings.adminPassword){ session = {role:'admin', employeeId:null}; persistSession(); enterAdminView(); }
+  if(pass === db.settings.adminPassword){ session = {role:'admin', employeeId:null}; persistSession(); await loadAdminScopedData(); enterAdminView(); }
   else document.getElementById('adminLoginMsg').textContent = 'รหัสผ่านไม่ถูกต้อง';
 };
 function doLogout(){
@@ -5250,7 +5285,7 @@ function initReportsTab(){
       const btn = document.getElementById('reportRefreshBtn'), msg = document.getElementById('reportRefreshMsg');
       btn.disabled = true; msg.textContent = 'กำลังดึงข้อมูล…';
       try{
-        await loadDB();
+        await loadReportTablesOnly();
         renderReportsTab();
         const t = new Date();
         msg.textContent = `อัปเดตล่าสุด ${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')} น. · ${db.logs.length} รายการ`;
@@ -8079,12 +8114,12 @@ async function captureEnrollment(fromAdmin){
   if(persisted){
     if(persisted.role==='employee'){
       const emp = db.employees.find(e=>e.id===persisted.employeeId && e.active!==false);
-      if(emp){ session = persisted; enterEmployeeView(); initFaceApi(); return; }
+      if(emp){ session = persisted; await loadEmployeeScopedData(emp.id); enterEmployeeView(); initFaceApi(); return; }
     } else if(persisted.role==='approver'){
       const a = db.approvers.find(x=>x.id===persisted.approverId);
-      if(a){ session = persisted; enterApproverView(); initFaceApi(); return; }
+      if(a){ session = persisted; await loadAdminScopedData(); enterApproverView(); initFaceApi(); return; }
     } else if(persisted.role==='admin'){
-      session = persisted; enterAdminView(); initFaceApi(); return;
+      session = persisted; await loadAdminScopedData(); enterAdminView(); initFaceApi(); return;
     }
     clearPersistedSession();
   }
