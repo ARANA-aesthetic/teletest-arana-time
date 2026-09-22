@@ -4098,9 +4098,10 @@ async function adminDeleteOt(id){
 
 let adminEditingOtId = null;
 function openAdminOtCreate(){
-  if(!canApproveOt()){ alert('ไม่มีสิทธิ์เพิ่ม OT ต้องเป็นเจ้าของ/HR เท่านั้น'); return; }
+  if(!canRequestOtForOthers()){ alert('ไม่มีสิทธิ์เพิ่ม OT ต้องเป็นเจ้าของ/HR/ผู้จัดการเท่านั้น'); return; }
+  const managerOnly = !isAdminTier();
   adminEditingOtId = null;
-  document.getElementById('adminOtEditTitle').textContent = 'เพิ่ม OT แทนพนักงาน (HR)';
+  document.getElementById('adminOtEditTitle').textContent = managerOnly ? 'ขอ OT แทนพนักงาน (รออนุมัติ)' : 'เพิ่ม OT แทนพนักงาน (HR)';
   document.getElementById('adminOtEmpWrap').classList.remove('hidden');
   document.getElementById('adminOtEmp').innerHTML = db.employees
     .slice().sort((a,b)=>a.name.localeCompare(b.name,'th'))
@@ -4109,7 +4110,8 @@ function openAdminOtCreate(){
   setDateVal('adminOtDate', dateKey(new Date()));
   document.getElementById('adminOtHourStart').value = '';
   document.getElementById('adminOtHourEnd').value = '';
-  document.getElementById('adminOtStatus').value = 'approved';
+  document.getElementById('adminOtStatus').value = managerOnly ? 'pending' : 'approved';
+  document.getElementById('adminOtStatus').disabled = managerOnly;
   document.getElementById('adminOtReason').value = '';
   document.getElementById('adminOtEditMsg').textContent = '';
   document.getElementById('adminOtEditOverlay').classList.add('show');
@@ -4126,6 +4128,7 @@ function openAdminOtEdit(otId){
   document.getElementById('adminOtHourStart').value = ot.hourStart||'';
   document.getElementById('adminOtHourEnd').value = ot.hourEnd||'';
   document.getElementById('adminOtStatus').value = ot.status;
+  document.getElementById('adminOtStatus').disabled = false;
   document.getElementById('adminOtReason').value = ot.reason||'';
   document.getElementById('adminOtEditMsg').textContent = '';
   document.getElementById('adminOtEditOverlay').classList.add('show');
@@ -4147,14 +4150,25 @@ document.getElementById('saveAdminOtEditBtn').onclick = async ()=>{
     await markOtForResync(ot.id);
     await logAudit('edit_by_admin', 'ot', ot.id, `HR แก้ไขรายการ OT โดยตรง: ${before} → ${ddmmyyyy(date)} ${hourStart}-${hourEnd} (${otStatusLabel(status)})`);
   } else {
+    if(!canRequestOtForOthers()){ msg.className='msg err'; msg.textContent='ไม่มีสิทธิ์เพิ่ม OT ต้องเป็นเจ้าของ/HR/ผู้จัดการเท่านั้น'; return; }
     const employeeId = document.getElementById('adminOtEmp').value;
     const emp = db.employees.find(e=>e.id===employeeId);
     if(!emp){ msg.className='msg err'; msg.textContent='กรุณาเลือกพนักงาน'; return; }
+    // ผู้จัดการต้องเข้าคิวรออนุมัติเสมอ (บังคับฝั่งนี้ซ้ำอีกชั้น เผื่อ dropdown สถานะถูกแก้ค่ามาทางอื่น)
+    const finalStatus = isAdminTier() ? status : 'pending';
     const nowIso = new Date().toISOString();
-    const row = {id:uid(), employeeId, date, hourStart, hourEnd, reason, status, requestedAt:nowIso, decidedAt: status==='pending'?null:nowIso, groupId:null};
+    const row = {id:uid(), employeeId, date, hourStart, hourEnd, reason, status:finalStatus, requestedAt:nowIso, decidedAt: finalStatus==='pending'?null:nowIso, groupId:null};
     db.otRequests.push(row);
     await saveOtRow(row);
-    await logAudit('create_by_admin', 'ot', row.id, `HR เพิ่มรายการ OT แทนพนักงาน ${emp.name}: ${ddmmyyyy(date)} ${hourStart}-${hourEnd} (${otStatusLabel(status)})`);
+    const actorLabel = isAdminTier() ? 'HR' : 'ผู้จัดการ';
+    await logAudit('create_by_admin', 'ot', row.id, `${actorLabel}เพิ่มรายการ OT แทนพนักงาน ${emp.name}: ${ddmmyyyy(date)} ${hourStart}-${hourEnd} (${otStatusLabel(finalStatus)})`);
+    if(finalStatus==='pending'){
+      const empBr = db.branches.find(b=>b.id===emp.branchId);
+      const dateDash = date.split('-').reverse().join('-');
+      const text = `🚧สาขา ${empBr?.name||'-'} ขออนุมัติเบิก OT (ยื่นแทนโดยผู้จัดการ)\n⚠️วันที่ ${dateDash} ⏭️ <a href="${APP_URL}">กดที่นี่</a>`;
+      if(db.settings.notifyTypes.otSubmit && otRoomChatId()) await tgSendMessage(db.settings.centralToken, otRoomChatId(), text);
+      await pushNotification(emp.id, 'มีคำขอ OT ยื่นแทนโดยผู้จัดการ', `${date} เวลา ${hourStart}-${hourEnd} กำลังรอการอนุมัติ`);
+    }
   }
   document.getElementById('adminOtEditOverlay').classList.remove('show');
   adminEditingOtId = null;
@@ -4329,6 +4343,10 @@ function canApproveLeave(){
 }
 function canApproveOt(){
   return isAdminTier();
+}
+// ผู้จัดการ "ขอ" OT แทนพนักงานได้ (ทุกสาขา) แต่ต้องเข้าคิวรออนุมัติเสมอ ไม่ได้สิทธิ์อนุมัติ OT เอง (canApproveOt ยังคุมแยกอยู่)
+function canRequestOtForOthers(){
+  return isAdminTier() || (session.role==='approver' && session.approverRole==='manager');
 }
 function enterApproverView(){
   showView('admin');
