@@ -2234,10 +2234,17 @@ async function loadDB(){
 }
 // เรียกหลังรู้ว่าเป็นพนักงานคนไหน (login สำเร็จ/resume session) — ดึงเฉพาะ logs/leaves/ot_requests/notifications ของคนนั้น
 // ปลอดภัยเพราะทุกหน้าจอฝั่งพนักงาน (สรุปยอด Home, ใบลาของฉัน, OT ของฉัน, แจ้งเตือน, export CSV ของตัวเอง) กรองด้วย employeeId ของตัวเองอยู่แล้วทุกจุด
+// ข้อยกเว้น: logs ประเภท AC/CLEAN เป็นเช็คลิสต์ "ทั้งสาขา" ที่พนักงานทุกคนต้องเห็นสถานะของเพื่อนร่วมสาขาด้วย
+// (renderAcTab/renderEmployeeHome เช็คว่าจุดปิดแอร์/ความสะอาดของสาขาใครทำไปแล้วบ้าง ไม่ใช่แค่ของตัวเอง)
+// จึงต้องดึง AC/CLEAN ของทั้งสาขามาด้วย ไม่ใช่กรองแค่ employee_id เหมือนตารางอื่น
 async function loadEmployeeScopedData(employeeId){
-  const filter = `employee_id=eq.${employeeId}`;
+  const emp = db.employees.find(e=>e.id===employeeId);
+  const ownFilter = `employee_id=eq.${employeeId}`;
+  const logsFilter = emp?.branchId
+    ? `or=(employee_id.eq.${employeeId},and(branch_id.eq.${emp.branchId},type.in.(AC,CLEAN)))`
+    : ownFilter;
   const [logRows, leaveRows, otRows, notiRows] = await Promise.all([
-    sbSelectAll('logs', filter), sbSelectAll('leaves', filter), sbSelectAll('ot_requests', filter), sbSelectAll('notifications', filter)
+    sbSelectAll('logs', logsFilter), sbSelectAll('leaves', ownFilter), sbSelectAll('ot_requests', ownFilter), sbSelectAll('notifications', ownFilter)
   ]);
   db.logs = logRows.map(rowToLog);
   db.leaves = leaveRows.map(rowToLeave);
