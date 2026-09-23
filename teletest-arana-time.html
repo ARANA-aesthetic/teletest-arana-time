@@ -1629,6 +1629,31 @@
   </div>
 </div>
 
+<!-- ผู้จัดการขอ OT แทนพนักงานหลายคนพร้อมกัน (ต้องเข้าคิวรออนุมัติเสมอ) -->
+<div class="overlay" id="managerOtGroupOverlay">
+  <div class="modal">
+    <h3>ขอ OT แทนพนักงานหลายคน</h3>
+    <div style="color:var(--muted);font-size:11.5px;margin-bottom:10px;">ส่งเป็นคำขอรออนุมัติจากเจ้าของ/HR เหมือนพนักงานยื่นขอเอง</div>
+    <label>สาขา</label>
+    <select id="managerOtBranchFilter"></select>
+    <label>วันที่</label>
+    <div id="managerOtDate_holder"></div>
+    <div class="row2">
+      <div><label>เวลาเริ่ม</label><input type="time" id="managerOtHourStart"></div>
+      <div><label>เวลาสิ้นสุด</label><input type="time" id="managerOtHourEnd"></div>
+    </div>
+    <label>เหตุผล</label>
+    <textarea id="managerOtReason" placeholder="ระบุเหตุผลการทำ OT"></textarea>
+    <label>เลือกพนักงาน (เฉพาะที่ยังทำงานอยู่)</label>
+    <div class="card" id="managerOtEmpChecklist" style="max-height:200px;overflow:auto;padding:10px 14px;"></div>
+    <div class="modalfoot">
+      <button class="btn block" id="submitManagerOtGroupBtn">ส่งคำขอ OT</button>
+      <button class="btn gray" id="closeManagerOtGroupBtn">ยกเลิก</button>
+    </div>
+    <div class="msg" id="managerOtGroupMsg"></div>
+  </div>
+</div>
+
 <!-- Warning letter modal (HR only) -->
 <div class="overlay" id="warningOverlay">
   <div class="modal">
@@ -4182,6 +4207,61 @@ document.getElementById('saveAdminOtEditBtn').onclick = async ()=>{
   renderOtLists(); renderOverviewStats();
 };
 
+// ผู้จัดการขอ OT แทนพนักงานหลายคนพร้อมกัน (ทุกสาขา, เฉพาะพนักงานที่ยังทำงานอยู่) — คล้ายฟอร์ม "ขอ OT" ของพนักงาน
+// แต่เพิ่มตัวกรองสาขา และส่งเป็น pending เข้าคิวรออนุมัติเสมอ (ไม่ให้ตั้งอนุมัติแล้วได้ตรงนี้)
+function renderManagerOtChecklist(branchId){
+  const emps = db.employees.filter(e=>e.active!==false && (!branchId || e.branchId===branchId))
+    .slice().sort((a,b)=>a.name.localeCompare(b.name,'th'));
+  document.getElementById('managerOtEmpChecklist').innerHTML = emps.length ? emps.map(e=>{
+    const br = db.branches.find(b=>b.id===e.branchId);
+    return `<label style="display:flex;align-items:center;gap:8px;padding:6px 0;font-size:13px;cursor:pointer;">
+      <input type="checkbox" data-managerotemp="${e.id}"> ${e.name}${e.nickname?` (${e.nickname})`:''}<span style="color:var(--muted);">· ${br?.name||'-'}</span>
+    </label>`;
+  }).join('') : '<div class="empty">ไม่มีพนักงานที่ยังทำงานอยู่ในสาขานี้</div>';
+}
+function openManagerOtGroupRequest(){
+  if(!canRequestOtForOthers()){ alert('ไม่มีสิทธิ์เพิ่ม OT ต้องเป็นเจ้าของ/HR/ผู้จัดการเท่านั้น'); return; }
+  document.getElementById('managerOtBranchFilter').innerHTML = `<option value="">ทุกสาขา</option>` +
+    db.branches.map(b=>`<option value="${b.id}">${b.name}</option>`).join('');
+  document.getElementById('managerOtBranchFilter').value = '';
+  document.getElementById('managerOtDate_holder').innerHTML = dateSelectHTML('managerOtDate');
+  setDateVal('managerOtDate', dateKey(new Date()));
+  document.getElementById('managerOtHourStart').value = '';
+  document.getElementById('managerOtHourEnd').value = '';
+  document.getElementById('managerOtReason').value = '';
+  document.getElementById('managerOtGroupMsg').textContent = '';
+  renderManagerOtChecklist('');
+  document.getElementById('managerOtGroupOverlay').classList.add('show');
+}
+document.getElementById('managerOtBranchFilter').onchange = (e)=> renderManagerOtChecklist(e.target.value);
+document.getElementById('closeManagerOtGroupBtn').onclick = ()=> document.getElementById('managerOtGroupOverlay').classList.remove('show');
+document.getElementById('submitManagerOtGroupBtn').onclick = async ()=>{
+  if(!canRequestOtForOthers()){ alert('ไม่มีสิทธิ์เพิ่ม OT ต้องเป็นเจ้าของ/HR/ผู้จัดการเท่านั้น'); return; }
+  const msg = document.getElementById('managerOtGroupMsg');
+  const date = getDateVal('managerOtDate');
+  const hourStart = document.getElementById('managerOtHourStart').value;
+  const hourEnd = document.getElementById('managerOtHourEnd').value;
+  const reason = document.getElementById('managerOtReason').value.trim();
+  if(!date || !hourStart || !hourEnd){ msg.className='msg err'; msg.textContent='กรุณากรอกวันที่และเวลาให้ครบ'; return; }
+  const selectedIds = Array.from(document.querySelectorAll('#managerOtEmpChecklist [data-managerotemp]:checked')).map(cb=>cb.dataset.managerotemp);
+  if(!selectedIds.length){ msg.className='msg err'; msg.textContent='กรุณาเลือกพนักงานอย่างน้อย 1 คน'; return; }
+  const groupId = uid();
+  const nowIso = new Date().toISOString();
+  const rows = selectedIds.map(empId => ({id:uid(), employeeId:empId, date, hourStart, hourEnd, reason, status:'pending', requestedAt:nowIso, decidedAt:null, groupId}));
+  db.otRequests.push(...rows);
+  await Promise.all(rows.map(r=>saveOtRow(r)));
+  const branchIds = [...new Set(selectedIds.map(id=>db.employees.find(e=>e.id===id)?.branchId))];
+  const branchLabel = branchIds.length===1 ? (db.branches.find(b=>b.id===branchIds[0])?.name||'-') : `${branchIds.length} สาขา`;
+  await logAudit('create_by_admin', 'ot_group', groupId, `ผู้จัดการขอ OT แทนพนักงาน ${selectedIds.length} คน (${branchLabel}) วันที่ ${ddmmyyyy(date)} ${hourStart}-${hourEnd}`);
+  const dateDash = date.split('-').reverse().join('-');
+  const text = `🚧${branchLabel} ขออนุมัติเบิก OT (ยื่นแทนโดยผู้จัดการ, ${selectedIds.length} คน)\n⚠️วันที่ ${dateDash} ⏭️ <a href="${APP_URL}">กดที่นี่</a>`;
+  if(db.settings.notifyTypes.otSubmit && otRoomChatId()) await tgSendMessage(db.settings.centralToken, otRoomChatId(), text);
+  await Promise.all(selectedIds.map(empId => pushNotification(empId, 'มีคำขอ OT ยื่นแทนโดยผู้จัดการ', `${date} เวลา ${hourStart}-${hourEnd} กำลังรอการอนุมัติ`)));
+  msg.className='msg ok'; msg.textContent='ส่งคำขอ OT เรียบร้อย รออนุมัติจากเจ้าของ/HR';
+  renderOtLists(); renderOverviewStats();
+  setTimeout(()=>{ document.getElementById('managerOtGroupOverlay').classList.remove('show'); }, 900);
+};
+
 // -- Notifications tab --
 function renderNotiTab(){
   const emp = currentEmployee(); if(!emp) return;
@@ -5865,7 +5945,10 @@ function renderApprovalBranchFilter(){
 }
 let approvalHistorySearched = false;
 document.getElementById('adminAddLeaveBtn').onclick = ()=> openAdminLeaveCreate();
-document.getElementById('adminAddOtBtn').onclick = ()=> openAdminOtCreate();
+document.getElementById('adminAddOtBtn').onclick = ()=>{
+  if(!isAdminTier() && canRequestOtForOthers()) openManagerOtGroupRequest();
+  else openAdminOtCreate();
+};
 function renderApprovalLists(){ renderLeaveLists(); renderOtLists(); }
 function renderLeaveLists(){
   const empIds = getApprovalFilteredEmpIds();
