@@ -1598,15 +1598,11 @@
   </div>
 </div>
 
-<!-- HR: เพิ่ม/แก้ไข คำขอ OT โดยตรง -->
+<!-- HR: แก้ไขคำขอ OT ที่มีอยู่แล้วโดยตรง (เพิ่มรายการใหม่ย้ายไปใช้ managerOtGroupOverlay ร่วมกับผู้จัดการแล้ว) -->
 <div class="overlay" id="adminOtEditOverlay">
   <div class="modal">
     <h3 id="adminOtEditTitle">แก้ไขข้อมูล OT (HR)</h3>
     <div style="color:var(--muted);font-size:11.5px;margin-bottom:10px;">แก้ไขแล้วมีผลทันที ไม่ต้องรออนุมัติซ้ำ และไม่ส่งแจ้งเตือนเข้ากลุ่ม Telegram ใดๆ</div>
-    <div id="adminOtEmpWrap" class="hidden">
-      <label>พนักงาน</label>
-      <select id="adminOtEmp"></select>
-    </div>
     <label>วันที่</label>
     <div id="adminOtDate_holder"></div>
     <div class="row2">
@@ -1629,11 +1625,11 @@
   </div>
 </div>
 
-<!-- ผู้จัดการขอ OT แทนพนักงานหลายคนพร้อมกัน (ต้องเข้าคิวรออนุมัติเสมอ) -->
+<!-- เพิ่มคำขอ OT แทนพนักงานหลายคนพร้อมกัน — ใช้ร่วมกันทั้งเจ้าของ/HR (ตั้งสถานะเองได้) และผู้จัดการ (ล็อกรออนุมัติเสมอ) -->
 <div class="overlay" id="managerOtGroupOverlay">
   <div class="modal">
-    <h3>ขอ OT แทนพนักงานหลายคน</h3>
-    <div style="color:var(--muted);font-size:11.5px;margin-bottom:10px;">ส่งเป็นคำขอรออนุมัติจากเจ้าของ/HR เหมือนพนักงานยื่นขอเอง</div>
+    <h3 id="managerOtGroupTitle">ขอ OT แทนพนักงานหลายคน</h3>
+    <div style="color:var(--muted);font-size:11.5px;margin-bottom:10px;" id="managerOtGroupHint">ส่งเป็นคำขอรออนุมัติจากเจ้าของ/HR เหมือนพนักงานยื่นขอเอง</div>
     <label>สาขา</label>
     <select id="managerOtBranchFilter"></select>
     <label>วันที่</label>
@@ -1641,6 +1637,14 @@
     <div class="row2">
       <div><label>เวลาเริ่ม</label><input type="time" id="managerOtHourStart"></div>
       <div><label>เวลาสิ้นสุด</label><input type="time" id="managerOtHourEnd"></div>
+    </div>
+    <div id="managerOtStatusWrap" class="hidden">
+      <label>สถานะ</label>
+      <select id="managerOtStatus">
+        <option value="approved">อนุมัติแล้ว</option>
+        <option value="pending">รออนุมัติ</option>
+        <option value="rejected">ปฏิเสธ</option>
+      </select>
     </div>
     <label>เหตุผล</label>
     <textarea id="managerOtReason" placeholder="ระบุเหตุผลการทำ OT"></textarea>
@@ -4129,38 +4133,17 @@ async function adminDeleteOt(id){
 }
 
 let adminEditingOtId = null;
-function openAdminOtCreate(){
-  if(!canRequestOtForOthers()){ alert('ไม่มีสิทธิ์เพิ่ม OT ต้องเป็นเจ้าของ/HR/ผู้จัดการเท่านั้น'); return; }
-  const managerOnly = !isAdminTier();
-  adminEditingOtId = null;
-  document.getElementById('adminOtEditTitle').textContent = managerOnly ? 'ขอ OT แทนพนักงาน (รออนุมัติ)' : 'เพิ่ม OT แทนพนักงาน (HR)';
-  document.getElementById('adminOtEmpWrap').classList.remove('hidden');
-  document.getElementById('adminOtEmp').innerHTML = db.employees
-    .slice().sort((a,b)=>a.name.localeCompare(b.name,'th'))
-    .map(e=>`<option value="${e.id}">${e.name}${e.nickname?` (${e.nickname})`:''}</option>`).join('');
-  document.getElementById('adminOtDate_holder').innerHTML = dateSelectHTML('adminOtDate');
-  setDateVal('adminOtDate', dateKey(new Date()));
-  document.getElementById('adminOtHourStart').value = '';
-  document.getElementById('adminOtHourEnd').value = '';
-  document.getElementById('adminOtStatus').value = managerOnly ? 'pending' : 'approved';
-  document.getElementById('adminOtStatus').disabled = managerOnly;
-  document.getElementById('adminOtReason').value = '';
-  document.getElementById('adminOtEditMsg').textContent = '';
-  document.getElementById('adminOtEditOverlay').classList.add('show');
-}
 function openAdminOtEdit(otId){
   if(!canApproveOt()){ alert('ไม่มีสิทธิ์แก้ไข ต้องเป็นเจ้าของ/HR เท่านั้น'); return; }
   const ot = db.otRequests.find(o=>o.id===otId); if(!ot) return;
   adminEditingOtId = otId;
   const emp = db.employees.find(e=>e.id===ot.employeeId);
   document.getElementById('adminOtEditTitle').textContent = `แก้ไข OT — ${emp?.name||'-'}`;
-  document.getElementById('adminOtEmpWrap').classList.add('hidden');
   document.getElementById('adminOtDate_holder').innerHTML = dateSelectHTML('adminOtDate');
   setDateVal('adminOtDate', ot.date);
   document.getElementById('adminOtHourStart').value = ot.hourStart||'';
   document.getElementById('adminOtHourEnd').value = ot.hourEnd||'';
   document.getElementById('adminOtStatus').value = ot.status;
-  document.getElementById('adminOtStatus').disabled = false;
   document.getElementById('adminOtReason').value = ot.reason||'';
   document.getElementById('adminOtEditMsg').textContent = '';
   document.getElementById('adminOtEditOverlay').classList.add('show');
@@ -4174,34 +4157,13 @@ document.getElementById('saveAdminOtEditBtn').onclick = async ()=>{
   const status = document.getElementById('adminOtStatus').value;
   const reason = document.getElementById('adminOtReason').value.trim();
   if(!date || !hourStart || !hourEnd){ msg.className='msg err'; msg.textContent='กรุณากรอกวันที่และเวลาให้ครบ'; return; }
-  if(adminEditingOtId){
-    const ot = db.otRequests.find(o=>o.id===adminEditingOtId); if(!ot) return;
-    const before = `${ddmmyyyy(ot.date)} ${ot.hourStart}-${ot.hourEnd} (${otStatusLabel(ot.status)})`;
-    Object.assign(ot, {date, hourStart, hourEnd, reason, status, decidedAt: status==='pending' ? null : (ot.decidedAt||new Date().toISOString())});
-    await saveOtRow(ot);
-    await markOtForResync(ot.id);
-    await logAudit('edit_by_admin', 'ot', ot.id, `HR แก้ไขรายการ OT โดยตรง: ${before} → ${ddmmyyyy(date)} ${hourStart}-${hourEnd} (${otStatusLabel(status)})`);
-  } else {
-    if(!canRequestOtForOthers()){ msg.className='msg err'; msg.textContent='ไม่มีสิทธิ์เพิ่ม OT ต้องเป็นเจ้าของ/HR/ผู้จัดการเท่านั้น'; return; }
-    const employeeId = document.getElementById('adminOtEmp').value;
-    const emp = db.employees.find(e=>e.id===employeeId);
-    if(!emp){ msg.className='msg err'; msg.textContent='กรุณาเลือกพนักงาน'; return; }
-    // ผู้จัดการต้องเข้าคิวรออนุมัติเสมอ (บังคับฝั่งนี้ซ้ำอีกชั้น เผื่อ dropdown สถานะถูกแก้ค่ามาทางอื่น)
-    const finalStatus = isAdminTier() ? status : 'pending';
-    const nowIso = new Date().toISOString();
-    const row = {id:uid(), employeeId, date, hourStart, hourEnd, reason, status:finalStatus, requestedAt:nowIso, decidedAt: finalStatus==='pending'?null:nowIso, groupId:null};
-    db.otRequests.push(row);
-    await saveOtRow(row);
-    const actorLabel = isAdminTier() ? 'HR' : 'ผู้จัดการ';
-    await logAudit('create_by_admin', 'ot', row.id, `${actorLabel}เพิ่มรายการ OT แทนพนักงาน ${emp.name}: ${ddmmyyyy(date)} ${hourStart}-${hourEnd} (${otStatusLabel(finalStatus)})`);
-    if(finalStatus==='pending'){
-      const empBr = db.branches.find(b=>b.id===emp.branchId);
-      const dateDash = date.split('-').reverse().join('-');
-      const text = `🚧สาขา ${empBr?.name||'-'} ขออนุมัติเบิก OT (ยื่นแทนโดยผู้จัดการ)\n⚠️วันที่ ${dateDash} ⏭️ <a href="${APP_URL}">กดที่นี่</a>`;
-      if(db.settings.notifyTypes.otSubmit && otRoomChatId()) await tgSendMessage(db.settings.centralToken, otRoomChatId(), text);
-      await pushNotification(emp.id, 'มีคำขอ OT ยื่นแทนโดยผู้จัดการ', `${date} เวลา ${hourStart}-${hourEnd} กำลังรอการอนุมัติ`);
-    }
-  }
+  if(!adminEditingOtId) return;
+  const ot = db.otRequests.find(o=>o.id===adminEditingOtId); if(!ot) return;
+  const before = `${ddmmyyyy(ot.date)} ${ot.hourStart}-${ot.hourEnd} (${otStatusLabel(ot.status)})`;
+  Object.assign(ot, {date, hourStart, hourEnd, reason, status, decidedAt: status==='pending' ? null : (ot.decidedAt||new Date().toISOString())});
+  await saveOtRow(ot);
+  await markOtForResync(ot.id);
+  await logAudit('edit_by_admin', 'ot', ot.id, `HR แก้ไขรายการ OT โดยตรง: ${before} → ${ddmmyyyy(date)} ${hourStart}-${hourEnd} (${otStatusLabel(status)})`);
   document.getElementById('adminOtEditOverlay').classList.remove('show');
   adminEditingOtId = null;
   renderOtLists(); renderOverviewStats();
@@ -4221,6 +4183,11 @@ function renderManagerOtChecklist(branchId){
 }
 function openManagerOtGroupRequest(){
   if(!canRequestOtForOthers()){ alert('ไม่มีสิทธิ์เพิ่ม OT ต้องเป็นเจ้าของ/HR/ผู้จัดการเท่านั้น'); return; }
+  const managerOnly = !isAdminTier();
+  document.getElementById('managerOtGroupTitle').textContent = managerOnly ? 'ขอ OT แทนพนักงานหลายคน' : 'เพิ่ม OT แทนพนักงานหลายคน (HR)';
+  document.getElementById('managerOtGroupHint').textContent = managerOnly
+    ? 'ส่งเป็นคำขอรออนุมัติจากเจ้าของ/HR เหมือนพนักงานยื่นขอเอง'
+    : 'เลือกสถานะได้เอง — ถ้าตั้ง "อนุมัติแล้ว"/"ปฏิเสธ" จะมีผลทันที ไม่ส่งแจ้งเตือนเข้ากลุ่ม Telegram';
   document.getElementById('managerOtBranchFilter').innerHTML = `<option value="">ทุกสาขา</option>` +
     db.branches.map(b=>`<option value="${b.id}">${b.name}</option>`).join('');
   document.getElementById('managerOtBranchFilter').value = '';
@@ -4228,6 +4195,8 @@ function openManagerOtGroupRequest(){
   setDateVal('managerOtDate', dateKey(new Date()));
   document.getElementById('managerOtHourStart').value = '';
   document.getElementById('managerOtHourEnd').value = '';
+  document.getElementById('managerOtStatusWrap').classList.toggle('hidden', managerOnly);
+  document.getElementById('managerOtStatus').value = 'approved';
   document.getElementById('managerOtReason').value = '';
   document.getElementById('managerOtGroupMsg').textContent = '';
   renderManagerOtChecklist('');
@@ -4245,19 +4214,24 @@ document.getElementById('submitManagerOtGroupBtn').onclick = async ()=>{
   if(!date || !hourStart || !hourEnd){ msg.className='msg err'; msg.textContent='กรุณากรอกวันที่และเวลาให้ครบ'; return; }
   const selectedIds = Array.from(document.querySelectorAll('#managerOtEmpChecklist [data-managerotemp]:checked')).map(cb=>cb.dataset.managerotemp);
   if(!selectedIds.length){ msg.className='msg err'; msg.textContent='กรุณาเลือกพนักงานอย่างน้อย 1 คน'; return; }
+  // ผู้จัดการต้องเข้าคิวรออนุมัติเสมอ (บังคับฝั่งนี้ซ้ำอีกชั้น เผื่อ dropdown สถานะถูกแก้ค่ามาทางอื่น)
+  const finalStatus = isAdminTier() ? document.getElementById('managerOtStatus').value : 'pending';
   const groupId = uid();
   const nowIso = new Date().toISOString();
-  const rows = selectedIds.map(empId => ({id:uid(), employeeId:empId, date, hourStart, hourEnd, reason, status:'pending', requestedAt:nowIso, decidedAt:null, groupId}));
+  const rows = selectedIds.map(empId => ({id:uid(), employeeId:empId, date, hourStart, hourEnd, reason, status:finalStatus, requestedAt:nowIso, decidedAt: finalStatus==='pending'?null:nowIso, groupId}));
   db.otRequests.push(...rows);
   await Promise.all(rows.map(r=>saveOtRow(r)));
   const branchIds = [...new Set(selectedIds.map(id=>db.employees.find(e=>e.id===id)?.branchId))];
   const branchLabel = branchIds.length===1 ? (db.branches.find(b=>b.id===branchIds[0])?.name||'-') : `${branchIds.length} สาขา`;
-  await logAudit('create_by_admin', 'ot_group', groupId, `ผู้จัดการขอ OT แทนพนักงาน ${selectedIds.length} คน (${branchLabel}) วันที่ ${ddmmyyyy(date)} ${hourStart}-${hourEnd}`);
-  const dateDash = date.split('-').reverse().join('-');
-  const text = `🚧${branchLabel} ขออนุมัติเบิก OT (ยื่นแทนโดยผู้จัดการ, ${selectedIds.length} คน)\n⚠️วันที่ ${dateDash} ⏭️ <a href="${APP_URL}">กดที่นี่</a>`;
-  if(db.settings.notifyTypes.otSubmit && otRoomChatId()) await tgSendMessage(db.settings.centralToken, otRoomChatId(), text);
-  await Promise.all(selectedIds.map(empId => pushNotification(empId, 'มีคำขอ OT ยื่นแทนโดยผู้จัดการ', `${date} เวลา ${hourStart}-${hourEnd} กำลังรอการอนุมัติ`)));
-  msg.className='msg ok'; msg.textContent='ส่งคำขอ OT เรียบร้อย รออนุมัติจากเจ้าของ/HR';
+  const actorLabel = isAdminTier() ? 'HR' : 'ผู้จัดการ';
+  await logAudit('create_by_admin', 'ot_group', groupId, `${actorLabel}เพิ่มรายการ OT แทนพนักงาน ${selectedIds.length} คน (${branchLabel}) วันที่ ${ddmmyyyy(date)} ${hourStart}-${hourEnd} (${otStatusLabel(finalStatus)})`);
+  if(finalStatus==='pending'){
+    const dateDash = date.split('-').reverse().join('-');
+    const text = `🚧${branchLabel} ขออนุมัติเบิก OT (ยื่นแทนโดย${actorLabel}, ${selectedIds.length} คน)\n⚠️วันที่ ${dateDash} ⏭️ <a href="${APP_URL}">กดที่นี่</a>`;
+    if(db.settings.notifyTypes.otSubmit && otRoomChatId()) await tgSendMessage(db.settings.centralToken, otRoomChatId(), text);
+    await Promise.all(selectedIds.map(empId => pushNotification(empId, `มีคำขอ OT ยื่นแทนโดย${actorLabel}`, `${date} เวลา ${hourStart}-${hourEnd} กำลังรอการอนุมัติ`)));
+  }
+  msg.className='msg ok'; msg.textContent = finalStatus==='pending' ? 'ส่งคำขอ OT เรียบร้อย รออนุมัติจากเจ้าของ/HR' : 'บันทึกเรียบร้อย';
   renderOtLists(); renderOverviewStats();
   setTimeout(()=>{ document.getElementById('managerOtGroupOverlay').classList.remove('show'); }, 900);
 };
@@ -5945,10 +5919,7 @@ function renderApprovalBranchFilter(){
 }
 let approvalHistorySearched = false;
 document.getElementById('adminAddLeaveBtn').onclick = ()=> openAdminLeaveCreate();
-document.getElementById('adminAddOtBtn').onclick = ()=>{
-  if(!isAdminTier() && canRequestOtForOthers()) openManagerOtGroupRequest();
-  else openAdminOtCreate();
-};
+document.getElementById('adminAddOtBtn').onclick = ()=> openManagerOtGroupRequest();
 function renderApprovalLists(){ renderLeaveLists(); renderOtLists(); }
 function renderLeaveLists(){
   const empIds = getApprovalFilteredEmpIds();
