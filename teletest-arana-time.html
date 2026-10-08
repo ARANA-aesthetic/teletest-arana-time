@@ -1034,6 +1034,7 @@
         <div class="branchselect"><select id="inspectBranchFilter"></select></div>
         <label style="margin-top:0;">วันที่ต้องการดู</label>
         <div id="inspectDate_holder"></div>
+        <button class="btn ghost sm hidden" id="openBulkLogBtn" style="margin-top:10px;">ลงเวลาเข้า-ออกย้อนหลังหลายคน</button>
       </section>
       <section>
         <div class="sectitle">สถานะพนักงานรายวัน</div>
@@ -1738,6 +1739,28 @@
       <button class="btn gray" id="closeManualCheckinBtn">ยกเลิก</button>
     </div>
     <div class="msg" id="manualCheckinMsg"></div>
+  </div>
+</div>
+
+<!-- ลงเวลาเข้า-ออกย้อนหลังหลายคนพร้อมกัน (เจ้าของ/HR เท่านั้น — เช่นช่วงระบบล่มแล้วพนักงานแจ้งเวลาทางกลุ่ม) -->
+<div class="overlay" id="bulkLogOverlay">
+  <div class="modal">
+    <h3>ลงเวลาเข้า-ออกย้อนหลังหลายคน</h3>
+    <div style="color:var(--muted);font-size:11.5px;margin-bottom:10px;">บันทึกเป็นรายการที่แอดมินเพิ่มเอง ไม่ส่งแจ้งเตือน Telegram คนที่มีเวลาเข้าของวันนั้นแล้วจะถูกข้าม</div>
+    <label>วันที่</label>
+    <div id="bulkLogDate_holder"></div>
+    <label>สาขา</label>
+    <select id="bulkLogBranch"></select>
+    <label style="display:flex;align-items:center;gap:8px;margin-top:10px;"><input type="checkbox" id="bulkLogNoLate"> ไม่นับสายทุกคน (เช่น ระบบล่ม พนักงานไม่ได้ทำผิด)</label>
+    <div style="color:var(--muted);font-size:11.5px;margin:4px 0 6px;">ถ้าไม่ติ๊ก ระบบคำนวณสายจากเวลาเข้าที่กรอกตามกติกาปกติ (เว้นช่อง "สาย" ว่างไว้) หรือใส่จำนวนนาทีเองเป็นรายคน</div>
+    <label>เหตุผล/หลักฐาน (บันทึกไว้เช็คย้อนหลัง)</label>
+    <textarea id="bulkLogReason" rows="2" placeholder="เช่น ระบบถูกจำกัด 10-11 ต.ค. พนักงานส่งรูปในกลุ่มไลน์ ดูเวลาจากเวลาส่งรูป" style="width:100%;box-sizing:border-box;"></textarea>
+    <div class="card" id="bulkLogList" style="max-height:260px;overflow:auto;padding:6px 10px;margin-top:10px;"></div>
+    <div class="modalfoot">
+      <button class="btn block" id="submitBulkLogBtn">บันทึกที่ติ๊กเลือก</button>
+      <button class="btn gray" id="closeBulkLogBtn">ยกเลิก</button>
+    </div>
+    <div class="msg" id="bulkLogMsg"></div>
   </div>
 </div>
 
@@ -5033,6 +5056,7 @@ function initInspectTab(){
   }
 }
 async function renderInspectTab(){
+  document.getElementById('openBulkLogBtn').classList.toggle('hidden', !canManageApprovers());
   const branchVal = document.getElementById('inspectBranchFilter').value;
   const dateStr = getDateVal('inspectDate') || dateKey(new Date());
   const dKey = new Date(dateStr+'T00:00:00').toDateString();
@@ -5276,6 +5300,81 @@ function openLogAdd(empId, dateStr, type){
   document.getElementById('logEditMsg').textContent = '';
   document.getElementById('logEditOverlay').classList.add('show');
 }
+// ===== ลงเวลาเข้า-ออกย้อนหลังหลายคน (เจ้าของ/HR) =====
+function renderBulkLogList(){
+  const dateStr = getDateVal('bulkLogDate') || dateKey(new Date());
+  const branchId = document.getElementById('bulkLogBranch').value;
+  const d0 = new Date(dateStr+'T00:00:00');
+  const emps = db.employees.filter(e=>e.active!==false && (!branchId || e.branchId===branchId) && countsOn(e, d0))
+    .slice().sort((a,b)=>a.name.localeCompare(b.name,'th'));
+  document.getElementById('bulkLogList').innerHTML = emps.length ? emps.map(e=>{
+    const hasIn = db.logs.some(l=>l.employeeId===e.id && l.type==='IN' && dateKey(new Date(l.time))===dateStr);
+    const br = db.branches.find(b=>b.id===e.branchId);
+    if(hasIn) return `<div style="padding:6px 0;font-size:12.5px;color:var(--muted);border-bottom:1px solid var(--border);">${e.name} · ${br?.name||'-'} — มีเวลาเข้าของวันนี้แล้ว (ข้าม)</div>`;
+    return `<div style="padding:8px 0;border-bottom:1px solid var(--border);" data-bulkrow="${e.id}">
+      <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;"><input type="checkbox" class="bulkchk"> ${e.name}${e.nickname?` (${e.nickname})`:''}<span style="color:var(--muted);">· ${br?.name||'-'}</span></label>
+      <div class="row2" style="margin-top:4px;">
+        <div><label style="font-size:11px;">เข้า</label><input type="time" class="bulkin" value="${e.shiftStart||'09:00'}"></div>
+        <div><label style="font-size:11px;">ออก (ว่าง = ไม่ลง)</label><input type="time" class="bulkout" value="${e.shiftEnd||''}"></div>
+      </div>
+      <div style="margin-top:4px;"><label style="font-size:11px;">สาย (นาที) ว่าง = คำนวณเอง</label><input type="number" min="0" class="bulklate" placeholder="ว่าง" style="width:100px;"></div>
+    </div>`;
+  }).join('') : '<div class="empty">ไม่มีพนักงานที่ต้องลงเวลาในวัน/สาขานี้</div>';
+}
+document.getElementById('openBulkLogBtn').onclick = ()=>{
+  if(!canManageApprovers()){ alert('ไม่มีสิทธิ์ ต้องเป็นเจ้าของ/HR เท่านั้น'); return; }
+  document.getElementById('bulkLogDate_holder').innerHTML = dateSelectHTML('bulkLogDate');
+  setDateVal('bulkLogDate', getDateVal('inspectDate') || dateKey(new Date()));
+  wireDateChange('bulkLogDate', renderBulkLogList);
+  document.getElementById('bulkLogBranch').innerHTML = `<option value="">ทุกสาขา</option>` + db.branches.map(b=>`<option value="${b.id}">${b.name}</option>`).join('');
+  document.getElementById('bulkLogBranch').onchange = renderBulkLogList;
+  document.getElementById('bulkLogNoLate').checked = false;
+  document.getElementById('bulkLogReason').value = '';
+  document.getElementById('bulkLogMsg').textContent = '';
+  renderBulkLogList();
+  document.getElementById('bulkLogOverlay').classList.add('show');
+};
+document.getElementById('closeBulkLogBtn').onclick = ()=> document.getElementById('bulkLogOverlay').classList.remove('show');
+document.getElementById('submitBulkLogBtn').onclick = async ()=>{
+  if(!canManageApprovers()){ alert('ไม่มีสิทธิ์ ต้องเป็นเจ้าของ/HR เท่านั้น'); return; }
+  const msg = document.getElementById('bulkLogMsg');
+  const dateStr = getDateVal('bulkLogDate');
+  const reason = document.getElementById('bulkLogReason').value.trim();
+  const noLate = document.getElementById('bulkLogNoLate').checked;
+  if(!dateStr){ msg.className='msg err'; msg.textContent='กรุณาระบุวันที่'; return; }
+  if(!reason){ msg.className='msg err'; msg.textContent='กรุณาระบุเหตุผล/หลักฐาน เพื่อบันทึกไว้เช็คย้อนหลัง'; return; }
+  const rows = Array.from(document.querySelectorAll('#bulkLogList [data-bulkrow]')).filter(r=>r.querySelector('.bulkchk').checked);
+  if(!rows.length){ msg.className='msg err'; msg.textContent='กรุณาติ๊กเลือกพนักงานอย่างน้อย 1 คน'; return; }
+  const manualBy = session.role==='admin' ? 'เจ้าของ/HR' : (currentApprover()?.name || 'ผู้บริหาร');
+  const entries = [];
+  for(const r of rows){
+    const emp = db.employees.find(e=>e.id===r.dataset.bulkrow); if(!emp) continue;
+    const inT = r.querySelector('.bulkin').value, outT = r.querySelector('.bulkout').value, lateRaw = r.querySelector('.bulklate').value.trim();
+    if(!inT){ msg.className='msg err'; msg.textContent=`กรุณาระบุเวลาเข้าของ ${emp.name}`; return; }
+    const br = currentBranch(emp);
+    const inIso = new Date(`${dateStr}T${inT}:00`).toISOString();
+    const late = noLate ? 0 : (lateRaw==='' ? shiftLateMinutes(emp, new Date(inIso)) : Math.max(0, parseInt(lateRaw,10)||0));
+    entries.push({ id:uid(), employeeId:emp.id, type:'IN', time:inIso, branchId:br?.id||null, lateMinutes:late, sent:false, manualEntry:true, manualBy, manualReason:reason });
+    const hasOut = db.logs.some(l=>l.employeeId===emp.id && l.type==='OUT' && dateKey(new Date(l.time))===dateStr);
+    if(outT && !hasOut) entries.push({ id:uid(), employeeId:emp.id, type:'OUT', time:new Date(`${dateStr}T${outT}:00`).toISOString(), branchId:br?.id||null, lateMinutes:0, sent:false, manualEntry:true, manualBy, manualReason:reason });
+  }
+  const btn = document.getElementById('submitBulkLogBtn'); btn.disabled = true;
+  const results = await Promise.all(entries.map(e=>saveLogRow(e)));
+  btn.disabled = false;
+  const failed = entries.filter((e,i)=>!results[i] || results[i].ok===false);
+  const saved = entries.filter((e,i)=>results[i] && results[i].ok!==false);
+  db.logs.unshift(...saved);
+  await logAudit('create_by_admin', 'log', dateStr, `${manualBy}ลงเวลาย้อนหลังหลายคน วันที่ ${ddmmyyyy(dateStr)} จำนวน ${saved.length} รายการ${noLate?' (ไม่นับสาย)':''} — เหตุผล: ${reason}`);
+  renderInspectTab(); renderOverviewStats();
+  if(failed.length){
+    const names = [...new Set(failed.map(e=>db.employees.find(x=>x.id===e.employeeId)?.name||'-'))].join(', ');
+    msg.className='msg err'; msg.textContent=`บันทึกสำเร็จ ${saved.length} รายการ ไม่สำเร็จ ${failed.length} รายการ (${names}) — ลองกดบันทึกอีกครั้งเฉพาะคนที่เหลือ`;
+    renderBulkLogList();
+    return;
+  }
+  msg.className='msg ok'; msg.textContent=`บันทึกเรียบร้อย ${saved.length} รายการ`;
+  renderBulkLogList();
+};
 document.getElementById('closeLogEditBtn').onclick = ()=>{ document.getElementById('logEditOverlay').classList.remove('show'); logEditTarget = null; };
 document.getElementById('saveLogEditBtn').onclick = async ()=>{
   if(!logEditTarget) return;
