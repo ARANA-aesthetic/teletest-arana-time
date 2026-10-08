@@ -1751,8 +1751,7 @@
     <div id="bulkLogDate_holder"></div>
     <label>สาขา</label>
     <select id="bulkLogBranch"></select>
-    <label style="display:flex;align-items:center;gap:8px;margin-top:10px;"><input type="checkbox" id="bulkLogNoLate"> ไม่นับสายทุกคน (เช่น ระบบล่ม พนักงานไม่ได้ทำผิด)</label>
-    <div style="color:var(--muted);font-size:11.5px;margin:4px 0 6px;">ถ้าไม่ติ๊ก ระบบคำนวณสายจากเวลาเข้าที่กรอกตามกติกาปกติ (เว้นช่อง "สาย" ว่างไว้) หรือใส่จำนวนนาทีเองเป็นรายคน</div>
+    <div style="color:var(--muted);font-size:11.5px;margin:10px 0 6px;">ไม่คิดสาย 30 นาทีแบบลืมสแกน — ระบบคำนวณสายจากเวลาเข้าที่กรอกตามกติกาปกติ (รวมเวลาผ่อนผันและใบลา) ถ้าต้องการกำหนดเองให้ใส่จำนวนนาทีในช่อง "สาย" รายคน</div>
     <label>เหตุผล/หลักฐาน (บันทึกไว้เช็คย้อนหลัง)</label>
     <textarea id="bulkLogReason" rows="2" placeholder="เช่น ระบบถูกจำกัด 10-11 ต.ค. พนักงานส่งรูปในกลุ่มไลน์ ดูเวลาจากเวลาส่งรูป" style="width:100%;box-sizing:border-box;"></textarea>
     <div class="card" id="bulkLogList" style="max-height:260px;overflow:auto;padding:6px 10px;margin-top:10px;"></div>
@@ -5328,7 +5327,6 @@ document.getElementById('openBulkLogBtn').onclick = ()=>{
   wireDateChange('bulkLogDate', renderBulkLogList);
   document.getElementById('bulkLogBranch').innerHTML = `<option value="">ทุกสาขา</option>` + db.branches.map(b=>`<option value="${b.id}">${b.name}</option>`).join('');
   document.getElementById('bulkLogBranch').onchange = renderBulkLogList;
-  document.getElementById('bulkLogNoLate').checked = false;
   document.getElementById('bulkLogReason').value = '';
   document.getElementById('bulkLogMsg').textContent = '';
   renderBulkLogList();
@@ -5340,7 +5338,6 @@ document.getElementById('submitBulkLogBtn').onclick = async ()=>{
   const msg = document.getElementById('bulkLogMsg');
   const dateStr = getDateVal('bulkLogDate');
   const reason = document.getElementById('bulkLogReason').value.trim();
-  const noLate = document.getElementById('bulkLogNoLate').checked;
   if(!dateStr){ msg.className='msg err'; msg.textContent='กรุณาระบุวันที่'; return; }
   if(!reason){ msg.className='msg err'; msg.textContent='กรุณาระบุเหตุผล/หลักฐาน เพื่อบันทึกไว้เช็คย้อนหลัง'; return; }
   const rows = Array.from(document.querySelectorAll('#bulkLogList [data-bulkrow]')).filter(r=>r.querySelector('.bulkchk').checked);
@@ -5353,7 +5350,7 @@ document.getElementById('submitBulkLogBtn').onclick = async ()=>{
     if(!inT){ msg.className='msg err'; msg.textContent=`กรุณาระบุเวลาเข้าของ ${emp.name}`; return; }
     const br = currentBranch(emp);
     const inIso = new Date(`${dateStr}T${inT}:00`).toISOString();
-    const late = noLate ? 0 : (lateRaw==='' ? shiftLateMinutes(emp, new Date(inIso)) : Math.max(0, parseInt(lateRaw,10)||0));
+    const late = lateRaw==='' ? shiftLateMinutes(emp, new Date(inIso)) : Math.max(0, parseInt(lateRaw,10)||0);
     entries.push({ id:uid(), employeeId:emp.id, type:'IN', time:inIso, branchId:br?.id||null, lateMinutes:late, sent:false, manualEntry:true, manualBy, manualReason:reason });
     const hasOut = db.logs.some(l=>l.employeeId===emp.id && l.type==='OUT' && dateKey(new Date(l.time))===dateStr);
     if(outT && !hasOut) entries.push({ id:uid(), employeeId:emp.id, type:'OUT', time:new Date(`${dateStr}T${outT}:00`).toISOString(), branchId:br?.id||null, lateMinutes:0, sent:false, manualEntry:true, manualBy, manualReason:reason });
@@ -5364,7 +5361,7 @@ document.getElementById('submitBulkLogBtn').onclick = async ()=>{
   const failed = entries.filter((e,i)=>!results[i] || results[i].ok===false);
   const saved = entries.filter((e,i)=>results[i] && results[i].ok!==false);
   db.logs.unshift(...saved);
-  await logAudit('create_by_admin', 'log', dateStr, `${manualBy}ลงเวลาย้อนหลังหลายคน วันที่ ${ddmmyyyy(dateStr)} จำนวน ${saved.length} รายการ${noLate?' (ไม่นับสาย)':''} — เหตุผล: ${reason}`);
+  await logAudit('create_by_admin', 'log', dateStr, `${manualBy}ลงเวลาย้อนหลังหลายคน วันที่ ${ddmmyyyy(dateStr)} จำนวน ${saved.length} รายการ — เหตุผล: ${reason}`);
   renderInspectTab(); renderOverviewStats();
   if(failed.length){
     const names = [...new Set(failed.map(e=>db.employees.find(x=>x.id===e.employeeId)?.name||'-'))].join(', ');
