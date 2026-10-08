@@ -2244,18 +2244,17 @@ const settingsToRow = s => ({ id:1, central_token:s.centralToken||'', central_ch
 // เพื่อลด Supabase egress ที่เดิมโหลดประวัติของพนักงานทุกคนลงเครื่องพนักงานทุกคนที่เปิดแอป
 async function loadDB(){
   sbLoadFailed = [];
-  const [branchRows, empRows, approverRows, transferRows, settingsRows, warningRows, companyRows] = await Promise.all([
+  // warning_letters/companies เก็บรูปลายเซ็น/โลโก้แบบ base64 (หนัก) และใช้เฉพาะ HR — ไม่โหลดตรงนี้ให้ทุกคนที่เปิดแอป
+  // พนักงานโหลดเฉพาะใบเตือนของตัวเอง (loadEmployeeScopedData) แอดมินโหลดทั้งหมด (loadAdminScopedData)
+  const [branchRows, empRows, approverRows, transferRows, settingsRows] = await Promise.all([
     sbSelectAll('branches'), sbSelectAll('employees'), sbSelectAll('approvers'),
-    sbSelectAll('branch_transfers'), sbSelectAll('settings'),
-    sbSelectAll('warning_letters'), sbSelectAll('companies')
+    sbSelectAll('branch_transfers'), sbSelectAll('settings')
   ]);
   db = defaultDB();
   if(branchRows.length) db.branches = branchRows.map(rowToBranch);
   db.employees = empRows.map(rowToEmployee);
   db.approvers = approverRows.map(rowToApprover);
   db.branchTransfers = transferRows.map(rowToBranchTransfer);
-  db.warningLetters = warningRows.map(rowToWarningLetter);
-  db.companies = companyRows.map(rowToCompany);
   if(settingsRows.length) db.settings = { ...defaultDB().settings, ...rowToSettings(settingsRows[0]) };
   db.settings.notifyTypes = { ...defaultDB().settings.notifyTypes, ...(db.settings.notifyTypes||{}) };
   db.settings.telegramRooms = db.settings.telegramRooms || [];
@@ -2272,23 +2271,28 @@ async function loadEmployeeScopedData(employeeId){
   const logsFilter = emp?.branchId
     ? `or=(employee_id.eq.${employeeId},and(branch_id.eq.${emp.branchId},type.in.(AC,CLEAN)))`
     : ownFilter;
-  const [logRows, leaveRows, otRows, notiRows] = await Promise.all([
-    sbSelectAll('logs', logsFilter), sbSelectAll('leaves', ownFilter), sbSelectAll('ot_requests', ownFilter), sbSelectAll('notifications', ownFilter)
+  const [logRows, leaveRows, otRows, notiRows, warningRows] = await Promise.all([
+    sbSelectAll('logs', logsFilter), sbSelectAll('leaves', ownFilter), sbSelectAll('ot_requests', ownFilter), sbSelectAll('notifications', ownFilter),
+    sbSelectAll('warning_letters', ownFilter)
   ]);
   db.logs = logRows.map(rowToLog);
   db.leaves = leaveRows.map(rowToLeave);
   db.otRequests = otRows.map(rowToOt);
   db.notifications = notiRows.map(rowToNoti);
+  db.warningLetters = warningRows.map(rowToWarningLetter);
 }
 // เรียกหลัง login เป็นแอดมิน/ผู้บริหาร — ต้องเห็นข้อมูลของพนักงานทุกคนจริงๆ (รายงาน/อนุมัติ/ตรวจ) จึงโหลดทั้งหมดเหมือนเดิม
 async function loadAdminScopedData(){
-  const [logRows, leaveRows, otRows, notiRows] = await Promise.all([
-    sbSelectAll('logs'), sbSelectAll('leaves'), sbSelectAll('ot_requests'), sbSelectAll('notifications')
+  // ไม่โหลด notifications: ใช้เฉพาะฝั่งพนักงานดูของตัวเอง แอดมินไม่เคยอ่านตารางนี้ (pushNotification แค่เพิ่มเข้า array ในเครื่อง)
+  const [logRows, leaveRows, otRows, warningRows, companyRows] = await Promise.all([
+    sbSelectAll('logs'), sbSelectAll('leaves'), sbSelectAll('ot_requests'),
+    sbSelectAll('warning_letters'), sbSelectAll('companies')
   ]);
   db.logs = logRows.map(rowToLog);
   db.leaves = leaveRows.map(rowToLeave);
   db.otRequests = otRows.map(rowToOt);
-  db.notifications = notiRows.map(rowToNoti);
+  db.warningLetters = warningRows.map(rowToWarningLetter);
+  db.companies = companyRows.map(rowToCompany);
 }
 // รีเฟรชเฉพาะ 3 ตารางที่แท็บรายงานใช้จริง (logs/leaves/ot_requests) แทนการโหลดทุกตารางซ้ำแบบ loadDB() เต็มรูปแบบ
 // เพื่อลด Supabase egress จากปุ่ม "รีเฟรชรายงาน" ที่ HR กดซ้ำได้หลายรอบต่อเซสชัน
