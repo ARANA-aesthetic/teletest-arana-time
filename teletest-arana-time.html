@@ -2621,11 +2621,12 @@ function summaryForRange(empId, fromStr, toStr){
     if(dataStart > start) start = dataStart;
   }
   for(let d=new Date(start); d<=end; d.setDate(d.getDate()+1)){
-    if(isHoliday(d)) continue;
-    if((emp?.weeklyOffDays||[]).includes(d.getDay())) continue;
-    if(isApprovedTransferOnDate(empId, dateKey(d))) continue;
     const dayKey = todayKey(d);
     const inLog = db.logs.find(l=>l.employeeId===empId && l.type==='IN' && todayKey(new Date(l.time))===dayKey);
+    // วันหยุดบริษัทที่มาทำงานจริงนับเหมือนวันทำงานปกติ (ตรงเวลา/สาย) — ถ้าไม่มาก็ข้ามไปเหมือนเดิม
+    if(isHoliday(d) && !inLog) continue;
+    if((emp?.weeklyOffDays||[]).includes(d.getDay())) continue;
+    if(isApprovedTransferOnDate(empId, dateKey(d))) continue;
     const leave = db.leaves.find(l => l.employeeId===empId && l.status==='approved' && new Date(l.from+'T00:00:00') <= d && d <= new Date(l.to+'T00:00:00'));
     if(leave){
       leaveDays++;
@@ -2706,11 +2707,11 @@ function monthlySummary(empId, month=new Date().getMonth(), year=new Date().getF
   }
   const end = new Date(Math.min(new Date(year, month+1, 0).getTime(), today.getTime()));
   for(let d=new Date(start); d<=end; d.setDate(d.getDate()+1)){
-    if(isHoliday(d)) continue;
-    if((emp?.weeklyOffDays||[]).includes(d.getDay())) continue;
-    if(isApprovedTransferOnDate(empId, dateKey(d))) continue;
     const dayKey = todayKey(d);
     const inLog = db.logs.find(l=>l.employeeId===empId && l.type==='IN' && todayKey(new Date(l.time))===dayKey);
+    if(isHoliday(d) && !inLog) continue;
+    if((emp?.weeklyOffDays||[]).includes(d.getDay())) continue;
+    if(isApprovedTransferOnDate(empId, dateKey(d))) continue;
     if(isApprovedLeaveOnDate(empId, d)){ leaveDays++; continue; }
     if(inLog){ if(inLog.lateMinutes>0) late++; else onTime++; }
     else { absent++; }
@@ -4894,7 +4895,7 @@ document.getElementById('exportLeaveMatrixBtn').onclick = ()=>{
     days.forEach(d=>{
       let val = '';
       if(!countsOn(e,d)) val = '';
-      else if(isHoliday(d)) val = 'OFF';
+      else if(isHoliday(d) && !db.logs.some(l=>l.employeeId===e.id && l.type==='IN' && todayKey(new Date(l.time))===d.toDateString())) val = 'OFF';
       else {
         const leave = db.leaves.find(l=>l.employeeId===e.id && l.status==='approved' && new Date(l.from+'T00:00:00')<=d && d<=new Date(l.to+'T00:00:00'));
         if(leave) val = leaveAbbrev(leave.kind);
@@ -5022,7 +5023,8 @@ function empStatusOnDate(empId, dateStr){
   const inLog = db.logs.find(l=>l.employeeId===empId && l.type==='IN' && todayKey(new Date(l.time))===dKey);
   const outLog = db.logs.find(l=>l.employeeId===empId && l.type==='OUT' && todayKey(new Date(l.time))===dKey);
   const leave = db.leaves.find(l=>l.employeeId===empId && l.status==='approved' && new Date(l.from+'T00:00:00')<=dObj && dObj<=new Date(l.to+'T00:00:00'));
-  const isHol = isHoliday(dObj);
+  // วันหยุดบริษัทที่พนักงานมาทำงานจริง (มีเวลาเข้า) ให้ปฏิบัติเหมือนวันทำงานปกติ — แสดงบันทึกเข้า-ออกและนับสายตามปกติ
+  const isHol = isHoliday(dObj) && !inLog;
   const offsiteTransfer = isApprovedTransferOnDate(empId, dateStr) ? db.branchTransfers.find(t=>t.employeeId===empId && t.status==='approved' && t.fromDate<=dateStr && t.toDate>=dateStr) : null;
   return { inLog, outLog, leave, isHol, offsiteTransfer };
 }
@@ -5541,7 +5543,7 @@ function buildMonthReport(){
           cell.needsEvidence = EVIDENCE_REQUIRED_KINDS.includes(leave.kind);
           cell.hasEvidence = !!(leave.evidenceFileId || leave.evidenceSent);
         }
-        else if(isHoliday(d) || offWeekly){ cell.code = RPT_CODE_OFF; cell.off = true; }
+        else if((isHoliday(d) && !inLog) || offWeekly){ cell.code = RPT_CODE_OFF; cell.off = true; }
         else if(isApprovedTransferOnDate(e.id, dateKey(d))){ cell.code = RPT_CODE_OFFSITE; cell.off = true; }
         else if(inLog) cell.code = RPT_CODE_WORK;
         else if(d <= lastClosedDay) cell.code = RPT_CODE_ABSENT;
