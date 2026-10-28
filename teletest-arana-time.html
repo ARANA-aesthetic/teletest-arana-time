@@ -2311,10 +2311,82 @@ async function loadEmployeeScopedData(employeeId){
   db.warningLetters = warningRows.map(rowToWarningLetter);
 }
 // เรียกหลัง login เป็นแอดมิน/ผู้บริหาร — ต้องเห็นข้อมูลของพนักงานทุกคนจริงๆ (รายงาน/อนุมัติ/ตรวจ) จึงโหลดทั้งหมดเหมือนเดิม
+// ---- แคชประวัติ logs เก่าฝั่งแอดมิน (IndexedDB) เพื่อลด Supabase egress ----
+// logs เป็นตารางที่หนักสุด (หลายพันแถว ~3 MB) และแถวเก่าแทบไม่เปลี่ยน → เก็บแถวที่เก่ากว่า "จุดตัด" ไว้ในเครื่อง
+// ทุกครั้งที่เปิดดึงเฉพาะแถวตั้งแต่จุดตัดเป็นต้นมา แล้วเทียบ "จำนวนแถวเก่า" กับฐานข้อมูล (ขอแค่ count ไม่ดึงข้อมูล)
+// ถ้าจำนวนไม่ตรง (มีคนเพิ่ม/ลบแถวย้อนหลัง เช่น เติมเวลาย้อนหลัง) หรือแคชอายุเกิน 7 วัน หรือส่วนใหม่โตเกิน 60 วัน → โหลดเต็มแล้วสร้างแคชใหม่
+// ข้อมูลที่ได้ครบเหมือนโหลดเต็มทุกประการ แค่ไม่ต้องส่งแถวเก่าซ้ำทุกครั้ง; พลาดตรงไหนถอยกลับไปโหลดเต็มเสมอ
+const LOG_CACHE_DB = 'aranaTimeCache', LOG_CACHE_KEY = 'adminLogsV1';
+const LOG_CACHE_KEEP_DAYS = 45, LOG_CACHE_MAX_FRESH_DAYS = 60, LOG_CACHE_MAX_AGE_DAYS = 7;
+function logCacheOpen(){
+  return new Promise((resolve, reject)=>{
+    try{
+      const rq = indexedDB.open(LOG_CACHE_DB, 1);
+      rq.onupgradeneeded = ()=> rq.result.createObjectStore('kv');
+      rq.onsuccess = ()=> resolve(rq.result);
+      rq.onerror = ()=> reject(rq.error);
+    }catch(e){ reject(e); }
+  });
+}
+async function logCacheGet(){
+  try{
+    const d = await logCacheOpen();
+    return await new Promise(res=>{
+      const rq = d.transaction('kv').objectStore('kv').get(LOG_CACHE_KEY);
+      rq.onsuccess = ()=> res(rq.result||null);
+      rq.onerror = ()=> res(null);
+    });
+  }catch(e){ return null; }
+}
+async function logCachePut(val){
+  try{
+    const d = await logCacheOpen();
+    await new Promise(res=>{
+      const tx = d.transaction('kv','readwrite');
+      tx.objectStore('kv').put(val, LOG_CACHE_KEY);
+      tx.oncomplete = ()=> res(); tx.onerror = ()=> res(); tx.onabort = ()=> res();
+    });
+  }catch(e){ console.warn('logCachePut', e); }
+}
+// นับจำนวนแถวโดยไม่ดึงข้อมูล (ขอ 1 แถว + count=exact) — คืน null ถ้าอ่านไม่ได้
+async function sbCount(table, filterQuery){
+  try{
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?select=id${filterQuery?('&'+filterQuery):''}`, {
+      headers: { ...sbHeaders(), 'Range-Unit':'items', 'Range':'0-0', 'Prefer':'count=exact' }
+    });
+    if(!res.ok) return null;
+    const m = /\/(\d+)$/.exec(res.headers.get('content-range')||'');
+    return m ? parseInt(m[1],10) : null;
+  }catch(e){ return null; }
+}
+async function loadAdminLogRows(){
+  const DAY = 86400000, now = Date.now();
+  const cache = await logCacheGet();
+  if(cache && Array.isArray(cache.rows) && cache.cutoff && (now - cache.savedAt) < LOG_CACHE_MAX_AGE_DAYS*DAY
+     && (now - new Date(cache.cutoff).getTime()) < LOG_CACHE_MAX_FRESH_DAYS*DAY){
+    const serverOld = await sbCount('logs', `time=lt.${cache.cutoff}`);
+    if(serverOld !== null && serverOld === cache.rows.length){
+      const failedBefore = sbLoadFailed.length;
+      const fresh = await sbSelectAll('logs', `time=gte.${cache.cutoff}`);
+      if(sbLoadFailed.length === failedBefore) return cache.rows.concat(fresh);
+    }
+  }
+  // โหลดเต็ม แล้วสร้างแคชใหม่ (เฉพาะเมื่อโหลดครบ ไม่มีตารางล้มเหลว)
+  const failedBefore = sbLoadFailed.length;
+  const all = await sbSelectAll('logs');
+  if(sbLoadFailed.length === failedBefore){
+    const cutoff = new Date(now - LOG_CACHE_KEEP_DAYS*DAY).toISOString();
+    const cutMs = new Date(cutoff).getTime();
+    const old = all.filter(r=> new Date(r.time).getTime() < cutMs);
+    // ใช้จำนวนจาก "แถวที่ได้จริง" เทียบรอบหน้า (ตรงกับที่ฐานข้อมูลนับด้วย time<cutoff)
+    logCachePut({ cutoff, savedAt: now, rows: old });
+  }
+  return all;
+}
 async function loadAdminScopedData(){
   // ไม่โหลด notifications: ใช้เฉพาะฝั่งพนักงานดูของตัวเอง แอดมินไม่เคยอ่านตารางนี้ (pushNotification แค่เพิ่มเข้า array ในเครื่อง)
   const [logRows, leaveRows, otRows, warningRows, companyRows] = await Promise.all([
-    sbSelectAll('logs'), sbSelectAll('leaves'), sbSelectAll('ot_requests'),
+    loadAdminLogRows(), sbSelectAll('leaves'), sbSelectAll('ot_requests'),
     sbSelectAll('warning_letters'), sbSelectAll('companies')
   ]);
   db.logs = logRows.map(rowToLog);
@@ -2327,7 +2399,7 @@ async function loadAdminScopedData(){
 // เพื่อลด Supabase egress จากปุ่ม "รีเฟรชรายงาน" ที่ HR กดซ้ำได้หลายรอบต่อเซสชัน
 async function loadReportTablesOnly(){
   const [logRows, leaveRows, otRows] = await Promise.all([
-    sbSelectAll('logs'), sbSelectAll('leaves'), sbSelectAll('ot_requests')
+    loadAdminLogRows(), sbSelectAll('leaves'), sbSelectAll('ot_requests')
   ]);
   db.logs = logRows.map(rowToLog);
   db.leaves = leaveRows.map(rowToLeave);
