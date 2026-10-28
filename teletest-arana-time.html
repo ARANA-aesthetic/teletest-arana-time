@@ -1886,6 +1886,8 @@
     <input type="text" id="editEmpEmail" placeholder="name@example.com">
     <label>ตั้งรหัส PIN ให้พนักงาน (4 หลัก)</label>
     <input type="text" id="editEmpPin" maxlength="4" inputmode="numeric" placeholder="เว้นว่างได้ถ้าให้พนักงานตั้งเอง">
+    <label style="display:flex;align-items:center;gap:8px;margin-top:14px;"><input type="checkbox" id="editEmpSkipLocation"> สแกนนอกพื้นที่ได้ (ทำงานที่บ้าน)</label>
+    <div style="color:var(--muted);font-size:11.5px;margin:2px 0 8px;">ข้ามการเช็กพิกัด/GPS เฉพาะพนักงานคนนี้ ยังต้องยืนยันใบหน้า และนับสายตามปกติ</div>
     <label>พิกัดบ้าน (สำหรับสุ่มตรวจวันลาป่วย)</label>
     <div class="settingsrow" style="padding:8px 0;" id="empHomeLocationRow">
       <div class="ic">◐</div>
@@ -2236,7 +2238,7 @@ async function sbPatchRow(table, id, patch){
 const rowToBranch = r => ({ id:r.id, name:r.name, lat:r.lat, lng:r.lng, radius:r.radius, chatIdCheckinout:r.chat_id_checkinout||'', chatIdFacility:r.chat_id_facility||'', chatIdLeaveApproval:r.chat_id_leave_approval||'', weeklyOffDays:r.weekly_off_days||[], acPoints:r.ac_points||[], cleaningPoints:r.cleaning_points||[] });
 const branchToRow = b => ({ id:b.id, name:b.name, lat:b.lat, lng:b.lng, radius:b.radius, chat_id_checkinout:b.chatIdCheckinout||'', chat_id_facility:b.chatIdFacility||'', chat_id_leave_approval:b.chatIdLeaveApproval||'', weekly_off_days:b.weeklyOffDays||[], ac_points:b.acPoints||[], cleaning_points:b.cleaningPoints||[] });
 
-const rowToEmployee = r => ({ id:r.id, name:r.name, employeeCode:r.employee_code||'', resignDate:r.resign_date||'', nickname:r.nickname||'', department:r.department||'', jobTitle:r.job_title||'', branchId:r.branch_id||'', startDate:r.start_date||'', probationPassedDate:r.probation_passed_date||'', shiftStart:r.shift_start||'', shiftEnd:r.shift_end||'', email:r.email||'', pin:r.pin||null, descriptor:r.descriptor||null, homeLat:r.home_lat??null, homeLng:r.home_lng??null, active:r.active!==false, pendingDescriptor:r.pending_descriptor||null, pendingDescriptorPhotoId:r.pending_descriptor_photo_id||null, pendingDescriptorAt:r.pending_descriptor_at||null, weeklyOffDays:r.weekly_off_days||[] });
+const rowToEmployee = r => ({ id:r.id, name:r.name, employeeCode:r.employee_code||'', resignDate:r.resign_date||'', nickname:r.nickname||'', department:r.department||'', jobTitle:r.job_title||'', branchId:r.branch_id||'', startDate:r.start_date||'', probationPassedDate:r.probation_passed_date||'', shiftStart:r.shift_start||'', shiftEnd:r.shift_end||'', email:r.email||'', pin:r.pin||null, descriptor:r.descriptor||null, homeLat:r.home_lat??null, homeLng:r.home_lng??null, active:r.active!==false, pendingDescriptor:r.pending_descriptor||null, pendingDescriptorPhotoId:r.pending_descriptor_photo_id||null, pendingDescriptorAt:r.pending_descriptor_at||null, weeklyOffDays:r.weekly_off_days||[], skipLocationCheck:!!r.skip_location_check });
 const employeeToRow = e => ({ id:e.id, name:e.name, employee_code:e.employeeCode||null, resign_date:e.resignDate||null, nickname:e.nickname||null, department:e.department||null, job_title:e.jobTitle||null, branch_id:e.branchId||null, start_date:e.startDate||null, probation_passed_date:e.probationPassedDate||null, shift_start:e.shiftStart||null, shift_end:e.shiftEnd||null, email:e.email||null, pin:e.pin||null, descriptor:e.descriptor||null, home_lat:e.homeLat??null, home_lng:e.homeLng??null, active:e.active!==false, pending_descriptor:e.pendingDescriptor||null, pending_descriptor_photo_id:e.pendingDescriptorPhotoId||null, pending_descriptor_at:e.pendingDescriptorAt||null, weekly_off_days:e.weeklyOffDays||[] });
 
 const rowToApprover = r => ({ id:r.id, name:r.name, pin:r.pin||null, role:r.role||'hr' });
@@ -3188,7 +3190,9 @@ document.getElementById('empScanBtn').onclick = async ()=>{
   const emp = currentEmployee(); const br = currentBranch(emp);
   if(!emp.descriptor){ openCamera('enroll', emp); return; }
   const note = document.getElementById('empScanNote');
-  if(isOnBranchTransferToday(emp)){
+  // พนักงานที่ HR ตั้งธง "สแกนนอกพื้นที่ได้" (เช่น แอดมินกะดึกที่ทำงานที่บ้าน) ข้ามการเช็กพิกัด/GPS — ยังยืนยันใบหน้า
+  // และนับสายตามปกติ ต่างจากคำขอทำงานนอกสถานที่ที่ไม่คิดสาย
+  if(emp.skipLocationCheck || isOnBranchTransferToday(emp)){
     note.textContent=''; openCamera('scan', emp, null, null); return;
   }
   note.style.color = 'var(--muted)'; note.textContent = 'กำลังตรวจสอบตำแหน่ง…';
@@ -6389,6 +6393,7 @@ function openEmpEditor(empId){
     document.getElementById('editEmpEmail').value = e.email||'';
     document.getElementById('editEmpPin').value = '';
     document.getElementById('editEmpPin').placeholder = e.pin ? `ปัจจุบัน: ${e.pin} (เว้นว่าง = ไม่เปลี่ยน)` : 'เว้นว่างได้ถ้าให้พนักงานตั้งเอง';
+    document.getElementById('editEmpSkipLocation').checked = !!e.skipLocationCheck;
     const link = document.getElementById('empHomeLocationLink');
     if(e.homeLat!=null && e.homeLng!=null){
       document.getElementById('empHomeLocationStatus').textContent = 'ตั้งพิกัดบ้านแล้ว';
@@ -6414,6 +6419,7 @@ function openEmpEditor(empId){
     renderTrainDayChecks();
   } else {
     document.getElementById('empEditTitle').textContent = 'เพิ่มพนักงาน';
+    document.getElementById('editEmpSkipLocation').checked = false;
     document.getElementById('editEmpCode').value = nextEmployeeCode();
     setDateVal('editEmpResignDate', '');
     setDateVal('editEmpProbationDate', '');
@@ -6532,11 +6538,25 @@ document.getElementById('saveEmpEditBtn').onclick = async ()=>{
       shift_start: shiftStart||null, shift_end: shiftEnd||null, email: email||null, employee_code: employeeCode||null,
       resign_date: resignDate||null, weekly_off_days: editEmpWeeklyOffDays.slice() };
     if(pinInput) patch.pin = pinInput;
-    await sbPatchRow('employees', e.id, patch);
+    // ส่งคอลัมน์ skip_location_check เฉพาะตอนค่าเปลี่ยนจริง — ถ้ายังไม่ได้รัน SQL เพิ่มคอลัมน์ การบันทึกอื่นๆ ของฟอร์มนี้จะไม่พัง
+    const skipLoc = document.getElementById('editEmpSkipLocation').checked;
+    const skipLocChanged = skipLoc !== !!e.skipLocationCheck;
+    if(skipLocChanged) patch.skip_location_check = skipLoc;
+    const patchRes = await sbPatchRow('employees', e.id, patch);
+    if(!patchRes || patchRes.ok===false){
+      msg.className='msg err'; msg.textContent = 'บันทึกไม่สำเร็จ: ' + (patchRes?.error || 'ไม่ทราบสาเหตุ') + (skipLocChanged ? ' (ถ้าเพิ่งเพิ่มตัวเลือก "สแกนนอกพื้นที่" ต้องรัน SQL เพิ่มคอลัมน์ก่อน)' : '');
+      return;
+    }
+    e.skipLocationCheck = skipLoc;
   } else {
     const empToSave = {id:uid(), name, nickname, department, jobTitle, branchId, startDate, probationPassedDate, shiftStart, shiftEnd, email, employeeCode, resignDate, weeklyOffDays: editEmpWeeklyOffDays.slice(), pin: pinInput||null, descriptor:null, homeLat:null, homeLng:null};
     db.employees.push(empToSave);
     await saveEmployeeRow(empToSave);
+    if(document.getElementById('editEmpSkipLocation').checked){
+      const r = await sbPatchRow('employees', empToSave.id, { skip_location_check: true });
+      if(!r || r.ok===false){ msg.className='msg err'; msg.textContent='เพิ่มพนักงานแล้ว แต่ตั้ง "สแกนนอกพื้นที่" ไม่สำเร็จ — ต้องรัน SQL เพิ่มคอลัมน์ก่อน แล้วเปิดแก้ไขพนักงานเพื่อติ๊กใหม่'; renderAdminEmpList(); renderEmpSummary(); renderEmpSelect(); return; }
+      empToSave.skipLocationCheck = true;
+    }
   }
   document.getElementById('empEditOverlay').classList.remove('show');
   renderAdminEmpList(); renderEmpSummary(); renderEmpSelect();
