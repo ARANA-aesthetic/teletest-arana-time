@@ -976,7 +976,12 @@
     <div id="atabLeaves" class="hidden">
       <section>
         <div class="branchselect"><select id="approvalBranchFilter"></select></div>
-        <label style="margin-top:0;">ช่วงวันที่ (กรองตามวันที่ยื่นคำขอ)</label>
+        <label style="margin-top:0;">กรองประวัติใบลาตาม</label>
+        <select id="approvalDateMode" style="margin-bottom:10px;">
+          <option value="requested">วันที่ยื่นคำขอ</option>
+          <option value="leave">วันที่ลา (ใบลาที่คร่อมช่วงที่เลือก)</option>
+        </select>
+        <label style="margin-top:0;">ช่วงวันที่</label>
         <select id="approvalPreset" style="margin-bottom:10px;">
           <option value="all">ทั้งหมด</option>
           <option value="today">วันนี้</option>
@@ -2341,7 +2346,7 @@ async function saveCompanyRow(row){ await sbUpsertRow('companies', companyToRow(
 // เพื่อให้รอบ sync ถัดไปดึงไปอัปเดตอีกครั้ง (ไม่งั้น Sheet จะค้างค่าตอน sync ครั้งแรกตลอดไป)
 async function markLeaveForResync(id){ await sbUpsertRow('leaves', {id, synced_at:null}); }
 async function markOtForResync(id){ await sbUpsertRow('ot_requests', {id, synced_at:null}); }
-async function saveBranchTransferRow(row){ await sbUpsertRow('branch_transfers', branchTransferToRow(row)); }
+async function saveBranchTransferRow(row){ return await sbUpsertRow('branch_transfers', branchTransferToRow(row)); }
 async function saveNotificationRow(row){ await sbUpsertRow('notifications', notiToRow(row)); }
 
 async function logAudit(action, targetType, targetId, details){
@@ -2558,11 +2563,13 @@ function currentEmployee(){ return db.employees.find(e=>e.id===session.employeeI
 function currentBranch(emp){
   if(!emp) return null;
   const today = dateKey(new Date());
-  const transfer = (db.branchTransfers||[]).find(t=>t.employeeId===emp.id && t.status==='approved' && t.fromDate<=today && t.toDate>=today);
-  if(transfer){
-    const tb = db.branches.find(b=>b.id===transfer.branchId);
-    if(tb) return tb;
-  }
+  // อาจมีคำขอที่อนุมัติแล้วซ้อนกันหลายรายการในวันเดียว (เช่น ทำงานนอกสถานที่ + ไปสาขาอื่น) — ต้องเลือกรายการที่ชี้ไป
+  // "สาขาจริง" ก่อน (ถ้าหยิบ offsite ซึ่งไม่ใช่สาขามาก่อนจะหาสาขาไม่เจอ แล้วถอยกลับสาขาต้นสังกัดทั้งที่มีคำขอไปสาขาจริงอยู่)
+  // ถ้ามีหลายสาขาจริงให้ใช้อันที่ยื่นล่าสุด
+  const real = (db.branchTransfers||[])
+    .filter(t=>t.employeeId===emp.id && t.status==='approved' && t.fromDate<=today && t.toDate>=today && db.branches.some(b=>b.id===t.branchId))
+    .sort((a,b)=>new Date(b.requestedAt||0)-new Date(a.requestedAt||0));
+  if(real.length) return db.branches.find(b=>b.id===real[0].branchId);
   return db.branches.find(b=>b.id===emp.branchId) || null;
 }
 function isOnBranchTransferToday(emp){
@@ -3975,9 +3982,25 @@ async function decideTransfer(id, status){
   const t = db.branchTransfers.find(x=>x.id===id); if(!t) return;
   // กันกดอนุมัติ/ปฏิเสธซ้ำเหมือนที่แก้ไว้ใน decideLeave — จุดนี้ไม่มีการเช็คสถานะก่อนมาแต่แรกเช่นกัน
   if(t.status!=='pending') return;
-  t.status = status; t.decidedAt = new Date().toISOString(); await saveBranchTransferRow(t);
+  const prevDecidedAt = t.decidedAt;
+  t.status = status; t.decidedAt = new Date().toISOString();
+  const saveRes = await saveBranchTransferRow(t);
+  if(!saveRes || saveRes.ok===false){
+    t.status = 'pending'; t.decidedAt = prevDecidedAt;
+    alert('บันทึกผลการอนุมัติไม่สำเร็จ กรุณาลองใหม่อีกครั้ง'+(saveRes?.error?`\n(${saveRes.error})`:''));
+    renderTransferList(); return;
+  }
   const emp = db.employees.find(e=>e.id===t.employeeId);
   const targetLabel = transferTargetLabel(t.branchId);
+  // เตือน HR ถ้าสาขาปลายทางยังตั้งค่าไม่ครบ — ไม่งั้นพนักงานสแกนไม่ได้/รูปไม่เข้ากลุ่ม โดยไม่มีใครรู้ตัว
+  const targetBranch = db.branches.find(b=>b.id===t.branchId);
+  if(status==='approved' && targetBranch){
+    const missing = [];
+    if(targetBranch.lat==null || targetBranch.lng==null) missing.push('พิกัดสาขา');
+    if(!targetBranch.chatIdCheckinout) missing.push('กลุ่ม Telegram เข้า-ออกงาน');
+    if(!targetBranch.chatIdFacility) missing.push('กลุ่ม Telegram ความสะอาด/แอร์');
+    if(missing.length) alert(`อนุมัติแล้ว แต่สาขา "${targetBranch.name}" ยังตั้งค่าไม่ครบ: ${missing.join(', ')}\nกรุณาไปตั้งที่ ตั้งค่า → สาขา ไม่งั้นพนักงานอาจสแกนไม่ได้หรือรูปไม่เข้ากลุ่ม`);
+  }
   const rangeText = `${t.fromDate}${t.fromDate!==t.toDate?' – '+t.toDate:''}`;
   if(db.settings.notifyTypes.leaveDecision && db.settings.centralChatId){
     let text;
@@ -4800,7 +4823,7 @@ function renderOverviewStats(){
       if(otToday) otSent++;
     });
 
-    const activeFront = frontStoreEmps.filter(e=>countsOn(e,d));
+    const activeFront = frontStoreEmps.filter(e=>countsOn(e,d) && !isApprovedTransferOnDate(e.id, dateKey(d)));
     let frontLeaveCount = 0;
     activeFront.forEach(e=>{ if(isApprovedLeaveOnDate(e.id,d)) frontLeaveCount++; });
     groomExpTotal += (activeFront.length - frontLeaveCount);
@@ -5009,6 +5032,17 @@ function getApprovalFilteredEmpIds(){
   const branchVal = document.getElementById('approvalBranchFilter')?.value || 'all';
   return new Set(db.employees.filter(e=> branchVal==='all' || e.branchId===branchVal).map(e=>e.id));
 }
+// ใบลาอยู่ในช่วงที่เลือกไหม — โหมด "วันที่ลา" นับถ้าช่วงลา (จาก–ถึง) คร่อมกับช่วงที่เลือกแม้แต่วันเดียว
+// โหมดปกติ (วันที่ยื่นคำขอ) ใช้ของเดิม
+function leaveInApprovalRange(l){
+  const mode = document.getElementById('approvalDateMode')?.value || 'requested';
+  if(mode!=='leave') return inApprovalDateRange(dateKey(new Date(l.requestedAt)));
+  const from = getDateVal('approvalFrom'), to = getDateVal('approvalTo');
+  if(!from && !to) return true;
+  if(from && l.to < from) return false;
+  if(to && l.from > to) return false;
+  return true;
+}
 function inApprovalDateRange(dateStr){
   const from = getDateVal('approvalFrom'), to = getDateVal('approvalTo');
   if(!from && !to) return true;
@@ -5184,6 +5218,7 @@ async function renderInspectTab(){
     groomHtml += `<div style="font-weight:600;font-size:12.5px;color:var(--pink-dark);padding:10px 0 4px;">${br.name}</div>`;
     emps.forEach(e=>{
       if(isApprovedLeaveOnDate(e.id, new Date(dateStr+'T00:00:00'))) return; // มีใบลาอนุมัติแล้ววันนี้ ไม่ต้องมาทำงาน ไม่นับ
+      if(isApprovedTransferOnDate(e.id, dateStr)) return; // ไปทำงานสาขาอื่น/นอกสถานที่ ไม่ต้องส่งความเรียบร้อยที่สาขาต้นสังกัด ไม่นับ
       const log = db.logs.find(l=>l.type==='GROOM' && l.employeeId===e.id && todayKey(new Date(l.time))===dKey);
       groomHtml += `<div class="acrow"><div class="check ${log?'done':''}">${log?'✓':''}</div><div class="info"><div class="name">${e.name}</div><div class="meta">${log?`ส่งแล้วเมื่อ ${fmtTime(new Date(log.time))}`:'ยังไม่ได้ส่ง'}</div></div>${log&&canManageApprovers()?`<button class="btn-mini icononly" data-logedit="${log.id}" title="แก้ไข/ลบบันทึกนี้">${TRASH_ICON_SVG}</button>`:''}</div>`;
     });
@@ -6004,6 +6039,8 @@ function renderApprovalBranchFilter(){
   sel.dataset.wired = '1'; sel.dataset.current = 'all';
   sel.onchange = ()=>{ sel.dataset.current = sel.value; renderLeaveLists(); renderOtLists(); renderFaceReenrollList(); };
   wireDatePreset('approval', renderApprovalLists);
+  const modeSel = document.getElementById('approvalDateMode');
+  if(modeSel) modeSel.onchange = renderApprovalLists;
   const searchBtn = document.getElementById('searchApprovalHistoryBtn');
   if(searchBtn && !searchBtn.dataset.wired){
     searchBtn.dataset.wired = '1';
@@ -6014,6 +6051,7 @@ function renderApprovalBranchFilter(){
     clearBtn.dataset.wired = '1';
     clearBtn.onclick = ()=>{
       sel.value='all'; sel.dataset.current='all';
+      const mSel = document.getElementById('approvalDateMode'); if(mSel) mSel.value = 'requested';
       approvalHistorySearched = false;
       setDatePreset('approval', 'all', renderApprovalLists);
     };
@@ -6052,7 +6090,7 @@ function renderLeaveLists(){
     document.getElementById('allLeaveList').innerHTML = '<div class="empty">เลือกเงื่อนไข (สาขา/วันที่) แล้วกด "ค้นหาประวัติ" เพื่อแสดงข้อมูล</div>';
     return;
   }
-  const all = db.leaves.filter(l=>empIds.has(l.employeeId) && inApprovalDateRange(dateKey(new Date(l.requestedAt)))).sort((a,b)=>new Date(b.requestedAt)-new Date(a.requestedAt));
+  const all = db.leaves.filter(l=>empIds.has(l.employeeId) && leaveInApprovalRange(l)).sort((a,b)=>new Date(b.requestedAt)-new Date(a.requestedAt));
   const allListEl = document.getElementById('allLeaveList');
   allListEl.innerHTML = all.length ? all.map(l=>{
     const emp = db.employees.find(e=>e.id===l.employeeId);
@@ -8274,15 +8312,26 @@ async function captureEnrollment(fromAdmin){
         if(r.ok) photoId = r.fileId;
       }
       camTarget.pendingDescriptorPhotoId = photoId;
-      await saveEmployeeRow(camTarget);
+      const pendRes = await saveEmployeeRow(camTarget);
+      if(!pendRes || pendRes.ok===false){
+        camTarget.pendingDescriptor = null; camTarget.pendingDescriptorPhotoId = null; camTarget.pendingDescriptorAt = null;
+        document.getElementById('camStatusText').innerHTML = `ส่งคำขอเปลี่ยนใบหน้าไม่สำเร็จ<br><b style="color:var(--red);">บันทึกลงระบบไม่ได้ กรุณาลองใหม่ หรือแจ้ง HR</b>`;
+        return;
+      }
       await pushNotification(camTarget.id, 'ส่งคำขอเปลี่ยนใบหน้าแล้ว', 'รออนุมัติจาก HR ก่อนมีผล ใบหน้าเดิมยังใช้สแกนเข้างานได้ตามปกติจนกว่าจะอนุมัติ');
       document.getElementById('camStatusText').innerHTML = `ส่งคำขอเปลี่ยนใบหน้าแล้ว<br>รออนุมัติจาก HR ก่อนมีผล<br>(ใบหน้าเดิมยังใช้สแกนเข้างานได้ตามปกติ)`;
       setTimeout(()=>{ closeCamera(); if(session.role==='employee') renderEmployeeHome(); }, 1600);
       return;
     }
+    const prevDescriptor = camTarget.descriptor;
     camTarget.descriptor = newDescriptor;
     camTarget.pendingDescriptor = null; camTarget.pendingDescriptorPhotoId = null; camTarget.pendingDescriptorAt = null;
-    await saveEmployeeRow(camTarget);
+    const enrollRes = await saveEmployeeRow(camTarget);
+    if(!enrollRes || enrollRes.ok===false){
+      camTarget.descriptor = prevDescriptor;
+      document.getElementById('camStatusText').innerHTML = `ลงทะเบียนใบหน้าไม่สำเร็จ<br><b style="color:var(--red);">บันทึกลงระบบไม่ได้ กรุณาลองใหม่ หรือแจ้ง HR</b>${enrollRes?.error?`<br><span style="font-size:11px;color:var(--muted);">${String(enrollRes.error).slice(0,120)}</span>`:''}`;
+      return;
+    }
     document.getElementById('camStatusText').innerHTML = `ลงทะเบียนใบหน้าสำเร็จ`;
     setTimeout(()=>{ closeCamera(); if(session.role==='employee') renderEmployeeHome(); if(fromAdmin) renderAdminEmpList(); }, 900);
   }catch(e){ document.getElementById('camStatusText').textContent = 'เกิดข้อผิดพลาด กรุณาลองใหม่'; }
