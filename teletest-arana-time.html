@@ -5638,6 +5638,7 @@ function buildMonthReport(){
         const inLog = db.logs.find(l=>l.employeeId===e.id && l.type==='IN' && todayKey(new Date(l.time))===d.toDateString());
         const outLog = db.logs.find(l=>l.employeeId===e.id && l.type==='OUT' && todayKey(new Date(l.time))===d.toDateString());
         cell.hasOut = !!outLog;
+        cell.hasIn = !!inLog;
         if(inLog) cell.late = inLog.lateMinutes||0;
         db.otRequests.filter(o=>o.employeeId===e.id && o.status==='approved' && o.date===dateKey(d)).forEach(o=>{ cell.ot += otHours(o); });
         // ก่อนถึงวันเริ่มงานจริงแต่มีการสแกนเข้างาน = ช่วงเทรนงาน (แสดง 0 สีน้ำเงินแยกจากวันทำงานปกติ)
@@ -6001,7 +6002,8 @@ function dailyTableHTML(rpt, view){
           }
           // วันที่ลาเป็นชั่วโมง (ไม่ใช่ลาเต็มวัน) cell.code จะถูกตั้งเป็นรหัสใบลาแทน WORK แต่ยังมีการ
           // เช็กอินเข้างานจริงในวันนั้น (นาทีสายคำนวณเผื่อช่วงลาให้แล้ว) ต้องยังแสดงในรายงานมาสายด้วย
-          else if(c.code===RPT_CODE_WORK || (c.leaveKind && HOURLY_KINDS.includes(c.leaveKind))){
+          // วันที่ไปทำงานสาขาอื่น/นอกสถานที่ (cell.code เป็น OFFSITE ทับ WORK) แต่สแกนเข้างานจริง ต้องโชว์นาทีสายด้วย
+          else if(c.code===RPT_CODE_WORK || (c.code===RPT_CODE_OFFSITE && c.hasIn) || (c.leaveKind && HOURLY_KINDS.includes(c.leaveKind))){
             txt = c.late; color = c.late>0 ? 'color:var(--amber);font-weight:600;' : 'color:var(--text);';
             // ลืมสแกนออก — ต่อสัญลักษณ์เล็กๆ ท้ายตัวเลขสาย ไม่กระทบขนาดช่อง/แถวเลย เพราะตารางล็อก
             // ความกว้างคอลัมน์ไว้แน่นอนด้วย table-layout:fixed + ตัดข้อความล้นด้วย ellipsis อยู่แล้ว
