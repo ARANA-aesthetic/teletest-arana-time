@@ -923,6 +923,9 @@
             <button class="btn ghost sm" id="exportLateMatrixBtn">ตารางนาทีมาสาย</button>
             <button class="btn ghost sm" id="exportLeaveMatrixBtn">ตารางขาด/ลา</button>
           </div>
+          <div class="row2" style="margin-top:8px;">
+            <button class="btn ghost sm" id="exportOtCompareBtn">เทียบเวลาทำงานกับ OT</button>
+          </div>
         </div>
         <div class="branchselect"><select id="branchFilterSelect"></select></div>
         <label style="margin-top:0;">ช่วงวันที่ดูภาพรวม</label>
@@ -4702,9 +4705,12 @@ function filteredEmployees(){
 }
 document.getElementById('exportLogsBtn').onclick = ()=>{
   const now = new Date();
+  // ใช้ช่วงวันที่ที่เลือกในหน้าภาพรวม (เดิมล็อกไว้แค่เดือนปัจจุบัน ย้อนดูเดือนก่อนไม่ได้)
+  const fromStr = getDateVal('overviewFrom') || dateKey(now);
+  const toStr = getDateVal('overviewTo') || fromStr;
   const rows = [['รหัสพนักงาน','วันที่','เวลา','ชื่อพนักงาน','สาขา','ประเภท','สายกี่นาที','ส่งแจ้งเตือนสำเร็จ']];
   const empIds = new Set(filteredEmployees().map(e=>e.id));
-  db.logs.filter(l=>{ const t=new Date(l.time); return t.getMonth()===now.getMonth() && t.getFullYear()===now.getFullYear() && empIds.has(l.employeeId); })
+  db.logs.filter(l=>{ const k=dateKey(new Date(l.time)); return k>=fromStr && k<=toStr && empIds.has(l.employeeId); })
     .sort((a,b)=>new Date(a.time)-new Date(b.time)).forEach(l=>{
       const emp = db.employees.find(e=>e.id===l.employeeId);
       const br = db.branches.find(b=>b.id===l.branchId);
@@ -4712,7 +4718,42 @@ document.getElementById('exportLogsBtn').onclick = ()=>{
       const typeLabel = l.type==='IN'?'เช็กอิน':l.type==='OUT'?'เช็กเอาท์':'แจ้งปิดแอร์';
       rows.push([emp?.employeeCode||'-', t.toLocaleDateString('th-TH'), fmtTime(t), emp?.name||'-', br?.name||'-', typeLabel, l.lateMinutes||0, l.sent?'ใช่':'ไม่']);
     });
-  downloadCSV(`arana-time-log-${now.getFullYear()}-${now.getMonth()+1}.csv`, rows);
+  downloadCSV(`arana-time-log-${fromStr}_to_${toStr}.csv`, rows);
+};
+// เทียบเวลาสแกนเข้า-ออกจริงกับคำขอ OT (1 แถวต่อ 1 คำขอ OT) ในช่วงวันที่ที่เลือกในหน้าภาพรวม
+document.getElementById('exportOtCompareBtn').onclick = ()=>{
+  const fromStr = getDateVal('overviewFrom') || dateKey(new Date());
+  const toStr = getDateVal('overviewTo') || fromStr;
+  const toMin = t => { const [h,m] = String(t||'').split(':').map(Number); return (isNaN(h)||isNaN(m)) ? null : h*60+m; };
+  const minOf = d => d.getHours()*60 + d.getMinutes();
+  const fmtH = n => (Math.round(n*100)/100).toFixed(2);
+  const emps = filteredEmployees();
+  const empById = new Map(emps.map(e=>[e.id,e]));
+  const rows = [['รหัสพนักงาน','ชื่อพนักงาน','สาขา','วันที่ OT','สถานะ OT','เวลาเข้างานจริง','เวลาออกงานจริง','เวลาเลิกกะปกติ','OT เริ่ม','OT ถึง','ชั่วโมง OT ที่ขอ','อยู่เกินเลิกกะจริง (ชม.)','ส่วนต่าง (อยู่จริง - ขอ)','สแกนออกถึงเวลาจบ OT','หมายเหตุ']];
+  db.otRequests.filter(o=>o.date>=fromStr && o.date<=toStr && empById.has(o.employeeId) && o.status!=='rejected')
+    .sort((a,b)=> a.date.localeCompare(b.date) || (empById.get(a.employeeId).name||'').localeCompare(empById.get(b.employeeId).name||'','th'))
+    .forEach(o=>{
+      const e = empById.get(o.employeeId);
+      const br = db.branches.find(b=>b.id===e.branchId);
+      const dayLogs = db.logs.filter(l=>l.employeeId===e.id && dateKey(new Date(l.time))===o.date);
+      const ins = dayLogs.filter(l=>l.type==='IN').sort((a,b)=>new Date(a.time)-new Date(b.time));
+      const outs = dayLogs.filter(l=>l.type==='OUT').sort((a,b)=>new Date(b.time)-new Date(a.time));
+      const inT = ins[0] ? new Date(ins[0].time) : null;
+      const outT = outs[0] ? new Date(outs[0].time) : null;
+      const reqH = otHours(o);
+      const shiftEndMin = toMin(e.shiftEnd), otEndMin = toMin(o.hourEnd);
+      let stay = '', diff = '', reached = '', note = [];
+      if(!inT) note.push('ไม่มีสแกนเข้างาน');
+      if(!outT) note.push('ไม่มีสแกนออกงาน');
+      if(outT && shiftEndMin!==null){
+        const s = Math.max(0, minOf(outT) - shiftEndMin)/60;
+        stay = fmtH(s); diff = fmtH(s - reqH);
+      }
+      if(outT && otEndMin!==null) reached = minOf(outT) >= otEndMin ? 'ถึง' : 'ไม่ถึง';
+      rows.push([e.employeeCode||'-', e.name, br?.name||'-', o.date, otStatusLabel(o.status), inT?fmtTime(inT):'', outT?fmtTime(outT):'', e.shiftEnd||'', o.hourStart, o.hourEnd, fmtH(reqH), stay, diff, reached, note.join(', ')]);
+    });
+  if(rows.length===1){ alert('ไม่พบคำขอ OT ในช่วงวันที่ที่เลือก'); return; }
+  downloadCSV(`arana-time-ot-compare-${fromStr}_to_${toStr}.csv`, rows);
 };
 document.getElementById('exportSummaryBtn').onclick = ()=>{
   const now = new Date();
