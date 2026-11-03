@@ -1961,9 +1961,9 @@ const TRASH_ICON_SVG = '<svg viewBox="0 0 24 24" width="14" height="14" fill="no
 const uid = ()=> crypto.randomUUID();
 
 // ===== Supabase config =====
-const SUPABASE_URL = 'https://zjrlttyhdfcdjdnrvega.supabase.co';
+const SUPABASE_URL = 'https://xlhlyususzomwtlotbaf.supabase.co';
 const APP_URL = 'https://arana-aesthetic.github.io/teletest-arana-time/teletest-arana-time.html';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpqcmx0dHloZGZjZGpkbnJ2ZWdhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY1MjA5ODYsImV4cCI6MjEwMjA5Njk4Nn0.sBOAB63PfUk-jeKn9-XIAKcScXG1GYfAoPd87bm215w';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhsaGx5dXN1c3pvbXd0bG90YmFmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk4ODEzNjEsImV4cCI6MjEwNTQ1NzM2MX0.-mHr0VIcBTX5vUVSdpS3PiGhYRc_oGng3Qx7zCoMJQI';
 
 function defaultDB(){
   return {
@@ -2158,8 +2158,10 @@ function setDatePreset(prefix, value, onChange){
 }
 
 // ===== Storage layer: Supabase (mapped to existing normalized tables) =====
+// ตั้งแต่ 03/11/2569 ข้อมูลย้ายไปอยู่ในฐาน ERP ห้อง arana_time — ทุกคำสั่งต้องบอกชื่อห้องผ่าน 2 header นี้
 function sbHeaders(extra){
-  return { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}`, ...extra };
+  return { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+    'Accept-Profile':'arana_time', 'Content-Profile':'arana_time', ...extra };
 }
 // PostgREST ตอบกลับสูงสุด 1000 แถวต่อ 1 request ต้องไล่ดึงทีละหน้าด้วย header Range
 // ไม่งั้นตาราง logs ที่มีเป็นหมื่นแถวจะถูกตัดเหลือ 1000 แถวเงียบๆ (รายงานย้อนหลังจะขาดข้อมูล)
