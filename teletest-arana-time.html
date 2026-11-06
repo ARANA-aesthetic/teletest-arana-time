@@ -758,6 +758,7 @@
         <div class="sectitle">สรุปภาพรวม</div>
         <select id="empFilterPreset_home" style="margin-bottom:10px;">
           <option value="month">เดือนนี้</option>
+          <option value="lastmonth">เดือนก่อน</option>
           <option value="today">วันนี้</option>
           <option value="year">ปีนี้</option>
           <option value="custom">กำหนดเอง</option>
@@ -773,7 +774,7 @@
         </div>
       </section>
       <section>
-        <div class="sectitle">ประวัติล่าสุด<button class="btn ghost sm" style="margin-left:auto;" id="exportMyLogBtn">Report</button></div>
+        <div class="sectitle">ประวัติ (ตามช่วงวันที่ด้านบน)<button class="btn ghost sm" style="margin-left:auto;" id="exportMyLogBtn">Report</button></div>
         <div class="card" id="myLogList" style="padding:0 16px;"></div>
       </section>
     </div>
@@ -809,6 +810,7 @@
         <div class="sectitle">ใบลาของฉัน<button class="btn ghost sm" style="margin-left:auto;" id="exportMyLeaveBtn">Report</button></div>
         <select id="empFilterPreset_leave" style="margin-bottom:10px;">
           <option value="month">เดือนนี้</option>
+          <option value="lastmonth">เดือนก่อน</option>
           <option value="today">วันนี้</option>
           <option value="year">ปีนี้</option>
           <option value="custom">กำหนดเอง</option>
@@ -846,6 +848,7 @@
         <div class="sectitle">คำขอ OT ของฉัน</div>
         <select id="empFilterPreset_ot" style="margin-bottom:10px;">
           <option value="month">เดือนนี้</option>
+          <option value="lastmonth">เดือนก่อน</option>
           <option value="today">วันนี้</option>
           <option value="year">ปีนี้</option>
           <option value="custom">กำหนดเอง</option>
@@ -862,6 +865,17 @@
     <div id="etabNoti" class="hidden">
       <section>
         <div class="sectitle">แจ้งเตือน</div>
+        <select id="empFilterPreset_noti" style="margin-bottom:10px;">
+          <option value="month">เดือนนี้</option>
+          <option value="lastmonth">เดือนก่อน</option>
+          <option value="today">วันนี้</option>
+          <option value="year">ปีนี้</option>
+          <option value="custom">กำหนดเอง</option>
+        </select>
+        <div class="row2 hidden" id="empFilterCustomRow_noti" style="margin-bottom:10px;">
+          <div><div id="empFilterFrom_noti_holder"></div></div>
+          <div><div id="empFilterTo_noti_holder"></div></div>
+        </div>
         <div class="card" id="notiList" style="padding:0 16px;"></div>
       </section>
     </div>
@@ -869,14 +883,44 @@
     <!-- ค่าคอมของฉัน (ผู้บริหาร 06/11/2569) — เฉพาะคนที่ตั้งรับค่ามือ/ค่าคอม · ข้อมูลของตัวเองเท่านั้น (ฐานข้อมูลตรวจ token) -->
     <div id="etabComm" class="hidden">
       <section>
-        <div style="display:flex;gap:6px;margin-bottom:12px;">
-          <button class="btn ghost sm" id="commPrevBtn" type="button">เดือนก่อน</button>
-          <button class="btn ghost sm" id="commThisBtn" type="button">เดือนนี้</button>
+        <select id="empFilterPreset_money" style="margin-bottom:10px;">
+          <option value="month">เดือนนี้</option>
+          <option value="lastmonth">เดือนก่อน</option>
+          <option value="today">วันนี้</option>
+          <option value="year">ปีนี้</option>
+          <option value="custom">กำหนดเอง</option>
+        </select>
+        <div class="row2 hidden" id="empFilterCustomRow_money" style="margin-bottom:10px;">
+          <div><div id="empFilterFrom_money_holder"></div></div>
+          <div><div id="empFilterTo_money_holder"></div></div>
         </div>
+        <div class="msg" id="moneyMsg"></div>
+      </section>
+      <section>
+        <div class="sectitle">เงินเดือน / คอมมิชชั่น</div>
         <div class="card" id="commSummary" style="padding:16px;"></div>
-        <div class="sectitle" style="margin-top:16px;">รายการ</div>
+      </section>
+      <section id="commListSec">
+        <div class="sectitle">รายการค่าคอม / ค่ามือ</div>
         <div class="card" id="commList" style="padding:0 16px;"></div>
         <div style="font-size:12px;color:var(--muted);margin-top:10px;line-height:1.6;">ยอดสะสมระหว่างเดือน ยอดจ่ายจริงยึดตามรอบเงินเดือนที่ HR ปิดงวด · ค่าคอมอื่น ๆ = ค่าคอมที่ไม่ได้เลือกประเภทขายเพิ่ม/อัพเพิ่ม เช่น มัดจำ รับชำระ · ยอดไม่ตรง แจ้ง HR</div>
+      </section>
+      <section id="moneyUpsellSec">
+        <div class="sectitle">อัปเซลของฉัน</div>
+        <div class="card" id="moneyUpsell" style="padding:0 16px;"></div>
+      </section>
+      <section id="moneyFollowSec">
+        <div class="sectitle">ยอดรอตามลูกค้า</div>
+        <div class="card" id="moneyFollow" style="padding:0 16px;"></div>
+        <div style="font-size:12px;color:var(--muted);margin-top:10px;line-height:1.6;" id="moneyFollowNote"></div>
+      </section>
+      <section>
+        <div class="sectitle">หนี้ของฉัน</div>
+        <div class="card" id="moneyDebt" style="padding:0 16px;"></div>
+      </section>
+      <section>
+        <div class="sectitle">สลิปเงินเดือน</div>
+        <div class="card" id="moneySlips" style="padding:0 16px;"></div>
       </section>
     </div>
 
@@ -890,7 +934,6 @@
         <div class="menu-item" id="menuPin"><div class="ic">⚿</div><div class="lbl">เปลี่ยน PIN</div></div>
         <div class="menu-item" id="menuFace"><div class="ic">◎</div><div class="lbl">ลงทะเบียนหน้าใหม่</div></div>
         <div class="menu-item" id="menuHome"><div class="ic">◐</div><div class="lbl" id="menuHomeLbl">ตั้งพิกัดบ้าน</div></div>
-        <div class="menu-item" id="menuCalShort"><div class="ic">▦</div><div class="lbl">วันหยุดบริษัท</div></div>
         <div class="menu-item" id="menuAcShort"><div class="ic">AC</div><div class="lbl">จุดปิดแอร์</div></div>
         <div class="menu-item" id="menuBranchTransfer"><div class="ic">⇄</div><div class="lbl">ขอไปสาขาอื่น</div></div>
         <div class="menu-item" id="menuLogout"><div class="ic">⏻</div><div class="lbl">ออกจากระบบ</div></div>
@@ -901,10 +944,9 @@
 
   <div class="bottomnav">
     <button class="navbtn active" data-etab="Home" onclick="switchETab('Home')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7"/><path d="M5 10v9a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1v-9"/></svg><span class="lbl">หน้าแรก</span></button>
-    <button class="navbtn" data-etab="Cal" onclick="switchETab('Cal')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg><span class="lbl">ปฏิทิน</span></button>
     <button class="navbtn" data-etab="Leave" onclick="switchETab('Leave')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></svg><span class="lbl">ใบลา</span></button>
     <button class="navbtn" data-etab="Noti" onclick="switchETab('Noti')" style="position:relative;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg><span class="lbl">แจ้งเตือน</span><span class="navbadge hidden" id="notiNavBadge">0</span></button>
-    <button class="navbtn hidden" id="commNavBtn" data-etab="Comm" onclick="switchETab('Comm')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="13" rx="2"/><circle cx="12" cy="12.5" r="2.5"/><path d="M6 10h.01M18 15h.01"/></svg><span class="lbl">ค่าคอม</span></button>
+    <button class="navbtn" id="commNavBtn" data-etab="Comm" onclick="switchETab('Comm')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="13" rx="2"/><circle cx="12" cy="12.5" r="2.5"/><path d="M6 10h.01M18 15h.01"/></svg><span class="lbl">เงินของฉัน</span></button>
     <button class="navbtn" data-etab="Profile" onclick="switchETab('Profile')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg><span class="lbl">โปรไฟล์</span></button>
   </div>
 </div>
@@ -2744,6 +2786,7 @@ function getEmpFilterRange(){
   if(empFilterMode==='year'){ return {from:`${now.getFullYear()}-01-01`, to:`${now.getFullYear()}-12-31`}; }
   if(empFilterMode==='custom'){ return {from: empFilterFrom||dateKey(now), to: empFilterTo||dateKey(now)}; }
   const y=now.getFullYear(), m=now.getMonth();
+  if(empFilterMode==='lastmonth') return {from: dateKey(new Date(y,m-1,1)), to: dateKey(new Date(y,m,0))};
   return {from: dateKey(new Date(y,m,1)), to: dateKey(new Date(y,m+1,0))};
 }
 function summaryForRange(empId, fromStr, toStr){
@@ -2805,8 +2848,10 @@ const HOME_LEAVE_BOX_ORDER = [
   {key:'forgotCount', label:'ลืมเช็คอินเข้างาน', type:'count', unit:'ครั้ง', color:'color:var(--amber);'},
   {key:'warningCount', label:'ใบเตือน', type:'count', unit:'ใบ', color:'color:var(--red);'},
 ];
+// ตัวกรองวันที่ใช้ร่วมกันทุกแท็บของพนักงาน (ผู้บริหาร 06/11/2569: ดูย้อนหลังได้ทุกหน้า)
+const EMP_FILTER_SCOPES = ['home','leave','ot','money','noti'];
 function syncEmpFilterUI(){
-  ['home','leave','ot'].forEach(scope=>{
+  EMP_FILTER_SCOPES.forEach(scope=>{
     const sel = document.getElementById(`empFilterPreset_${scope}`);
     const customRow = document.getElementById(`empFilterCustomRow_${scope}`);
     if(sel) sel.value = empFilterMode;
@@ -2822,8 +2867,10 @@ function applyEmpFilter(){
   if(!document.getElementById('etabHome').classList.contains('hidden')) renderEmployeeHome();
   if(!document.getElementById('etabLeave').classList.contains('hidden')) renderLeaveTab();
   if(!document.getElementById('etabOt').classList.contains('hidden')) renderOtTab();
+  if(!document.getElementById('etabComm').classList.contains('hidden')) renderMoneyTab();
+  if(!document.getElementById('etabNoti').classList.contains('hidden')) renderNotiTab();
 }
-['home','leave','ot'].forEach(scope=>{
+EMP_FILTER_SCOPES.forEach(scope=>{
   const holderFrom = document.getElementById(`empFilterFrom_${scope}_holder`);
   const holderTo = document.getElementById(`empFilterTo_${scope}_holder`);
   if(holderFrom) holderFrom.innerHTML = dateSelectHTML(`empFilterFrom_${scope}`);
@@ -3021,7 +3068,7 @@ async function submitPin(){
 // เมนูค่าคอมแสดงเฉพาะคนที่ตั้งรับค่ามือ/ค่าคอมในทะเบียน ERP
 function applyStaffMe(){
   const b = document.getElementById('commNavBtn');
-  if(b) b.classList.toggle('hidden', !(staffMe && staffMe.receives_commission));
+  if(b) b.classList.remove('hidden'); // เมนู "เงินของฉัน" แสดงทุกคน (ฐานเงินเดือน/สลิป) · ส่วนค่าคอมแสดงเฉพาะคนที่รับค่าคอม
 }
 function renderApproverSelect(){
   const sel = document.getElementById('approverSelect');
@@ -3128,7 +3175,7 @@ function switchETab(tab){
   document.querySelectorAll('#employeeView .navbtn').forEach(b=> b.classList.toggle('active', b.dataset.etab===tab));
   const emp = currentEmployee(); if(!emp) return;
   const br = currentBranch(emp);
-  const titles = {Home:`สวัสดี, ${emp.name.split(' ')[0]}`, Cal:'ปฏิทินการทำงาน', Leave:'ใบลาของฉัน', Ac:'จุดปิดแอร์', Clean:'ตรวจความสะอาด', Ot:'ขอ OT', Noti:'แจ้งเตือน', Comm:'ค่าคอม / ค่ามือของฉัน', Profile:'โปรไฟล์'};
+  const titles = {Home:`สวัสดี, ${emp.name.split(' ')[0]}`, Cal:'ปฏิทินการทำงาน', Leave:'ใบลาของฉัน', Ac:'จุดปิดแอร์', Clean:'ตรวจความสะอาด', Ot:'ขอ OT', Noti:'แจ้งเตือน', Comm:'เงินของฉัน', Profile:'โปรไฟล์'};
   const metas = {Home:`${br?.name||'-'}${isOnBranchTransferToday(emp)?' (ชั่วคราว)':''} · กะ ${emp.shiftStart||'-'}–${emp.shiftEnd||'-'} น.`, Cal:br?.name||'-', Leave:'ยื่นและติดตามใบลาของคุณ', Ac:br?.name||'-', Clean:br?.name||'-', Ot:'ยื่นและติดตามคำขอ OT', Noti:'ประวัติการแจ้งเตือนของคุณ', Comm:'เห็นเฉพาะของคุณ', Profile:'จัดการบัญชีของคุณ'};
   document.getElementById('empPageTitle').textContent = titles[tab];
   document.getElementById('empPageMeta').textContent = metas[tab];
@@ -3139,8 +3186,8 @@ function switchETab(tab){
   if(tab==='Ac') renderAcTab();
   if(tab==='Clean') renderCleanTab();
   if(tab==='Ot'){ syncEmpFilterUI(); renderOtTab(); }
-  if(tab==='Noti') renderNotiTab();
-  if(tab==='Comm') renderCommTab(commMonthOffset);
+  if(tab==='Noti'){ syncEmpFilterUI(); renderNotiTab(); }
+  if(tab==='Comm'){ syncEmpFilterUI(); renderMoneyTab(); }
   if(tab==='Profile') renderProfileTab();
 }
 document.getElementById('qaAc').onclick = ()=> switchETab('Ac');
@@ -3151,7 +3198,6 @@ document.getElementById('qaLeave').onclick = ()=>{ switchETab('Leave'); };
 document.getElementById('qaCal').onclick = ()=> switchETab('Cal');
 document.getElementById('qaNoti').onclick = ()=> switchETab('Noti');
 document.getElementById('qaProfile').onclick = ()=> switchETab('Profile');
-document.getElementById('menuCalShort').onclick = ()=> switchETab('Cal');
 document.getElementById('menuAcShort').onclick = ()=> switchETab('Ac');
 
 function renderEmployeeHome(){
@@ -3200,7 +3246,9 @@ function renderEmployeeHome(){
     return `<div class="stat"><div class="t">${b.label}</div><div class="num" style="${color}">${val}</div><div class="lbl">วัน</div></div>`;
   }).join('');
   const typeLabels = {IN:'เช็กอิน', OUT:'เช็กเอาท์', AC:'แจ้งปิดแอร์', CLEAN:'ตรวจความสะอาด', GROOM:'ความเรียบร้อยประจำวัน'};
-  const myLogs = db.logs.filter(l=>l.employeeId===emp.id).sort((a,b)=>new Date(b.time)-new Date(a.time)).slice(0,15);
+  const hr = getEmpFilterRange();
+  const myLogs = db.logs.filter(l=>{ if(l.employeeId!==emp.id) return false; const k = dateKey(new Date(l.time)); return k>=hr.from && k<=hr.to; })
+    .sort((a,b)=>new Date(b.time)-new Date(a.time)).slice(0,60);
   document.getElementById('myLogList').innerHTML = myLogs.length ? myLogs.map(l=>{
     const isCheckType = l.type==='IN' || l.type==='OUT';
     const sentBadge = l.sent ? '<span class="badge approved">ส่งแล้ว</span>'
@@ -4444,11 +4492,13 @@ document.getElementById('submitManagerOtGroupBtn').onclick = async ()=>{
 function renderNotiTab(){
   const emp = currentEmployee(); if(!emp) return;
   const myNoti = db.notifications.filter(n=>n.employeeId===emp.id).sort((a,b)=>new Date(b.time)-new Date(a.time));
-  document.getElementById('notiList').innerHTML = myNoti.length ? myNoti.map(n=>`
+  const nr = getEmpFilterRange();
+  const shown = myNoti.filter(n=>{ const k = dateKey(new Date(n.time)); return k>=nr.from && k<=nr.to; });
+  document.getElementById('notiList').innerHTML = shown.length ? shown.map(n=>`
     <div class="noti ${n.read?'':'unread'}"><div class="ic">●</div>
       <div class="body"><div class="t">${n.title}</div><div class="d">${n.body}</div></div>
       <div class="time">${fmtDateShort(new Date(n.time))}</div>
-    </div>`).join('') : '<div class="empty">ยังไม่มีการแจ้งเตือน</div>';
+    </div>`).join('') : '<div class="empty">ไม่มีการแจ้งเตือนในช่วงที่เลือก</div>';
   const unreadNoti = myNoti.filter(n=>!n.read);
   myNoti.forEach(n=> n.read = true);
   unreadNoti.forEach(n=> saveNotificationRow(n));
@@ -4462,52 +4512,136 @@ function updateNotiBadge(){
 }
 
 // -- Profile tab --
-// ===== ค่าคอม / ค่ามือของฉัน (ผู้บริหาร 06/11/2569) — ฐานข้อมูลคืนเฉพาะของคนที่ถือ token =====
-let commMonthOffset = 0;
+// ===== เงินของฉัน (ผู้บริหาร 06/11/2569) — ฐานข้อมูลคืนเฉพาะของคนที่ถือ token =====
+// ฐานเงินเดือน + ค่าคอม/ค่ามือ · อัปเซล · ยอดรอตามลูกค้า (ไม่มีข้อมูลส่วนตัวลูกค้า) · หนี้ของฉัน · สลิปเงินเดือน (รอบที่อนุมัติแล้ว)
 const commMoney = v => (Number(v)||0).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2});
-function commRange(offset){
-  const now = new Date(Date.now() + 7*3600*1000);
-  const y = now.getUTCFullYear(), m = now.getUTCMonth() + offset;
-  const first = new Date(Date.UTC(y, m, 1)), last = new Date(Date.UTC(y, m+1, 0));
-  const iso = d => d.toISOString().slice(0,10);
-  const to = offset===0 ? iso(now) : iso(last);
-  return { from: iso(first), to, label: `${TH_MONTHS_FULL_SAFE[first.getUTCMonth()]} ${first.getUTCFullYear()+543}` };
-}
 const TH_MONTHS_FULL_SAFE = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
-async function renderCommTab(offset){
-  commMonthOffset = offset||0;
-  const sum = document.getElementById('commSummary'), list = document.getElementById('commList');
-  document.getElementById('commPrevBtn').className = 'btn sm ' + (commMonthOffset===-1?'':'ghost');
-  document.getElementById('commThisBtn').className = 'btn sm ' + (commMonthOffset===0?'':'ghost');
-  const rg = commRange(commMonthOffset);
-  sum.innerHTML = `<div style="color:var(--muted);font-size:13px;">กำลังโหลด…</div>`; list.innerHTML = '';
-  const r = await portalRpc('portal_my_commission', { p_token: getStaffToken(), p_from: rg.from, p_to: rg.to });
-  if(!r || r.ok===false){
-    sum.innerHTML = `<div style="color:var(--red);font-size:13px;">${portalErrText(r)}</div>`;
-    if(r?.error==='SESSION_EXPIRED') setTimeout(doLogout, 1500);
+const moneyEsc = s => String(s??'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const moneyDate = s => { const d = String(s||'').slice(0,10).split('-'); return d.length===3 ? `${d[2]}/${d[1]}/${Number(d[0])+543}` : '-'; };
+const moneyRow = (l, v, strong) => `<div style="display:flex;justify-content:space-between;gap:8px;padding:6px 0;${strong?'border-top:1px solid var(--border);margin-top:6px;padding-top:10px;font-weight:700;font-size:16px;':'font-size:14px;'}"><span>${l}</span><span style="white-space:nowrap;">${commMoney(v)}</span></div>`;
+const moneyItem = (title, amount, sub, line) => `<div class="listrow" style="padding:10px 0;border-bottom:1px solid var(--border);">
+  <div style="display:flex;justify-content:space-between;gap:8px;"><b style="font-size:14px;">${title}</b><b style="white-space:nowrap;">${amount}</b></div>
+  ${sub?`<div style="font-size:12px;color:var(--muted);margin-top:2px;">${sub}</div>`:''}
+  ${line?`<div style="font-size:12px;color:var(--text);margin-top:2px;">${line}</div>`:''}
+</div>`;
+const moneyEmpty = t => `<div class="empty" style="padding:16px 0;">${t}</div>`;
+let moneySlipsCache = [];
+let moneySeq = 0;
+async function renderMoneyTab(){
+  const seq = ++moneySeq;
+  const rg = getEmpFilterRange();
+  const today = dateKey(new Date());
+  const to = rg.to > today ? today : rg.to;
+  const from = rg.from > to ? to : rg.from;
+  const ids = ['commSummary','commList','moneyUpsell','moneyFollow','moneyDebt','moneySlips'];
+  ids.forEach(id=>{ const el = document.getElementById(id); if(el) el.innerHTML = moneyEmpty('กำลังโหลด…'); });
+  document.getElementById('moneyMsg').textContent = '';
+  const token = getStaffToken();
+  const [c, m] = await Promise.all([
+    portalRpc('portal_my_commission', { p_token: token, p_from: from, p_to: to }),
+    portalRpc('portal_my_money', { p_token: token, p_from: from, p_to: to }),
+  ]);
+  if(seq !== moneySeq) return; // เปลี่ยนช่วงวันที่ระหว่างโหลด — ใช้ผลรอบล่าสุดเท่านั้น
+  const bad = [c, m].find(r=>!r || r.ok===false);
+  if(bad){
+    ids.forEach(id=>{ const el = document.getElementById(id); if(el) el.innerHTML = ''; });
+    document.getElementById('moneyMsg').innerHTML = `<span style="color:var(--red);">${portalErrText(bad)}</span>`;
+    if(bad?.error==='SESSION_EXPIRED') setTimeout(doLogout, 1500);
     return;
   }
-  if(r.eligible===false){ sum.innerHTML = `<div style="color:var(--muted);font-size:13px;">ตำแหน่งของคุณไม่ได้ตั้งรับค่าคอม/ค่ามือ</div>`; return; }
-  const row = (l, v, strong) => `<div style="display:flex;justify-content:space-between;padding:6px 0;${strong?'border-top:1px solid var(--border);margin-top:6px;padding-top:10px;font-weight:700;font-size:16px;':'font-size:14px;'}"><span>${l}</span><span>${commMoney(v)}</span></div>`;
-  sum.innerHTML = `<div style="font-size:13px;color:var(--muted);margin-bottom:6px;">${rg.label}${commMonthOffset===0?' (ถึงวันนี้)':''}</div>`
-    + row('ค่าคอมขายเพิ่ม', r.add) + row('ค่าคอมอัปเซล (อัพเพิ่ม)', r.up) + row('ค่าคอมอื่น ๆ', r.other) + row('ค่ามือ', r.hand) + row('รวม', r.total, true);
-  const items = Array.isArray(r.items) ? r.items : [];
-  if(!items.length){ list.innerHTML = `<div class="empty" style="padding:16px 0;">ยังไม่มีรายการในเดือนนี้</div>`; return; }
-  const esc = s => String(s??'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-  list.innerHTML = items.map(it=>{
-    const d = String(it.date||'').slice(0,10).split('-');
+  const eligible = c.eligible !== false;
+  const label = `${moneyDate(from)} – ${moneyDate(to)}`;
+
+  // เงินเดือน / คอมมิชชั่น — ฐานเงินเดือนอยู่บนสุด
+  let sum = `<div style="font-size:13px;color:var(--muted);margin-bottom:6px;">${label}</div>`
+    + moneyRow('ฐานเงินเดือน (ต่อเดือน)', m.base_salary);
+  if(eligible){
+    sum += moneyRow('ค่าคอมขายเพิ่ม', c.add) + moneyRow('ค่าคอมอัปเซล (อัพเพิ่ม)', c.up) + moneyRow('ค่าคอมอื่น ๆ', c.other)
+      + moneyRow('ค่ามือ', c.hand) + moneyRow('รวมค่าคอม / ค่ามือ', c.total, true);
+  } else {
+    sum += `<div style="font-size:12px;color:var(--muted);margin-top:6px;">ตำแหน่งของคุณไม่ได้ตั้งรับค่าคอม/ค่ามือ</div>`;
+  }
+  document.getElementById('commSummary').innerHTML = sum;
+
+  // รายการค่าคอม
+  document.getElementById('commListSec').classList.toggle('hidden', !eligible);
+  const items = eligible && Array.isArray(c.items) ? c.items : [];
+  document.getElementById('commList').innerHTML = items.length ? items.map(it=>{
     const parts = [];
-    if(Number(it.comm)) parts.push(`ค่าคอม${it.type?` (${esc(it.type)})`:''} ${commMoney(it.comm)}`);
+    if(Number(it.comm)) parts.push(`ค่าคอม${it.type?` (${moneyEsc(it.type)})`:''} ${commMoney(it.comm)}`);
     if(Number(it.hand)) parts.push(`ค่ามือ ${commMoney(it.hand)}`);
-    return `<div class="listrow" style="padding:10px 0;border-bottom:1px solid var(--border);">
-      <div style="display:flex;justify-content:space-between;gap:8px;"><b style="font-size:14px;">${esc(it.program)}</b><b style="white-space:nowrap;">${commMoney(Number(it.comm||0)+Number(it.hand||0))}</b></div>
-      <div style="font-size:12px;color:var(--muted);margin-top:2px;">${d.length===3?`${d[2]}/${d[1]}/${Number(d[0])+543}`:''} · ${esc(it.origin)} · ลูกค้า ${esc(it.customer)}${it.branch?` · ${esc(it.branch)}`:''}</div>
-      <div style="font-size:12px;color:var(--text);margin-top:2px;">${parts.join(' · ')}</div>
-    </div>`;
-  }).join('');
+    return moneyItem(moneyEsc(it.program), commMoney(Number(it.comm||0)+Number(it.hand||0)),
+      `${moneyDate(it.date)} · ${moneyEsc(it.origin)} · ลูกค้า ${moneyEsc(it.customer)}${it.branch?` · ${moneyEsc(it.branch)}`:''}`, parts.join(' · '));
+  }).join('') : moneyEmpty('ยังไม่มีรายการในช่วงนี้');
+
+  // อัปเซลของฉัน
+  document.getElementById('moneyUpsellSec').classList.toggle('hidden', !m.upsell);
+  if(m.upsell){
+    const u = m.upsell, ui = Array.isArray(u.items) ? u.items : [];
+    document.getElementById('moneyUpsell').innerHTML =
+      `<div style="padding:12px 0 6px;">${moneyRow('จำนวนบิล', u.bills).replace(/\.00</,'<')}${moneyRow('ยอดอัปเซล', u.upsold)}${moneyRow('ค่าคอมอัปเซล', u.comm)}</div>`
+      + (ui.length ? ui.map(it=>moneyItem(moneyEsc(it.program), commMoney(it.upsold),
+          `${moneyDate(it.date)} · ${moneyEsc(it.type)} · ลูกค้า ${moneyEsc(it.customer)}${it.branch?` · ${moneyEsc(it.branch)}`:''}`, `ค่าคอม ${commMoney(it.comm)}`)).join('')
+        : moneyEmpty('ยังไม่มีอัปเซลในช่วงนี้'));
+  }
+
+  // ยอดรอตามลูกค้า (บิลค้างชำระ + มัดจำยังไม่มาใช้) — นับให้คนที่ได้ค่าคอมของบิล/มัดจำนั้น
+  const fb = m.followups?.bills || [], fd = m.followups?.deposits || [];
+  const sumLeft = fb.reduce((a,x)=>a+Number(x.left||0),0), sumDep = fd.reduce((a,x)=>a+Number(x.left||0),0);
+  document.getElementById('moneyFollow').innerHTML = (fb.length||fd.length)
+    ? `<div style="padding:12px 0 6px;">${moneyRow(`บิลค้างชำระ ${fb.length} บิล (ยอดค้าง)`, sumLeft)}${moneyRow(`มัดจำรอลูกค้ามาใช้ ${fd.length} รายการ`, sumDep)}</div>`
+      + fb.map(x=>moneyItem(moneyEsc(x.program), `ค้าง ${commMoney(x.left)}`,
+          `${moneyDate(x.date)} · บิลค้างชำระ · ลูกค้า ${moneyEsc(x.customer)}${x.branch?` · ${moneyEsc(x.branch)}`:''}`, `ยอดเต็ม ${commMoney(x.full)} · จ่ายแล้ว ${commMoney(x.paid)}`)).join('')
+      + fd.map(x=>moneyItem(moneyEsc(x.program), `มัดจำ ${commMoney(x.left)}`,
+          `${moneyDate(x.date)} · มัดจำยังไม่มาใช้ · ลูกค้า ${moneyEsc(x.customer)}${x.branch?` · ${moneyEsc(x.branch)}`:''}${x.appointment?` · นัด ${moneyDate(x.appointment)}`:''}`, `ยอดเต็ม ${commMoney(x.full)}`)).join('')
+    : moneyEmpty('ไม่มียอดรอตามในช่วงนี้');
+  document.getElementById('moneyFollowNote').textContent = `นับเฉพาะบิล/มัดจำตั้งแต่ ${moneyDate(m.followup_start)} ที่คุณได้ค่าคอม · ตามลูกค้าให้มาชำระ/มาใช้บริการเพื่อปิดยอด`;
+
+  // หนี้ของฉัน
+  const pi = m.debts?.pay_items || [], sb = m.debts?.self_bills || [];
+  const modeTh = {installment:'ผ่อนจนครบยอด', bond:'สะสมจนครบยอด'};
+  document.getElementById('moneyDebt').innerHTML = (pi.length||sb.length)
+    ? pi.map(x=>moneyItem(moneyEsc(x.category), `คงเหลือ ${commMoney(x.left)}`,
+          `${modeTh[x.mode]||moneyEsc(x.mode)} · หักเดือนละ ${commMoney(x.monthly)}${x.note?` · ${moneyEsc(x.note)}`:''}`, `ยอดเต็ม ${commMoney(x.total)} · หักแล้ว ${commMoney(x.paid)}`)).join('')
+      + sb.map(x=>moneyItem(moneyEsc(x.service), `ค้าง ${commMoney(x.left)}`,
+          `${moneyDate(x.date)} · บิล ${moneyEsc(x.receipt_no)}${x.branch?` · ${moneyEsc(x.branch)}`:''}`, `ยอดเต็ม ${commMoney(x.amount)} · จ่ายแล้ว ${commMoney(x.paid)}`)).join('')
+    : moneyEmpty('ไม่มียอดค้างกับบริษัท');
+
+  // สลิปเงินเดือน
+  moneySlipsCache = Array.isArray(m.slips) ? m.slips : [];
+  document.getElementById('moneySlips').innerHTML = moneySlipsCache.length
+    ? moneySlipsCache.map((s,i)=>`<div class="listrow" style="padding:10px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:8px;">
+        <div><b style="font-size:14px;">${TH_MONTHS_FULL_SAFE[(s.month||1)-1]} ${(s.year||0)+543}</b><div style="font-size:12px;color:var(--muted);">รับสุทธิ ${commMoney(s.net_pay)}${s.pay_date?` · จ่าย ${moneyDate(s.pay_date)}`:''}</div></div>
+        <button class="btn sm" type="button" data-slipidx="${i}">ดู / บันทึก</button></div>`).join('')
+    : moneyEmpty('ยังไม่มีสลิปที่อนุมัติในช่วงนี้ (เลือก "ปีนี้" เพื่อดูย้อนหลัง)');
+  document.querySelectorAll('#moneySlips [data-slipidx]').forEach(b=> b.onclick = ()=> openSlip(moneySlipsCache[Number(b.dataset.slipidx)]));
 }
-document.getElementById('commPrevBtn').onclick = ()=> renderCommTab(-1);
-document.getElementById('commThisBtn').onclick = ()=> renderCommTab(0);
+// เปิดสลิปในหน้าต่างใหม่ → พิมพ์ / บันทึกเป็น PDF ได้จากเมนูของเครื่อง
+function openSlip(s){
+  if(!s) return;
+  const r = (l, v) => Number(v) ? `<tr><td>${l}</td><td class="n">${commMoney(v)}</td></tr>` : '';
+  const extra = (Array.isArray(s.pay_items) ? s.pay_items : []).map(p=>r(moneyEsc(p.category||p.name||'รายการ')+(p.kind==='deduct'?' (หัก)':''), p.amount)).join('');
+  const html = `<!doctype html><html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>สลิปเงินเดือน ${TH_MONTHS_FULL_SAFE[(s.month||1)-1]} ${(s.year||0)+543}</title>
+<style>body{font-family:'Sarabun','Prompt',sans-serif;margin:0;padding:24px;color:#111;background:#fff;}h1{font-size:18px;margin:0 0 4px;}
+.m{color:#555;font-size:13px;margin-bottom:14px;}table{width:100%;border-collapse:collapse;font-size:14px;margin-bottom:12px;}
+td{padding:6px 4px;border-bottom:1px solid #eee;}td.n{text-align:right;white-space:nowrap;}th{text-align:left;font-size:13px;color:#555;padding:8px 4px 4px;}
+.net{font-size:18px;font-weight:700;display:flex;justify-content:space-between;border-top:2px solid #111;padding-top:10px;}
+.btn{margin-top:18px;padding:10px 16px;border-radius:10px;border:none;background:#b5487a;color:#fff;font-size:15px;}
+@media print{.btn{display:none;}body{padding:0;}}</style></head><body>
+<h1>สลิปเงินเดือน ${TH_MONTHS_FULL_SAFE[(s.month||1)-1]} ${(s.year||0)+543}</h1>
+<div class="m">${moneyEsc(s.name)} · ${moneyEsc(s.emp_code)}${s.position?` · ${moneyEsc(s.position)}`:''}${s.branch?` · ${moneyEsc(s.branch)}`:''}${s.pay_date?`<br>วันที่จ่าย ${moneyDate(s.pay_date)}`:''}${s.bank?` · ${moneyEsc(s.bank)}`:''}</div>
+<table><tr><th colspan="2">รายได้</th></tr>${r('เงินเดือน', s.base_salary)}${r('OT', s.ot)}${r('ค่าคอมมิชชั่น', s.commission)}${r('ค่ามือ', s.hand_fee)}${r('โบนัส', s.bonus)}${r('เงินเพิ่ม', s.allowance)}
+<tr><td><b>รวมรายได้</b></td><td class="n"><b>${commMoney(s.gross_income)}</b></td></tr></table>
+<table><tr><th colspan="2">รายการหัก</th></tr>${r('ประกันสังคม', s.sso)}${r('ภาษีหัก ณ ที่จ่าย', s.wht)}${r('หักมาสาย', s.late_deduct)}${r('หักขาดงาน', s.absent_deduct)}${r('หักลาเกินสิทธิ์', s.over_leave_deduct)}${r('หักอื่น ๆ', s.other_deduct)}</table>
+${extra?`<table><tr><th colspan="2">รายละเอียดเงินเพิ่ม/เงินหัก</th></tr>${extra}</table>`:''}
+<div class="net"><span>รับสุทธิ</span><span>${commMoney(s.net_pay)}</span></div>
+<button class="btn" onclick="window.print()">บันทึกเป็น PDF / พิมพ์</button>
+</body></html>`;
+  const w = window.open('', '_blank');
+  if(!w){ alert('เบราว์เซอร์บล็อกหน้าต่างใหม่ — กรุณาอนุญาตป๊อปอัปแล้วลองอีกครั้ง'); return; }
+  w.document.open(); w.document.write(html); w.document.close();
+}
 
 function renderProfileTab(){
   const emp = currentEmployee(); const br = currentBranch(emp); if(!emp) return;
