@@ -747,10 +747,9 @@
           <div class="qa" id="qaAc"><div class="ic">AC</div><div class="lbl">ปิดแอร์</div></div>
           <div class="qa" id="qaClean"><div class="ic">◫</div><div class="lbl">ความสะอาด</div></div>
           <div class="qa" id="qaOt"><div class="ic">◷</div><div class="lbl">ขอ OT</div></div>
-          <div class="qa" id="qaLeave"><div class="ic">✎</div><div class="lbl">ยื่นใบลา</div></div>
           <div class="qa hidden" id="qaGroom"><div class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9 10h.01M15 10h.01M8 15c1 1.3 2.5 2 4 2s3-.7 4-2"/></svg></div><div class="lbl">ความเรียบร้อย</div></div>
           <div class="qa" id="qaCal"><div class="ic">▦</div><div class="lbl">ปฏิทิน</div></div>
-          <div class="qa" id="qaNoti"><div class="ic">◔</div><div class="lbl">แจ้งเตือน</div></div>
+          <div class="qa" id="qaDebt"><div class="ic">฿</div><div class="lbl">ค้างชำระบริษัท</div></div>
           <div class="qa" id="qaProfile"><div class="ic">☰</div><div class="lbl">โปรไฟล์</div></div>
         </div>
       </section>
@@ -914,8 +913,8 @@
         <div class="card" id="moneyFollow" style="padding:0 16px;"></div>
         <div style="font-size:12px;color:var(--muted);margin-top:10px;line-height:1.6;" id="moneyFollowNote"></div>
       </section>
-      <section>
-        <div class="sectitle">หนี้ของฉัน</div>
+      <section id="moneyDebtSec">
+        <div class="sectitle">ค้างชำระบริษัท (หนี้ของฉัน)</div>
         <div class="card" id="moneyDebt" style="padding:0 16px;"></div>
       </section>
       <section>
@@ -3194,9 +3193,9 @@ document.getElementById('qaAc').onclick = ()=> switchETab('Ac');
 document.getElementById('qaClean').onclick = ()=> switchETab('Clean');
 document.getElementById('qaOt').onclick = ()=> switchETab('Ot');
 document.getElementById('qaGroom').onclick = ()=> submitGrooming();
-document.getElementById('qaLeave').onclick = ()=>{ switchETab('Leave'); };
+// ค้างชำระบริษัท (หนี้ของฉัน) — แทนปุ่มยื่นใบลา/แจ้งเตือนที่ซ้ำกับเมนูล่าง (ผู้บริหาร 06/11/2569)
+document.getElementById('qaDebt').onclick = ()=>{ switchETab('Comm'); setTimeout(()=>{ const s = document.getElementById('moneyDebtSec'); if(s) s.scrollIntoView({behavior:'smooth', block:'start'}); }, 400); };
 document.getElementById('qaCal').onclick = ()=> switchETab('Cal');
-document.getElementById('qaNoti').onclick = ()=> switchETab('Noti');
 document.getElementById('qaProfile').onclick = ()=> switchETab('Profile');
 document.getElementById('menuAcShort').onclick = ()=> switchETab('Ac');
 
