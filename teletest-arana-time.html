@@ -6,7 +6,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ARANA TIME — ระบบเข้า-ออกงานหลายสาขา</title>
+<title>ARANA Staff — ระบบพนักงาน ARANA</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Marcellus+SC&family=Prompt:wght@500;600;700&family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
@@ -497,7 +497,7 @@
       box-shadow:4px 0 20px -18px rgba(0,0,0,.35);
     }
     body.deskmode .bottomnav::before{
-      content:'ARANA TIME';position:absolute;top:34px;left:20px;
+      content:'ARANA Staff';position:absolute;top:34px;left:20px;
       font-family:'Prompt',sans-serif;font-weight:700;font-size:15px;
       letter-spacing:.5px;color:var(--pink-dark);
     }
@@ -652,11 +652,11 @@
 <!-- ============ LOGIN ============ -->
 <div id="loginView" class="loginwrap">
   <div class="lg-hero">
-    <div class="lg-mark">ARANA<span class="lg-dot"> · </span>TIME</div>
-    <div class="lg-sub">ระบบเข้า-ออกงานหลายสาขา</div>
+    <div class="lg-mark">ARANA<span class="lg-dot"> · </span>Staff</div>
+    <div class="lg-sub">ระบบพนักงาน · ลงเวลา · ค่าคอม</div>
     <div class="lg-heroinfo">
       <h2>บันทึกเวลาทำงาน ดูแลทีมทุกสาขา ในที่เดียว</h2>
-      <p>เช็กอิน-เช็กเอาท์ด้วยใบหน้า ยื่นใบลา ขอ OT และดูสรุปผลงานของทุกสาขาได้ในที่เดียว</p>
+      <p>เช็กอิน-เช็กเอาท์ด้วยใบหน้า ยื่นใบลา ขอ OT และดูค่าคอม/ค่ามือของตัวเองได้ในที่เดียว</p>
     </div>
   </div>
   <div class="lg-body">
@@ -713,7 +713,7 @@
 <div id="employeeView" class="hidden">
   <div class="apphead">
     <div class="top">
-      <div class="eyebrow"><span class="dot"></span>ARANA TIME</div>
+      <div class="eyebrow"><span class="dot"></span>ARANA Staff</div>
       <div class="accountmenu">
         <button class="ibtn" id="empAccountBtn">▾</button>
         <div class="dropdownpanel" id="empDropdown">
@@ -866,6 +866,20 @@
       </section>
     </div>
 
+    <!-- ค่าคอมของฉัน (ผู้บริหาร 06/11/2569) — เฉพาะคนที่ตั้งรับค่ามือ/ค่าคอม · ข้อมูลของตัวเองเท่านั้น (ฐานข้อมูลตรวจ token) -->
+    <div id="etabComm" class="hidden">
+      <section>
+        <div style="display:flex;gap:6px;margin-bottom:12px;">
+          <button class="btn ghost sm" id="commPrevBtn" type="button">เดือนก่อน</button>
+          <button class="btn ghost sm" id="commThisBtn" type="button">เดือนนี้</button>
+        </div>
+        <div class="card" id="commSummary" style="padding:16px;"></div>
+        <div class="sectitle" style="margin-top:16px;">รายการ</div>
+        <div class="card" id="commList" style="padding:0 16px;"></div>
+        <div style="font-size:12px;color:var(--muted);margin-top:10px;line-height:1.6;">ยอดสะสมระหว่างเดือน ยอดจ่ายจริงยึดตามรอบเงินเดือนที่ HR ปิดงวด · ค่าคอมอื่น ๆ = ค่าคอมที่ไม่ได้เลือกประเภทขายเพิ่ม/อัพเพิ่ม เช่น มัดจำ รับชำระ · ยอดไม่ตรง แจ้ง HR</div>
+      </section>
+    </div>
+
     <!-- PROFILE -->
     <div id="etabProfile" class="hidden">
       <div class="profilehead">
@@ -890,6 +904,7 @@
     <button class="navbtn" data-etab="Cal" onclick="switchETab('Cal')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg><span class="lbl">ปฏิทิน</span></button>
     <button class="navbtn" data-etab="Leave" onclick="switchETab('Leave')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></svg><span class="lbl">ใบลา</span></button>
     <button class="navbtn" data-etab="Noti" onclick="switchETab('Noti')" style="position:relative;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg><span class="lbl">แจ้งเตือน</span><span class="navbadge hidden" id="notiNavBadge">0</span></button>
+    <button class="navbtn hidden" id="commNavBtn" data-etab="Comm" onclick="switchETab('Comm')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="13" rx="2"/><circle cx="12" cy="12.5" r="2.5"/><path d="M6 10h.01M18 15h.01"/></svg><span class="lbl">ค่าคอม</span></button>
     <button class="navbtn" data-etab="Profile" onclick="switchETab('Profile')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg><span class="lbl">โปรไฟล์</span></button>
   </div>
 </div>
@@ -2162,6 +2177,39 @@ function setDatePreset(prefix, value, onChange){
 
 // ===== Storage layer: Supabase (mapped to existing normalized tables) =====
 // ตั้งแต่ 03/11/2569 ข้อมูลย้ายไปอยู่ในฐาน ERP ห้อง arana_time — ทุกคำสั่งต้องบอกชื่อห้องผ่าน 2 header นี้
+// ARANA Staff (06/11/2569): PIN / ใบหน้า / พิกัดบ้าน ไม่ส่งมาที่เครื่องอีก — อ่านได้เฉพาะคอลัมน์ทั่วไป
+// ล็อกอินและข้อมูลของตัวเองผ่านฟังก์ชันในฐานข้อมูล (portal_*) ที่ตรวจ token ทุกครั้ง
+const EMP_PUBLIC_COLS = 'id,name,branch_id,shift_start,shift_end,created_at,nickname,department,job_title,start_date,email,active,pending_descriptor_at,weekly_off_days,employee_code,resign_date,probation_passed_date,skip_location_check';
+const STAFF_TOKEN_KEY = 'aranaStaffToken';
+function getStaffToken(){ try{ return localStorage.getItem(STAFF_TOKEN_KEY)||''; }catch(e){ return ''; } }
+function setStaffToken(t){ try{ if(t) localStorage.setItem(STAFF_TOKEN_KEY, t); else localStorage.removeItem(STAFF_TOKEN_KEY); }catch(e){} }
+async function portalRpc(fn, args){
+  try{
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
+      method:'POST',
+      headers:{ apikey: SUPABASE_ANON_KEY, Authorization:`Bearer ${SUPABASE_ANON_KEY}`, 'Content-Type':'application/json',
+        'Accept-Profile':'public', 'Content-Profile':'public' },
+      body: JSON.stringify(args||{})
+    });
+    if(!res.ok){ const t = await res.text().catch(()=> ''); console.error('portalRpc', fn, res.status, t); return { ok:false, error:'SERVER', detail:t }; }
+    const data = await res.json().catch(()=> null);
+    return (data && typeof data === 'object') ? data : { ok:true };
+  }catch(e){ return { ok:false, error:'NETWORK' }; }
+}
+const PORTAL_ERR = { WRONG_PIN:'PIN ไม่ถูกต้อง', LOCKED:'ใส่ PIN ผิดหลายครั้ง ล็อกไว้ 30 นาที หรือให้ HR ล้าง PIN ให้', BLOCKED:'บัญชีนี้ถูกปิดใช้งาน กรุณาติดต่อ HR',
+  NOT_LINKED:'ยังไม่ได้ผูกกับทะเบียนพนักงาน กรุณาติดต่อ HR', NOT_FOUND:'ไม่พบพนักงาน', SESSION_EXPIRED:'หมดเวลาการเข้าสู่ระบบ กรุณาใส่ PIN ใหม่',
+  PIN_FORMAT:'PIN ต้องเป็นตัวเลข 4 หลัก', NETWORK:'เชื่อมต่อไม่ได้ ตรวจอินเทอร์เน็ตแล้วลองใหม่', SERVER:'ระบบขัดข้อง ลองใหม่อีกครั้ง' };
+const portalErrText = (r)=> (PORTAL_ERR[r?.error]||'ทำรายการไม่สำเร็จ') + (r?.error==='WRONG_PIN' && r.left!=null ? ` (เหลือ ${r.left} ครั้ง)` : '');
+// ข้อมูลของตัวเองหลังล็อกอิน: ใบหน้าที่ใช้สแกน / คำขอเปลี่ยนหน้า / พิกัดบ้าน / สิทธิ์ดูค่าคอม
+let staffMe = null;
+async function loadMyPrivate(emp){
+  const r = await portalRpc('portal_my_private', { p_token: getStaffToken() });
+  if(!r || r.ok===false) return r;
+  emp.descriptor = r.descriptor || null;
+  emp.pendingDescriptor = r.has_pending ? true : null;
+  emp.homeLat = r.home_lat ?? null; emp.homeLng = r.home_lng ?? null;
+  return r;
+}
 function sbHeaders(extra){
   return { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
     'Accept-Profile':'arana_time', 'Content-Profile':'arana_time', ...extra };
@@ -2172,13 +2220,13 @@ function sbHeaders(extra){
 // ตั้งต้นจาก defaultDB() (สาขา b1/b2/b3/hq ที่ Chat ID ว่าง) ถ้าเผลอกดบันทึกตอนนั้น
 // ค่าตั้งต้นจะทับข้อมูลจริงทั้งหมด จึงต้องล็อกปุ่มบันทึกไว้จนกว่าจะโหลดใหม่ได้ครบ
 let sbLoadFailed = [];
-async function sbSelectAll(table, filterQuery){
+async function sbSelectAll(table, filterQuery, cols){
   const PAGE = 1000;
   let out = [], from = 0;
   const markFailed = ()=>{ if(!sbLoadFailed.includes(table)) sbLoadFailed.push(table); };
   try{
     for(;;){
-      const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?select=*${filterQuery?('&'+filterQuery):''}`, {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?select=${cols||'*'}${filterQuery?('&'+filterQuery):''}`, {
         headers: { ...sbHeaders(), 'Range-Unit':'items', 'Range':`${from}-${from+PAGE-1}` }
       });
       if(!res.ok){ markFailed(); return from===0 ? [] : out; }
@@ -2247,7 +2295,8 @@ const rowToBranch = r => ({ id:r.id, name:r.name, lat:r.lat, lng:r.lng, radius:r
 const branchToRow = b => ({ id:b.id, name:b.name, lat:b.lat, lng:b.lng, radius:b.radius, chat_id_checkinout:b.chatIdCheckinout||'', chat_id_facility:b.chatIdFacility||'', chat_id_leave_approval:b.chatIdLeaveApproval||'', weekly_off_days:b.weeklyOffDays||[], ac_points:b.acPoints||[], cleaning_points:b.cleaningPoints||[] });
 
 const rowToEmployee = r => ({ id:r.id, name:r.name, employeeCode:r.employee_code||'', resignDate:r.resign_date||'', nickname:r.nickname||'', department:r.department||'', jobTitle:r.job_title||'', branchId:r.branch_id||'', startDate:r.start_date||'', probationPassedDate:r.probation_passed_date||'', shiftStart:r.shift_start||'', shiftEnd:r.shift_end||'', email:r.email||'', pin:r.pin||null, descriptor:r.descriptor||null, homeLat:r.home_lat??null, homeLng:r.home_lng??null, active:r.active!==false, pendingDescriptor:r.pending_descriptor||null, pendingDescriptorPhotoId:r.pending_descriptor_photo_id||null, pendingDescriptorAt:r.pending_descriptor_at||null, weeklyOffDays:r.weekly_off_days||[], skipLocationCheck:!!r.skip_location_check });
-const employeeToRow = e => ({ id:e.id, name:e.name, employee_code:e.employeeCode||null, resign_date:e.resignDate||null, nickname:e.nickname||null, department:e.department||null, job_title:e.jobTitle||null, branch_id:e.branchId||null, start_date:e.startDate||null, probation_passed_date:e.probationPassedDate||null, shift_start:e.shiftStart||null, shift_end:e.shiftEnd||null, email:e.email||null, pin:e.pin||null, descriptor:e.descriptor||null, home_lat:e.homeLat??null, home_lng:e.homeLng??null, active:e.active!==false, pending_descriptor:e.pendingDescriptor||null, pending_descriptor_photo_id:e.pendingDescriptorPhotoId||null, pending_descriptor_at:e.pendingDescriptorAt||null, weekly_off_days:e.weeklyOffDays||[] });
+// ไม่ส่ง PIN / ใบหน้า / พิกัดบ้าน กลับไปเขียนทับ (เครื่องไม่มีค่าจริงของคนอื่นแล้ว) — ของตัวเองบันทึกผ่าน portal_*
+const employeeToRow = e => ({ id:e.id, name:e.name, employee_code:e.employeeCode||null, resign_date:e.resignDate||null, nickname:e.nickname||null, department:e.department||null, job_title:e.jobTitle||null, branch_id:e.branchId||null, start_date:e.startDate||null, probation_passed_date:e.probationPassedDate||null, shift_start:e.shiftStart||null, shift_end:e.shiftEnd||null, email:e.email||null, active:e.active!==false, weekly_off_days:e.weeklyOffDays||[] });
 
 const rowToApprover = r => ({ id:r.id, name:r.name, pin:r.pin||null, role:r.role||'hr' });
 const approverToRow = a => ({ id:a.id, name:a.name, pin:a.pin||null, role:a.role||'hr' });
@@ -2284,12 +2333,16 @@ async function loadDB(){
   // warning_letters/companies เก็บรูปลายเซ็น/โลโก้แบบ base64 (หนัก) และใช้เฉพาะ HR — ไม่โหลดตรงนี้ให้ทุกคนที่เปิดแอป
   // พนักงานโหลดเฉพาะใบเตือนของตัวเอง (loadEmployeeScopedData) แอดมินโหลดทั้งหมด (loadAdminScopedData)
   const [branchRows, empRows, approverRows, transferRows, settingsRows] = await Promise.all([
-    sbSelectAll('branches'), sbSelectAll('employees'), sbSelectAll('approvers'),
+    sbSelectAll('branches'), sbSelectAll('employees', null, EMP_PUBLIC_COLS), sbSelectAll('approvers', null, 'id,name,role'),
     sbSelectAll('branch_transfers'), sbSelectAll('settings')
   ]);
   db = defaultDB();
   if(branchRows.length) db.branches = branchRows.map(rowToBranch);
   db.employees = empRows.map(rowToEmployee);
+  // ตั้ง PIN แล้วหรือยัง (ไม่รู้ตัว PIN) — ใช้เลือกหน้าตั้ง PIN ครั้งแรก / กรอก PIN
+  const people = await portalRpc('portal_people');
+  if(Array.isArray(people)){ const m = new Map(people.map(p=>[p.id, !!p.has_pin])); db.employees.forEach(e=>{ e.hasPin = m.has(e.id) ? m.get(e.id) : true; }); }
+  else db.employees.forEach(e=>{ e.hasPin = true; });
   db.approvers = approverRows.map(rowToApprover);
   db.branchTransfers = transferRows.map(rowToBranchTransfer);
   if(settingsRows.length) db.settings = { ...defaultDB().settings, ...rowToSettings(settingsRows[0]) };
@@ -2534,7 +2587,7 @@ async function requestLeaveLocationOrBlock(){
     return null;
   }
   if(state !== 'granted'){
-    alert('กรุณาเปิดอนุญาตตำแหน่งของคุณ เพื่อให้ระบบ ARANA TIME บันทึกการแจ้งลา');
+    alert('กรุณาเปิดอนุญาตตำแหน่งของคุณ เพื่อให้ระบบ ARANA Staff บันทึกการแจ้งลา');
   }
   const pos = await getPosition();
   if(!pos){
@@ -2845,7 +2898,7 @@ function proceedEmpLogin(id){
   pinTargetEmp = emp;
   document.getElementById('empLoginStep1').classList.add('hidden');
   document.getElementById('empLoginStep2').classList.remove('hidden');
-  if(!emp.pin){
+  if(!emp.hasPin){
     pinMode = 'setup'; pinSetStage = 1; pinFirstEntry='';
     document.getElementById('pinPromptTitle').textContent = `ตั้ง PIN ใหม่สำหรับ ${emp.name} (4 หลัก)`;
   } else {
@@ -2881,7 +2934,7 @@ function tryAutoResumeLogin(){
   if(!remembered) return false;
   if(remembered.type==='employee'){
     const emp = db.employees.find(e=>e.id===remembered.id && e.active!==false);
-    if(!emp || !emp.pin){ forgetLogin(); return false; }
+    if(!emp || !emp.hasPin){ forgetLogin(); return false; }
     pinTargetEmp = emp; pinMode = 'verify'; pinBuffer='';
     document.getElementById('roleEmpBtn').classList.add('active');
     document.getElementById('roleApproverBtn').classList.remove('active');
@@ -2950,19 +3003,25 @@ function handlePinKey(k){
 async function submitPin(){
   const msg = document.getElementById('pinMsg');
   if(pinBuffer.length<4){ msg.textContent='กรอกให้ครบ 4 หลัก'; return; }
-  if(pinMode==='setup'){
-    pinTargetEmp.pin = pinBuffer; await saveEmployeeRow(pinTargetEmp);
-    session = {role:'employee', employeeId:pinTargetEmp.id}; pinBuffer='';
-    rememberLogin('employee', pinTargetEmp.id); persistSession();
-    await loadEmployeeScopedData(pinTargetEmp.id);
-    if(!pinTargetEmp.descriptor){ enterEmployeeView(); openCamera('enroll', pinTargetEmp); } else enterEmployeeView();
-  } else {
-    if(pinBuffer !== pinTargetEmp.pin){ msg.textContent='PIN ไม่ถูกต้อง'; pinBuffer=''; renderPinDots(); return; }
-    session = {role:'employee', employeeId:pinTargetEmp.id}; pinBuffer='';
-    rememberLogin('employee', pinTargetEmp.id); persistSession();
-    await loadEmployeeScopedData(pinTargetEmp.id);
-    if(!pinTargetEmp.descriptor){ enterEmployeeView(); openCamera('enroll', pinTargetEmp); } else enterEmployeeView();
-  }
+  // ARANA Staff: ตรวจ/ตั้ง PIN ที่ฐานข้อมูล (ผิด 5 ครั้งล็อก 30 นาที) — ตั้งครั้งแรกก็ผ่านฟังก์ชันเดียวกัน
+  if(submitPin.busy) return;
+  submitPin.busy = true; msg.textContent = 'กำลังตรวจสอบ…';
+  const r = await portalRpc('portal_login', { p_at_id: pinTargetEmp.id, p_pin: pinBuffer, p_remember: true, p_device: (navigator.userAgent||'').slice(0,200) });
+  submitPin.busy = false;
+  if(!r || r.ok===false || !r.token){ msg.textContent = portalErrText(r); pinBuffer=''; renderPinDots(); return; }
+  msg.textContent = '';
+  setStaffToken(r.token); staffMe = r; pinTargetEmp.hasPin = true;
+  session = {role:'employee', employeeId:pinTargetEmp.id}; pinBuffer='';
+  rememberLogin('employee', pinTargetEmp.id); persistSession();
+  await loadMyPrivate(pinTargetEmp);
+  await loadEmployeeScopedData(pinTargetEmp.id);
+  applyStaffMe();
+  if(!pinTargetEmp.descriptor){ enterEmployeeView(); openCamera('enroll', pinTargetEmp); } else enterEmployeeView();
+}
+// เมนูค่าคอมแสดงเฉพาะคนที่ตั้งรับค่ามือ/ค่าคอมในทะเบียน ERP
+function applyStaffMe(){
+  const b = document.getElementById('commNavBtn');
+  if(b) b.classList.toggle('hidden', !(staffMe && staffMe.receives_commission));
 }
 function renderApproverSelect(){
   const sel = document.getElementById('approverSelect');
@@ -3038,6 +3097,9 @@ document.getElementById('adminLoginBtn').onclick = async ()=>{
   else document.getElementById('adminLoginMsg').textContent = 'รหัสผ่านไม่ถูกต้อง';
 };
 function doLogout(){
+  const tk = getStaffToken();
+  if(tk){ portalRpc('portal_logout', { p_token: tk }); setStaffToken(''); }
+  staffMe = null; applyStaffMe();
   session = {role:null, employeeId:null};
   clearPersistedSession();
   document.getElementById('adminPassInput').value=''; document.getElementById('adminLoginMsg').textContent='';
@@ -3060,14 +3122,14 @@ setupAccountMenu('adminAccountBtn','adminDropdown');
 // ================= EMPLOYEE VIEW =================
 function enterEmployeeView(){ showView('employee'); switchETab('Home'); }
 function switchETab(tab){
-  ['Home','Cal','Leave','Ac','Clean','Ot','Noti','Profile'].forEach(t=>{
+  ['Home','Cal','Leave','Ac','Clean','Ot','Noti','Comm','Profile'].forEach(t=>{
     const el = document.getElementById('etab'+t); if(el) el.classList.toggle('hidden', t!==tab);
   });
   document.querySelectorAll('#employeeView .navbtn').forEach(b=> b.classList.toggle('active', b.dataset.etab===tab));
   const emp = currentEmployee(); if(!emp) return;
   const br = currentBranch(emp);
-  const titles = {Home:`สวัสดี, ${emp.name.split(' ')[0]}`, Cal:'ปฏิทินการทำงาน', Leave:'ใบลาของฉัน', Ac:'จุดปิดแอร์', Clean:'ตรวจความสะอาด', Ot:'ขอ OT', Noti:'แจ้งเตือน', Profile:'โปรไฟล์'};
-  const metas = {Home:`${br?.name||'-'}${isOnBranchTransferToday(emp)?' (ชั่วคราว)':''} · กะ ${emp.shiftStart||'-'}–${emp.shiftEnd||'-'} น.`, Cal:br?.name||'-', Leave:'ยื่นและติดตามใบลาของคุณ', Ac:br?.name||'-', Clean:br?.name||'-', Ot:'ยื่นและติดตามคำขอ OT', Noti:'ประวัติการแจ้งเตือนของคุณ', Profile:'จัดการบัญชีของคุณ'};
+  const titles = {Home:`สวัสดี, ${emp.name.split(' ')[0]}`, Cal:'ปฏิทินการทำงาน', Leave:'ใบลาของฉัน', Ac:'จุดปิดแอร์', Clean:'ตรวจความสะอาด', Ot:'ขอ OT', Noti:'แจ้งเตือน', Comm:'ค่าคอม / ค่ามือของฉัน', Profile:'โปรไฟล์'};
+  const metas = {Home:`${br?.name||'-'}${isOnBranchTransferToday(emp)?' (ชั่วคราว)':''} · กะ ${emp.shiftStart||'-'}–${emp.shiftEnd||'-'} น.`, Cal:br?.name||'-', Leave:'ยื่นและติดตามใบลาของคุณ', Ac:br?.name||'-', Clean:br?.name||'-', Ot:'ยื่นและติดตามคำขอ OT', Noti:'ประวัติการแจ้งเตือนของคุณ', Comm:'เห็นเฉพาะของคุณ', Profile:'จัดการบัญชีของคุณ'};
   document.getElementById('empPageTitle').textContent = titles[tab];
   document.getElementById('empPageMeta').textContent = metas[tab];
   document.getElementById('empDropdownName').textContent = emp.name;
@@ -3078,6 +3140,7 @@ function switchETab(tab){
   if(tab==='Clean') renderCleanTab();
   if(tab==='Ot'){ syncEmpFilterUI(); renderOtTab(); }
   if(tab==='Noti') renderNotiTab();
+  if(tab==='Comm') renderCommTab(commMonthOffset);
   if(tab==='Profile') renderProfileTab();
 }
 document.getElementById('qaAc').onclick = ()=> switchETab('Ac');
@@ -4399,6 +4462,53 @@ function updateNotiBadge(){
 }
 
 // -- Profile tab --
+// ===== ค่าคอม / ค่ามือของฉัน (ผู้บริหาร 06/11/2569) — ฐานข้อมูลคืนเฉพาะของคนที่ถือ token =====
+let commMonthOffset = 0;
+const commMoney = v => (Number(v)||0).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2});
+function commRange(offset){
+  const now = new Date(Date.now() + 7*3600*1000);
+  const y = now.getUTCFullYear(), m = now.getUTCMonth() + offset;
+  const first = new Date(Date.UTC(y, m, 1)), last = new Date(Date.UTC(y, m+1, 0));
+  const iso = d => d.toISOString().slice(0,10);
+  const to = offset===0 ? iso(now) : iso(last);
+  return { from: iso(first), to, label: `${TH_MONTHS_FULL_SAFE[first.getUTCMonth()]} ${first.getUTCFullYear()+543}` };
+}
+const TH_MONTHS_FULL_SAFE = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+async function renderCommTab(offset){
+  commMonthOffset = offset||0;
+  const sum = document.getElementById('commSummary'), list = document.getElementById('commList');
+  document.getElementById('commPrevBtn').className = 'btn sm ' + (commMonthOffset===-1?'':'ghost');
+  document.getElementById('commThisBtn').className = 'btn sm ' + (commMonthOffset===0?'':'ghost');
+  const rg = commRange(commMonthOffset);
+  sum.innerHTML = `<div style="color:var(--muted);font-size:13px;">กำลังโหลด…</div>`; list.innerHTML = '';
+  const r = await portalRpc('portal_my_commission', { p_token: getStaffToken(), p_from: rg.from, p_to: rg.to });
+  if(!r || r.ok===false){
+    sum.innerHTML = `<div style="color:var(--red);font-size:13px;">${portalErrText(r)}</div>`;
+    if(r?.error==='SESSION_EXPIRED') setTimeout(doLogout, 1500);
+    return;
+  }
+  if(r.eligible===false){ sum.innerHTML = `<div style="color:var(--muted);font-size:13px;">ตำแหน่งของคุณไม่ได้ตั้งรับค่าคอม/ค่ามือ</div>`; return; }
+  const row = (l, v, strong) => `<div style="display:flex;justify-content:space-between;padding:6px 0;${strong?'border-top:1px solid var(--border);margin-top:6px;padding-top:10px;font-weight:700;font-size:16px;':'font-size:14px;'}"><span>${l}</span><span>${commMoney(v)}</span></div>`;
+  sum.innerHTML = `<div style="font-size:13px;color:var(--muted);margin-bottom:6px;">${rg.label}${commMonthOffset===0?' (ถึงวันนี้)':''}</div>`
+    + row('ค่าคอมขายเพิ่ม', r.add) + row('ค่าคอมอัปเซล (อัพเพิ่ม)', r.up) + row('ค่าคอมอื่น ๆ', r.other) + row('ค่ามือ', r.hand) + row('รวม', r.total, true);
+  const items = Array.isArray(r.items) ? r.items : [];
+  if(!items.length){ list.innerHTML = `<div class="empty" style="padding:16px 0;">ยังไม่มีรายการในเดือนนี้</div>`; return; }
+  const esc = s => String(s??'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  list.innerHTML = items.map(it=>{
+    const d = String(it.date||'').slice(0,10).split('-');
+    const parts = [];
+    if(Number(it.comm)) parts.push(`ค่าคอม${it.type?` (${esc(it.type)})`:''} ${commMoney(it.comm)}`);
+    if(Number(it.hand)) parts.push(`ค่ามือ ${commMoney(it.hand)}`);
+    return `<div class="listrow" style="padding:10px 0;border-bottom:1px solid var(--border);">
+      <div style="display:flex;justify-content:space-between;gap:8px;"><b style="font-size:14px;">${esc(it.program)}</b><b style="white-space:nowrap;">${commMoney(Number(it.comm||0)+Number(it.hand||0))}</b></div>
+      <div style="font-size:12px;color:var(--muted);margin-top:2px;">${d.length===3?`${d[2]}/${d[1]}/${Number(d[0])+543}`:''} · ${esc(it.origin)} · ลูกค้า ${esc(it.customer)}${it.branch?` · ${esc(it.branch)}`:''}</div>
+      <div style="font-size:12px;color:var(--text);margin-top:2px;">${parts.join(' · ')}</div>
+    </div>`;
+  }).join('');
+}
+document.getElementById('commPrevBtn').onclick = ()=> renderCommTab(-1);
+document.getElementById('commThisBtn').onclick = ()=> renderCommTab(0);
+
 function renderProfileTab(){
   const emp = currentEmployee(); const br = currentBranch(emp); if(!emp) return;
   document.getElementById('profAvatar').textContent = emp.name.trim()[0]||'?';
@@ -4419,7 +4529,7 @@ async function saveHomeLocation(){
   catch(e){ alert('ไม่สามารถอ่านตำแหน่งได้ กรุณาเปิด GPS และอนุญาตให้เว็บเข้าถึงตำแหน่ง แล้วลองใหม่'); return; }
   const prevLat = emp.homeLat, prevLng = emp.homeLng;
   emp.homeLat = pos.coords.latitude; emp.homeLng = pos.coords.longitude;
-  const res = await saveEmployeeRow(emp);
+  const res = await portalRpc('portal_set_home', { p_token: getStaffToken(), p_lat: emp.homeLat, p_lng: emp.homeLng });
   if(!res || !res.ok){ emp.homeLat = prevLat; emp.homeLng = prevLng; alert('บันทึกไม่สำเร็จ กรุณาลองใหม่'); return; }
   await logAudit('set_home_location', 'employee', emp.id, `${emp.name} บันทึกพิกัดบ้าน (${emp.homeLat.toFixed(5)}, ${emp.homeLng.toFixed(5)})`);
   renderProfileTab();
@@ -4500,7 +4610,8 @@ function handleNewPinKey(k){
 async function submitNewPin(){
   const msg = document.getElementById('changePinMsg');
   if(newPinBuffer.length<4){ msg.textContent='กรอกให้ครบ 4 หลัก'; return; }
-  const emp = currentEmployee(); emp.pin = newPinBuffer; await saveEmployeeRow(emp);
+  const r = await portalRpc('portal_change_pin', { p_token: getStaffToken(), p_new_pin: newPinBuffer });
+  if(!r || r.ok===false){ msg.className='msg err'; msg.textContent = portalErrText(r); newPinBuffer=''; renderNewPinDots(); return; }
   msg.className='msg ok'; msg.textContent='เปลี่ยน PIN สำเร็จ';
   setTimeout(()=> document.getElementById('changePinOverlay').classList.remove('show'), 800);
 }
@@ -8459,7 +8570,8 @@ async function captureEnrollment(fromAdmin){
         if(r.ok) photoId = r.fileId;
       }
       camTarget.pendingDescriptorPhotoId = photoId;
-      const pendRes = await saveEmployeeRow(camTarget);
+      // ARANA Staff: บันทึกผ่าน token (ฐานข้อมูลตัดสินเองว่าเป็นคำขอรออนุมัติ เพราะมีหน้าเดิมอยู่แล้ว)
+      const pendRes = fromAdmin ? await saveEmployeeRow(camTarget) : await portalRpc('portal_set_face', { p_token: getStaffToken(), p_descriptor: newDescriptor, p_photo_id: photoId });
       if(!pendRes || pendRes.ok===false){
         camTarget.pendingDescriptor = null; camTarget.pendingDescriptorPhotoId = null; camTarget.pendingDescriptorAt = null;
         document.getElementById('camStatusText').innerHTML = `ส่งคำขอเปลี่ยนใบหน้าไม่สำเร็จ<br><b style="color:var(--red);">บันทึกลงระบบไม่ได้ กรุณาลองใหม่ หรือแจ้ง HR</b>`;
@@ -8473,7 +8585,7 @@ async function captureEnrollment(fromAdmin){
     const prevDescriptor = camTarget.descriptor;
     camTarget.descriptor = newDescriptor;
     camTarget.pendingDescriptor = null; camTarget.pendingDescriptorPhotoId = null; camTarget.pendingDescriptorAt = null;
-    const enrollRes = await saveEmployeeRow(camTarget);
+    const enrollRes = fromAdmin ? await saveEmployeeRow(camTarget) : await portalRpc('portal_set_face', { p_token: getStaffToken(), p_descriptor: newDescriptor });
     if(!enrollRes || enrollRes.ok===false){
       camTarget.descriptor = prevDescriptor;
       document.getElementById('camStatusText').innerHTML = `ลงทะเบียนใบหน้าไม่สำเร็จ<br><b style="color:var(--red);">บันทึกลงระบบไม่ได้ กรุณาลองใหม่ หรือแจ้ง HR</b>${enrollRes?.error?`<br><span style="font-size:11px;color:var(--muted);">${String(enrollRes.error).slice(0,120)}</span>`:''}`;
@@ -8491,7 +8603,13 @@ async function captureEnrollment(fromAdmin){
   if(persisted){
     if(persisted.role==='employee'){
       const emp = db.employees.find(e=>e.id===persisted.employeeId && e.active!==false);
-      if(emp){ session = persisted; await loadEmployeeScopedData(emp.id); enterEmployeeView(); initFaceApi(); return; }
+      // ใช้ token ที่ฐานข้อมูลออกให้ตอนใส่ PIN — หมดอายุ/ถูกปิดใน ERP → กลับไปใส่ PIN
+      const me = emp && getStaffToken() ? await portalRpc('portal_me', { p_token: getStaffToken() }) : null;
+      if(emp && me && me.ok && me.at_employee_id===emp.id){
+        staffMe = me; session = persisted;
+        await loadMyPrivate(emp); await loadEmployeeScopedData(emp.id); applyStaffMe(); enterEmployeeView(); initFaceApi(); return;
+      }
+      if(me && me.error!=='NETWORK') setStaffToken('');
     } else if(!EXEC_LOGIN_ENABLED){
       // เครื่องที่เคยเข้าโหมดผู้บริหาร/แอดมินค้างไว้ → ออกให้ แล้วกลับหน้าเข้าสู่ระบบพนักงาน
     } else if(persisted.role==='approver'){
