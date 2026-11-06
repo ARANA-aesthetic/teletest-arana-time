@@ -4519,8 +4519,8 @@ const TH_MONTHS_FULL_SAFE = ['มกราคม','กุมภาพันธ�
 const moneyEsc = s => String(s??'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const moneyDate = s => { const d = String(s||'').slice(0,10).split('-'); return d.length===3 ? `${d[2]}/${d[1]}/${Number(d[0])+543}` : '-'; };
 const moneyRow = (l, v, strong) => `<div style="display:flex;justify-content:space-between;gap:8px;padding:6px 0;${strong?'border-top:1px solid var(--border);margin-top:6px;padding-top:10px;font-weight:700;font-size:16px;':'font-size:14px;'}"><span>${l}</span><span style="white-space:nowrap;">${commMoney(v)}</span></div>`;
-const moneyItem = (title, amount, sub, line) => `<div class="listrow" style="padding:10px 0;border-bottom:1px solid var(--border);">
-  <div style="display:flex;justify-content:space-between;gap:8px;"><b style="font-size:14px;">${title}</b><b style="white-space:nowrap;">${amount}</b></div>
+const moneyItem = (title, amount, sub, line) => `<div class="listrow" style="display:block;padding:10px 0;border-bottom:1px solid var(--border);">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;"><b style="font-size:14px;min-width:0;">${title}</b><b style="white-space:nowrap;">${amount}</b></div>
   ${sub?`<div style="font-size:12px;color:var(--muted);margin-top:2px;">${sub}</div>`:''}
   ${line?`<div style="font-size:12px;color:var(--text);margin-top:2px;">${line}</div>`:''}
 </div>`;
@@ -4558,7 +4558,13 @@ async function renderMoneyTab(){
   if(eligible){
     sum += moneyRow('ค่าคอมขายเพิ่ม', c.add) + moneyRow('ค่าคอมอัปเซล (อัพเพิ่ม)', c.up) + moneyRow('ค่าคอมอื่น ๆ', c.other)
       + moneyRow('ค่ามือ', c.hand) + moneyRow('รวมค่าคอม / ค่ามือ', c.total, true);
-  } else {
+  }
+  // รวมเงินเดือนโดยประมาณ (ผู้บริหาร 06/11/2569) = ฐานเงินเดือน + ค่าคอม/ค่ามือในช่วงที่เลือก · ยอดจริงดูที่สลิป
+  const estTotal = (Number(m.base_salary)||0) + (eligible ? (Number(c.total)||0) : 0);
+  sum += `<div style="margin-top:10px;padding:12px;border-radius:12px;background:var(--pink-pale);">`
+    + `<div style="display:flex;justify-content:space-between;gap:8px;font-weight:700;font-size:16px;color:var(--pink-dark);"><span>รวมเงินเดือนโดยประมาณ</span><span style="white-space:nowrap;">${commMoney(estTotal)}</span></div>`
+    + `<div style="font-size:11.5px;color:var(--muted);margin-top:4px;line-height:1.5;">ฐานเงินเดือน + ค่าคอม/ค่ามือ · ยังไม่หักประกันสังคม ภาษี มาสาย/ขาดลา เงินหักผ่อน และยังไม่รวม OT · ยอดจริงดูที่สลิปเงินเดือน</div></div>`;
+  if(!eligible){
     sum += `<div style="font-size:12px;color:var(--muted);margin-top:6px;">ตำแหน่งของคุณไม่ได้ตั้งรับค่าคอม/ค่ามือ</div>`;
   }
   document.getElementById('commSummary').innerHTML = sum;
