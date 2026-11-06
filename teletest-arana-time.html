@@ -668,11 +668,13 @@
     <button class="rolebtn" id="roleApproverBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 3 7v6c0 5 4 8 9 9 5-1 9-4 9-9V7l-9-5z"/></svg>ผู้บริหาร</button>
   </div>
 
+  <!-- ผู้บริหาร 06/11/2569: ไม่แสดงรายชื่อพนักงาน — พิมพ์รหัสพนักงานแล้วใส่ PIN (ฐานข้อมูลตรวจทั้งคู่) -->
   <div id="empLoginStep1" class="card">
-    <label>เลือกชื่อของคุณ</label>
-    <input type="text" id="empSearchInput" placeholder="พิมพ์ค้นหาชื่อ..." autocomplete="off">
-    <div class="picklist" id="empSelectList"></div>
+    <label for="empCodeInput">รหัสพนักงาน</label>
+    <input type="text" id="empCodeInput" placeholder="เช่น 006 หรือ EMP3006" autocomplete="username" autocapitalize="characters" spellcheck="false">
+    <button class="btn block" id="empCodeNextBtn" type="button" style="margin-top:12px;">ต่อไป</button>
     <div class="msg err" id="empLoginMsg"></div>
+    <div class="hidden"><input type="text" id="empSearchInput"><div id="empSelectList"></div></div>
   </div>
 
   <div id="empLoginStep2" class="card hidden">
@@ -1900,6 +1902,23 @@
   </div>
 </div>
 
+<!-- แจ้งชำระหนี้ด้วยสลิป (พนักงาน) -->
+<div class="overlay" id="debtPayOverlay">
+  <div class="modal">
+    <h3 id="debtPayTitle">แจ้งชำระ</h3>
+    <div class="hint" id="debtPayLeft"></div>
+    <label for="debtPayAmount">ยอดที่โอน (บาท)</label>
+    <input type="text" id="debtPayAmount" inputmode="decimal" autocomplete="off">
+    <label for="debtPayFile" style="margin-top:10px;">รูปสลิป</label>
+    <input type="file" id="debtPayFile" accept="image/*">
+    <div id="debtPayPreview"></div>
+    <label for="debtPayNote" style="margin-top:10px;">หมายเหตุ (ถ้ามี)</label>
+    <input type="text" id="debtPayNote" maxlength="300" autocomplete="off">
+    <div class="msg err" id="debtPayMsg"></div>
+    <div class="modalfoot"><button class="btn gray block" id="debtPayCancelBtn" type="button">ยกเลิก</button><button class="btn block" id="debtPaySendBtn" type="button">ส่งให้ HR ตรวจสอบ</button></div>
+  </div>
+</div>
+
 <!-- Employee editor modal (admin) -->
 <div class="overlay" id="empEditOverlay">
   <div class="modal">
@@ -2239,7 +2258,9 @@ async function portalRpc(fn, args){
 }
 const PORTAL_ERR = { WRONG_PIN:'PIN ไม่ถูกต้อง', LOCKED:'ใส่ PIN ผิดหลายครั้ง ล็อกไว้ 30 นาที หรือให้ HR ล้าง PIN ให้', BLOCKED:'บัญชีนี้ถูกปิดใช้งาน กรุณาติดต่อ HR',
   NOT_LINKED:'ยังไม่ได้ผูกกับทะเบียนพนักงาน กรุณาติดต่อ HR', NOT_FOUND:'ไม่พบพนักงาน', SESSION_EXPIRED:'หมดเวลาการเข้าสู่ระบบ กรุณาใส่ PIN ใหม่',
-  PIN_FORMAT:'PIN ต้องเป็นตัวเลข 4 หลัก', NETWORK:'เชื่อมต่อไม่ได้ ตรวจอินเทอร์เน็ตแล้วลองใหม่', SERVER:'ระบบขัดข้อง ลองใหม่อีกครั้ง' };
+  PIN_FORMAT:'PIN ต้องเป็นตัวเลข 4 หลัก', WRONG_LOGIN:'รหัสพนักงานหรือ PIN ไม่ถูกต้อง', WEAK_PIN:'PIN นี้เดาง่ายเกินไป ห้ามใช้ 1234, 0000 หรือเลขซ้ำกันทั้ง 4 ตัว', BAD_AMOUNT:'ยอดที่โอนไม่ถูกต้อง', BAD_SLIP:'รูปสลิปไม่ถูกต้องหรือใหญ่เกินไป กรุณาเลือกรูปใหม่',
+  TOO_MANY_PENDING:'มีรายการรอ HR ตรวจสอบ 5 รายการแล้ว กรุณารอ HR ยืนยันก่อน', ALREADY_PENDING:'รายการนี้แจ้งชำระแล้ว รอ HR ตรวจสอบ',
+  OVER_AMOUNT:'ยอดเกินยอดค้าง', NETWORK:'เชื่อมต่อไม่ได้ ตรวจอินเทอร์เน็ตแล้วลองใหม่', SERVER:'ระบบขัดข้อง ลองใหม่อีกครั้ง' };
 const portalErrText = (r)=> (PORTAL_ERR[r?.error]||'ทำรายการไม่สำเร็จ') + (r?.error==='WRONG_PIN' && r.left!=null ? ` (เหลือ ${r.left} ครั้ง)` : '');
 // ข้อมูลของตัวเองหลังล็อกอิน: ใบหน้าที่ใช้สแกน / คำขอเปลี่ยนหน้า / พิกัดบ้าน / สิทธิ์ดูค่าคอม
 let staffMe = null;
@@ -2918,7 +2939,24 @@ function showView(view){
 }
 
 // ================= LOGIN =================
+// เข้าด้วยรหัสพนักงาน (ผู้บริหาร 06/11/2569) — ไม่รู้ชื่อจนกว่า PIN ผ่าน
+let pinCode = '';
+function proceedCodeLogin(){
+  const code = (document.getElementById('empCodeInput').value || '').trim();
+  const msg = document.getElementById('empLoginMsg');
+  if(!code){ msg.textContent = 'กรุณาพิมพ์รหัสพนักงาน'; return; }
+  msg.textContent = '';
+  pinCode = code; pinTargetEmp = null; pinMode = 'verify';
+  document.getElementById('empLoginStep1').classList.add('hidden');
+  document.getElementById('empLoginStep2').classList.remove('hidden');
+  document.getElementById('pinPromptTitle').textContent = `รหัส ${code} · กรอก PIN 4 หลัก`;
+  document.getElementById('pinMsg').textContent = '';
+  pinBuffer=''; renderPinDots(); buildPinPad();
+}
+document.getElementById('empCodeNextBtn').onclick = proceedCodeLogin;
+document.getElementById('empCodeInput').addEventListener('keydown', e=>{ if(e.key==='Enter') proceedCodeLogin(); });
 function renderEmpSelect(){
+  if(!document.getElementById('empSelectList').offsetParent) return; // รายชื่อถูกซ่อนแล้ว — ใช้รหัสพนักงานแทน
   const list = document.getElementById('empSelectList');
   const q = (document.getElementById('empSearchInput')?.value || '').trim().toLowerCase();
   const activeEmps = db.employees.filter(e=>isEmployedNow(e) && (!q || e.name.toLowerCase().includes(q) || (e.nickname||'').toLowerCase().includes(q) || (e.employeeCode||'').includes(q)));
@@ -3052,9 +3090,16 @@ async function submitPin(){
   // ARANA Staff: ตรวจ/ตั้ง PIN ที่ฐานข้อมูล (ผิด 5 ครั้งล็อก 30 นาที) — ตั้งครั้งแรกก็ผ่านฟังก์ชันเดียวกัน
   if(submitPin.busy) return;
   submitPin.busy = true; msg.textContent = 'กำลังตรวจสอบ…';
-  const r = await portalRpc('portal_login', { p_at_id: pinTargetEmp.id, p_pin: pinBuffer, p_remember: true, p_device: (navigator.userAgent||'').slice(0,200) });
+  const dev = (navigator.userAgent||'').slice(0,200);
+  const r = pinTargetEmp
+    ? await portalRpc('portal_login_flag', { p_at_id: pinTargetEmp.id, p_pin: pinBuffer, p_remember: true, p_device: dev })
+    : await portalRpc('portal_login_code', { p_code: pinCode, p_pin: pinBuffer, p_remember: true, p_device: dev });
   submitPin.busy = false;
   if(!r || r.ok===false || !r.token){ msg.textContent = portalErrText(r); pinBuffer=''; renderPinDots(); return; }
+  if(!pinTargetEmp){
+    pinTargetEmp = db.employees.find(e=>e.id===r.at_employee_id);
+    if(!pinTargetEmp){ msg.textContent = 'ไม่พบข้อมูลพนักงาน กรุณาติดต่อ HR'; pinBuffer=''; renderPinDots(); return; }
+  }
   msg.textContent = '';
   setStaffToken(r.token); staffMe = r; pinTargetEmp.hasPin = true;
   session = {role:'employee', employeeId:pinTargetEmp.id}; pinBuffer='';
@@ -3063,6 +3108,19 @@ async function submitPin(){
   await loadEmployeeScopedData(pinTargetEmp.id);
   applyStaffMe();
   if(!pinTargetEmp.descriptor){ enterEmployeeView(); openCamera('enroll', pinTargetEmp); } else enterEmployeeView();
+  if(r.must_change_pin) forcePinChange();
+}
+// PIN เดาง่าย (เช่น 1234 / 0000) → บังคับตั้งใหม่ก่อนใช้งาน (ผู้บริหาร 06/11/2569)
+function forcePinChange(){
+  newPinBuffer=''; newPinStage=1; newPinFirst='';
+  const ov = document.getElementById('changePinOverlay');
+  ov.dataset.forced = '1';
+  ov.querySelector('h3').textContent = 'ตั้ง PIN ใหม่ก่อนใช้งาน';
+  ov.querySelector('.hint').textContent = 'PIN เดิมเดาง่าย กรุณาตั้ง PIN ใหม่ 4 หลัก (ห้ามใช้ 1234, 0000 หรือเลขซ้ำกันทั้ง 4 ตัว)';
+  document.getElementById('closeChangePinBtn').classList.add('hidden');
+  document.getElementById('changePinMsg').textContent='';
+  renderNewPinDots(); buildNewPinPad();
+  ov.classList.add('show');
 }
 // เมนูค่าคอมแสดงเฉพาะคนที่ตั้งรับค่ามือ/ค่าคอมในทะเบียน ERP
 function applyStaffMe(){
@@ -4536,9 +4594,10 @@ async function renderMoneyTab(){
   ids.forEach(id=>{ const el = document.getElementById(id); if(el) el.innerHTML = moneyEmpty('กำลังโหลด…'); });
   document.getElementById('moneyMsg').textContent = '';
   const token = getStaffToken();
-  const [c, m] = await Promise.all([
+  const [c, m, sso] = await Promise.all([
     portalRpc('portal_my_commission', { p_token: token, p_from: from, p_to: to }),
     portalRpc('portal_my_money', { p_token: token, p_from: from, p_to: to }),
+    portalRpc('portal_my_sso', { p_token: token }),
   ]);
   if(seq !== moneySeq) return; // เปลี่ยนช่วงวันที่ระหว่างโหลด — ใช้ผลรอบล่าสุดเท่านั้น
   const bad = [c, m].find(r=>!r || r.ok===false);
@@ -4558,11 +4617,17 @@ async function renderMoneyTab(){
     sum += moneyRow('ค่าคอมขายเพิ่ม', c.add) + moneyRow('ค่าคอมอัปเซล (อัพเพิ่ม)', c.up) + moneyRow('ค่าคอมอื่น ๆ', c.other)
       + moneyRow('ค่ามือ', c.hand) + moneyRow('รวมค่าคอม / ค่ามือ', c.total, true);
   }
-  // รวมเงินเดือนโดยประมาณ (ผู้บริหาร 06/11/2569) = ฐานเงินเดือน + ค่าคอม/ค่ามือในช่วงที่เลือก · ยอดจริงดูที่สลิป
-  const estTotal = (Number(m.base_salary)||0) + (eligible ? (Number(c.total)||0) : 0);
+  // รับสุทธิโดยประมาณ (ผู้บริหาร 06/11/2569) = ฐานเงินเดือน + ค่าคอม/ค่ามือ − ประกันสังคม · มาสายไม่หัก · รายการหักอื่นดูที่สลิปสิ้นเดือน
+  const oneMonth = from.slice(0,7) === to.slice(0,7);
+  const ssoAmt = (sso && sso.ok) ? (Number(sso.sso)||0) : 0;
+  const estGross = (Number(m.base_salary)||0) + (eligible ? (Number(c.total)||0) : 0);
   sum += `<div style="margin-top:10px;padding:12px;border-radius:12px;background:var(--pink-pale);">`
-    + `<div style="display:flex;justify-content:space-between;gap:8px;font-weight:700;font-size:16px;color:var(--pink-dark);"><span>รวมเงินเดือนโดยประมาณ</span><span style="white-space:nowrap;">${commMoney(estTotal)}</span></div>`
-    + `<div style="font-size:11.5px;color:var(--muted);margin-top:4px;line-height:1.5;">ฐานเงินเดือน + ค่าคอม/ค่ามือ · ยังไม่หักประกันสังคม ภาษี มาสาย/ขาดลา เงินหักผ่อน และยังไม่รวม OT · ยอดจริงดูที่สลิปเงินเดือน</div></div>`;
+    + (oneMonth
+      ? moneyRow('รวมรายรับ', estGross) + moneyRow(`หักประกันสังคม${sso&&sso.sso_rate?` (${Number(sso.sso_rate)}%)`:''}`, -ssoAmt)
+        + `<div style="display:flex;justify-content:space-between;gap:8px;font-weight:700;font-size:16px;color:var(--pink-dark);border-top:1px solid var(--border);margin-top:6px;padding-top:8px;"><span>รับสุทธิโดยประมาณ</span><span style="white-space:nowrap;">${commMoney(estGross - ssoAmt)}</span></div>`
+        + `<div style="font-size:11.5px;color:var(--muted);margin-top:4px;line-height:1.5;">ยังไม่รวม OT และรายการหักอื่นตอนสิ้นเดือน · ยอดจริงดูที่สลิปเงินเดือน</div>`
+      : `<div style="font-size:12.5px;color:var(--muted);">เลือก "เดือนนี้" หรือ "เดือนก่อน" เพื่อดูรับสุทธิโดยประมาณ</div>`)
+    + `</div>`;
   if(!eligible){
     sum += `<div style="font-size:12px;color:var(--muted);margin-top:6px;">ตำแหน่งของคุณไม่ได้ตั้งรับค่าคอม/ค่ามือ</div>`;
   }
@@ -4602,15 +4667,8 @@ async function renderMoneyTab(){
     : moneyEmpty('ไม่มียอดรอตามในช่วงนี้');
   document.getElementById('moneyFollowNote').textContent = `นับเฉพาะบิล/มัดจำตั้งแต่ ${moneyDate(m.followup_start)} ที่คุณได้ค่าคอม · ตามลูกค้าให้มาชำระ/มาใช้บริการเพื่อปิดยอด`;
 
-  // หนี้ของฉัน
-  const pi = m.debts?.pay_items || [], sb = m.debts?.self_bills || [];
-  const modeTh = {installment:'ผ่อนจนครบยอด', bond:'สะสมจนครบยอด'};
-  document.getElementById('moneyDebt').innerHTML = (pi.length||sb.length)
-    ? pi.map(x=>moneyItem(moneyEsc(x.category), `คงเหลือ ${commMoney(x.left)}`,
-          `${modeTh[x.mode]||moneyEsc(x.mode)} · หักเดือนละ ${commMoney(x.monthly)}${x.note?` · ${moneyEsc(x.note)}`:''}`, `ยอดเต็ม ${commMoney(x.total)} · หักแล้ว ${commMoney(x.paid)}`)).join('')
-      + sb.map(x=>moneyItem(moneyEsc(x.service), `ค้าง ${commMoney(x.left)}`,
-          `${moneyDate(x.date)} · บิล ${moneyEsc(x.receipt_no)}${x.branch?` · ${moneyEsc(x.branch)}`:''}`, `ยอดเต็ม ${commMoney(x.amount)} · จ่ายแล้ว ${commMoney(x.paid)}`)).join('')
-    : moneyEmpty('ไม่มียอดค้างกับบริษัท');
+  // หนี้ของฉัน — โหลดแยก (มีปุ่มแจ้งชำระด้วยสลิป)
+  renderDebts();
 
   // สลิปเงินเดือน
   moneySlipsCache = Array.isArray(m.slips) ? m.slips : [];
@@ -4621,6 +4679,105 @@ async function renderMoneyTab(){
     : moneyEmpty('ยังไม่มีสลิปที่อนุมัติในช่วงนี้ (เลือก "ปีนี้" เพื่อดูย้อนหลัง)');
   document.querySelectorAll('#moneySlips [data-slipidx]').forEach(b=> b.onclick = ()=> openSlip(moneySlipsCache[Number(b.dataset.slipidx)]));
 }
+// หนี้ของฉัน + แจ้งชำระด้วยสลิป (ผู้บริหาร 06/11/2569: พนักงานแนบสลิป → HR ยืนยันใน ERP → ยอดลด)
+let debtCache = { items: [], subs: [] };
+let debtSeq = 0;
+async function renderDebts(){
+  const seq = ++debtSeq;
+  const box = document.getElementById('moneyDebt');
+  const d = await portalRpc('portal_my_debts', { p_token: getStaffToken() });
+  if(seq !== debtSeq) return;
+  if(!d || d.ok === false){ box.innerHTML = `<div class="empty" style="padding:16px 0;color:var(--red);">${portalErrText(d)}</div>`; return; }
+  const pi = d.pay_items || [], sb = d.self_bills || [], subs = d.submissions || [];
+  const modeTh = {installment:'ผ่อนจนครบยอด', bond:'สะสมจนครบยอด'};
+  const latest = id => subs.find(s=>s.target_id === id);
+  const pending = id => subs.some(s=>s.target_id === id && s.status === 'pending');
+  const statusLine = id => {
+    const s = latest(id); if(!s) return '';
+    if(s.status === 'pending') return `<div style="font-size:12px;color:#8A5B12;margin-top:4px;">แจ้งชำระ ${commMoney(s.amount)} แล้ว · รอ HR ตรวจสอบ</div>`;
+    if(s.status === 'rejected') return `<div style="font-size:12px;color:var(--red);margin-top:4px;">แจ้งชำระ ${commMoney(s.amount)} ไม่ผ่าน: ${moneyEsc(s.reject_reason||'-')}</div>`;
+    return `<div style="font-size:12px;color:#2E7D32;margin-top:4px;">HR ยืนยันยอด ${commMoney(s.amount)} แล้ว</div>`;
+  };
+  const payBtn = (kind, id) => pending(id) ? ''
+    : `<button class="btn sm" type="button" style="margin-top:6px;" data-debtpay="${kind}|${id}">แจ้งชำระ (แนบสลิป)</button>`;
+  const withExtra = (html, extra) => html.replace(/<\/div>\s*$/, () => `${extra}</div>`);
+  debtCache = { items: [...pi.map(x=>({...x, kind:'pay_item', title:x.category})), ...sb.map(x=>({...x, kind:'receipt', title:x.service}))], subs };
+  box.innerHTML = (pi.length||sb.length)
+    ? pi.map(x=>withExtra(moneyItem(moneyEsc(x.category), `คงเหลือ ${commMoney(x.left)}`,
+          `${modeTh[x.mode]||moneyEsc(x.mode)} · หักเดือนละ ${commMoney(x.monthly)}${x.note?` · ${moneyEsc(x.note)}`:''}`,
+          `ยอดเต็ม ${commMoney(x.total)} · หักแล้ว ${commMoney(x.paid)}`), statusLine(x.id) + (Number(x.left)>0 ? payBtn('pay_item', x.id) : ''))).join('')
+      + sb.map(x=>withExtra(moneyItem(moneyEsc(x.service), `ค้าง ${commMoney(x.left)}`,
+          `${moneyDate(x.date)} · บิล ${moneyEsc(x.receipt_no)}${x.branch?` · ${moneyEsc(x.branch)}`:''}`,
+          `ยอดเต็ม ${commMoney(x.amount)} · จ่ายแล้ว ${commMoney(x.paid)}`), statusLine(x.id) + payBtn('receipt', x.id))).join('')
+      + `<div style="font-size:12px;color:var(--muted);padding:10px 0;line-height:1.6;">โอนเข้าบัญชีบริษัทแล้วกด "แจ้งชำระ" แนบสลิป · ยอดจะลดเมื่อ HR ยืนยัน</div>`
+    : moneyEmpty('ไม่มียอดค้างกับบริษัท');
+  box.querySelectorAll('[data-debtpay]').forEach(b=> b.onclick = ()=>{ const [k, id] = b.dataset.debtpay.split('|'); openDebtPay(k, id); });
+}
+let debtPayTarget = null, debtPaySlip = '';
+function openDebtPay(kind, id){
+  const it = debtCache.items.find(x=>x.kind === kind && x.id === id); if(!it) return;
+  debtPayTarget = it; debtPaySlip = '';
+  document.getElementById('debtPayTitle').textContent = it.title || 'แจ้งชำระ';
+  document.getElementById('debtPayLeft').textContent = `ยอดค้าง ${commMoney(it.left)}`;
+  document.getElementById('debtPayAmount').value = String(Math.round(Number(it.left||0)*100)/100);
+  document.getElementById('debtPayFile').value = '';
+  document.getElementById('debtPayPreview').innerHTML = '';
+  document.getElementById('debtPayNote').value = '';
+  document.getElementById('debtPayMsg').textContent = '';
+  document.getElementById('debtPaySendBtn').disabled = false;
+  document.getElementById('debtPayOverlay').classList.add('show');
+}
+// ย่อรูปสลิปให้ด้านยาวไม่เกิน 1280px เป็น JPEG — ส่งเร็ว ไม่เกินขนาดที่ฐานข้อมูลรับ
+function shrinkSlip(file){
+  return new Promise((resolve, reject)=>{
+    const fr = new FileReader();
+    fr.onerror = ()=> reject(new Error('read'));
+    fr.onload = ()=>{
+      const img = new Image();
+      img.onerror = ()=> reject(new Error('image'));
+      img.onload = ()=>{
+        const k = Math.min(1, 1280 / Math.max(img.width, img.height));
+        const cv = document.createElement('canvas');
+        cv.width = Math.round(img.width * k); cv.height = Math.round(img.height * k);
+        cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+        resolve(cv.toDataURL('image/jpeg', 0.8));
+      };
+      img.src = fr.result;
+    };
+    fr.readAsDataURL(file);
+  });
+}
+document.getElementById('debtPayFile').onchange = async (e)=>{
+  const f = e.target.files && e.target.files[0];
+  const msg = document.getElementById('debtPayMsg'), pv = document.getElementById('debtPayPreview');
+  debtPaySlip = ''; pv.innerHTML = ''; msg.textContent = '';
+  if(!f) return;
+  try{
+    debtPaySlip = await shrinkSlip(f);
+    pv.innerHTML = `<img src="${debtPaySlip}" alt="สลิป" style="max-width:100%;max-height:240px;border-radius:10px;border:1px solid var(--border);margin-top:8px;">`;
+  }catch(_){ msg.textContent = 'เปิดรูปนี้ไม่ได้ กรุณาเลือกรูปสลิปใหม่'; }
+};
+document.getElementById('debtPayCancelBtn').onclick = ()=> document.getElementById('debtPayOverlay').classList.remove('show');
+document.getElementById('debtPaySendBtn').onclick = async ()=>{
+  const msg = document.getElementById('debtPayMsg'), btn = document.getElementById('debtPaySendBtn');
+  const it = debtPayTarget; if(!it) return;
+  const amt = Number(String(document.getElementById('debtPayAmount').value).replace(/,/g, ''));
+  if(!(amt > 0)){ msg.textContent = 'กรุณาใส่ยอดที่โอน'; return; }
+  if(amt > Number(it.left||0) + 0.009){ msg.textContent = `ยอดเกินยอดค้าง (${commMoney(it.left)})`; return; }
+  if(!debtPaySlip){ msg.textContent = 'กรุณาแนบรูปสลิป'; return; }
+  btn.disabled = true; msg.textContent = 'กำลังส่ง…';
+  const r = await portalRpc('portal_debt_pay', { p_token: getStaffToken(), p_kind: it.kind, p_target: it.id, p_amount: amt,
+    p_slip: debtPaySlip, p_note: document.getElementById('debtPayNote').value || null });
+  if(!r || r.ok === false){
+    btn.disabled = false;
+    msg.textContent = portalErrText(r) + (r?.error === 'OVER_AMOUNT' && r.left != null ? ` (ยอดค้าง ${commMoney(r.left)})` : '');
+    if(r?.error === 'SESSION_EXPIRED') setTimeout(doLogout, 1500);
+    return;
+  }
+  document.getElementById('debtPayOverlay').classList.remove('show');
+  renderDebts();
+};
+
 // เปิดสลิปในหน้าต่างใหม่ → พิมพ์ / บันทึกเป็น PDF ได้จากเมนูของเครื่อง
 function openSlip(s){
   if(!s) return;
@@ -4752,7 +4909,12 @@ async function submitNewPin(){
   const r = await portalRpc('portal_change_pin', { p_token: getStaffToken(), p_new_pin: newPinBuffer });
   if(!r || r.ok===false){ msg.className='msg err'; msg.textContent = portalErrText(r); newPinBuffer=''; renderNewPinDots(); return; }
   msg.className='msg ok'; msg.textContent='เปลี่ยน PIN สำเร็จ';
-  setTimeout(()=> document.getElementById('changePinOverlay').classList.remove('show'), 800);
+  if(staffMe) staffMe.must_change_pin = false;
+  const ov = document.getElementById('changePinOverlay');
+  setTimeout(()=>{
+    ov.classList.remove('show');
+    if(ov.dataset.forced){ delete ov.dataset.forced; ov.querySelector('h3').textContent='เปลี่ยน PIN'; ov.querySelector('.hint').textContent='ตั้ง PIN ใหม่ 4 หลัก'; document.getElementById('closeChangePinBtn').classList.remove('hidden'); }
+  }, 800);
 }
 
 // ================= ADMIN VIEW =================
@@ -8746,7 +8908,9 @@ async function captureEnrollment(fromAdmin){
       const me = emp && getStaffToken() ? await portalRpc('portal_me', { p_token: getStaffToken() }) : null;
       if(emp && me && me.ok && me.at_employee_id===emp.id){
         staffMe = me; session = persisted;
-        await loadMyPrivate(emp); await loadEmployeeScopedData(emp.id); applyStaffMe(); enterEmployeeView(); initFaceApi(); return;
+        await loadMyPrivate(emp); await loadEmployeeScopedData(emp.id); applyStaffMe(); enterEmployeeView(); initFaceApi();
+        if(me.must_change_pin) forcePinChange();
+        return;
       }
       if(me && me.error!=='NETWORK') setStaffToken('');
     } else if(!EXEC_LOGIN_ENABLED){
