@@ -295,6 +295,20 @@
   .segbar{display:flex;gap:6px;background:var(--pink-pale);padding:4px;border-radius:12px;}
   .segbtn{flex:1;border:none;background:transparent;padding:8px 4px;border-radius:9px;font-family:'Sarabun',sans-serif;font-size:12.5px;font-weight:600;color:var(--pink-dark);cursor:pointer;}
   .segbtn.active{background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.08);}
+  /* เงินของฉัน: แท็บ ค่าคอม | เงินเดือน | หนี้ + การ์ดสรุปหน้าแรก (ผู้บริหาร 07/11/2569) */
+  .segbtn{position:relative;}
+  .segdot{position:absolute;top:6px;right:14%;width:8px;height:8px;border-radius:99px;background:var(--red);}
+  .moneyline{font-size:13px;color:var(--muted);padding:12px 0;}
+  .moneyline.ok{color:#2E7D32;font-weight:600;}
+  .moneymore{display:block;width:100%;border:none;background:none;color:var(--pink-dark);font-family:'Sarabun',sans-serif;font-size:13px;font-weight:600;padding:10px 0;cursor:pointer;}
+  .clamp2{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;cursor:pointer;}
+  .hmgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+  .hm{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:10px;cursor:pointer;min-width:0;}
+  .hm .t{font-size:11px;color:var(--muted);}
+  .hm .v{font-size:15px;font-weight:700;color:var(--text);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .hm .s{font-size:10.5px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .hm.warn .v{color:var(--red);}
+  .hm.ok .v{color:#2E7D32;}
   /* overflow-x:auto เพียงอย่างเดียวทำให้กลายเป็น scroll container ของตัวเอง (แม้จะไม่ได้ตั้งใจ)
      ผลคือ thead/namecol ที่ตั้ง position:sticky ไว้แล้วจะอ้างอิงกรอบนี้แทนหน้าเว็บ แต่กรอบนี้สูงเท่า
      เนื้อหาพอดี ไม่เคยเลื่อนแนวตั้งเอง (หน้าเว็บเป็นคนเลื่อนแทน) sticky จึงไม่ทำงานเลยจริงๆ ต้องกำหนด
@@ -755,6 +769,14 @@
           <div class="qa" id="qaProfile"><div class="ic">☰</div><div class="lbl">โปรไฟล์</div></div>
         </div>
       </section>
+      <section id="homeMoneySec">
+        <div class="sectitle">เงินของฉัน</div>
+        <div class="hmgrid">
+          <div class="hm" id="hmSalary" data-mtab="salary"><div class="t">เงินเดือนประมาณ</div><div class="v">…</div><div class="s">เดือนนี้</div></div>
+          <div class="hm" id="hmDebt" data-mtab="debt"><div class="t">หนี้บริษัท</div><div class="v">…</div><div class="s">&nbsp;</div></div>
+          <div class="hm" id="hmSlip" data-mtab="salary"><div class="t">สลิปล่าสุด</div><div class="v">…</div><div class="s">&nbsp;</div></div>
+        </div>
+      </section>
       <section>
         <div class="sectitle">สรุปภาพรวม</div>
         <select id="empFilterPreset_home" style="margin-bottom:10px;">
@@ -895,11 +917,17 @@
           <div><div id="empFilterFrom_money_holder"></div></div>
           <div><div id="empFilterTo_money_holder"></div></div>
         </div>
+        <div class="segbar" id="moneyTabBar">
+          <button class="segbtn active" type="button" data-mtab="comm">ค่าคอม</button>
+          <button class="segbtn" type="button" data-mtab="salary">เงินเดือน</button>
+          <button class="segbtn" type="button" data-mtab="debt">หนี้<span class="segdot hidden" id="moneyDebtDot"></span></button>
+        </div>
         <div class="msg" id="moneyMsg"></div>
       </section>
+      <div id="mtabComm">
       <section>
-        <div class="sectitle">เงินเดือน / คอมมิชชั่น</div>
-        <div class="card" id="commSummary" style="padding:16px;"></div>
+        <div class="sectitle">ค่าคอม / ค่ามือ</div>
+        <div class="card" id="commTotals" style="padding:16px;"></div>
       </section>
       <section id="commListSec">
         <div class="sectitle">รายการค่าคอม / ค่ามือ</div>
@@ -915,14 +943,23 @@
         <div class="card" id="moneyFollow" style="padding:0 16px;"></div>
         <div style="font-size:12px;color:var(--muted);margin-top:10px;line-height:1.6;" id="moneyFollowNote"></div>
       </section>
-      <section id="moneyDebtSec">
-        <div class="sectitle">ค้างชำระบริษัท (หนี้ของฉัน)</div>
-        <div class="card" id="moneyDebt" style="padding:0 16px;"></div>
+      </div>
+      <div id="mtabSalary" class="hidden">
+      <section>
+        <div class="sectitle">คาดการณ์เงินเดือน</div>
+        <div class="card" id="commSummary" style="padding:16px;"></div>
       </section>
       <section>
         <div class="sectitle">สลิปเงินเดือน</div>
         <div class="card" id="moneySlips" style="padding:0 16px;"></div>
       </section>
+      </div>
+      <div id="mtabDebt" class="hidden">
+      <section id="moneyDebtSec">
+        <div class="sectitle">ค้างชำระบริษัท (หนี้ของฉัน)</div>
+        <div class="card" id="moneyDebt" style="padding:0 16px;"></div>
+      </section>
+      </div>
     </div>
 
     <!-- PROFILE -->
@@ -946,8 +983,8 @@
   <div class="bottomnav">
     <button class="navbtn active" data-etab="Home" onclick="switchETab('Home')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7"/><path d="M5 10v9a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1v-9"/></svg><span class="lbl">หน้าแรก</span></button>
     <button class="navbtn" data-etab="Leave" onclick="switchETab('Leave')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></svg><span class="lbl">ใบลา</span></button>
-    <button class="navbtn" data-etab="Noti" onclick="switchETab('Noti')" style="position:relative;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg><span class="lbl">แจ้งเตือน</span><span class="navbadge hidden" id="notiNavBadge">0</span></button>
     <button class="navbtn" id="commNavBtn" data-etab="Comm" onclick="switchETab('Comm')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="13" rx="2"/><circle cx="12" cy="12.5" r="2.5"/><path d="M6 10h.01M18 15h.01"/></svg><span class="lbl">เงินของฉัน</span></button>
+    <button class="navbtn" data-etab="Noti" onclick="switchETab('Noti')" style="position:relative;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg><span class="lbl">แจ้งเตือน</span><span class="navbadge hidden" id="notiNavBadge">0</span></button>
     <button class="navbtn" data-etab="Profile" onclick="switchETab('Profile')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg><span class="lbl">โปรไฟล์</span></button>
   </div>
 </div>
@@ -3204,6 +3241,7 @@ function doLogout(){
   const tk = getStaffToken();
   if(tk){ portalRpc('portal_logout', { p_token: tk }); setStaffToken(''); }
   staffMe = null; applyStaffMe();
+  homeMoneyAt = 0; homeMoneySeq++; setMoneyTab('comm'); // คนถัดไปที่เข้าเครื่องนี้ต้องไม่เห็นยอดของคนก่อน
   session = {role:null, employeeId:null};
   clearPersistedSession();
   document.getElementById('adminPassInput').value=''; document.getElementById('adminLoginMsg').textContent='';
@@ -3237,7 +3275,7 @@ function switchETab(tab){
   document.getElementById('empPageTitle').textContent = titles[tab];
   document.getElementById('empPageMeta').textContent = metas[tab];
   document.getElementById('empDropdownName').textContent = emp.name;
-  if(tab==='Home'){ syncEmpFilterUI(); renderEmployeeHome(); }
+  if(tab==='Home'){ syncEmpFilterUI(); renderEmployeeHome(); renderHomeMoney(); }
   if(tab==='Cal') renderCalendar();
   if(tab==='Leave'){ syncEmpFilterUI(); renderLeaveTab(); }
   if(tab==='Ac') renderAcTab();
@@ -3252,7 +3290,19 @@ document.getElementById('qaClean').onclick = ()=> switchETab('Clean');
 document.getElementById('qaOt').onclick = ()=> switchETab('Ot');
 document.getElementById('qaGroom').onclick = ()=> submitGrooming();
 // ค้างชำระบริษัท (หนี้ของฉัน) — แทนปุ่มยื่นใบลา/แจ้งเตือนที่ซ้ำกับเมนูล่าง (ผู้บริหาร 06/11/2569)
-document.getElementById('qaDebt').onclick = ()=>{ switchETab('Comm'); setTimeout(()=>{ const s = document.getElementById('moneyDebtSec'); if(s) s.scrollIntoView({behavior:'smooth', block:'start'}); }, 400); };
+document.getElementById('qaDebt').onclick = ()=> openMoneyTab('debt');
+// เงินของฉัน แบ่งแท็บ ค่าคอม | เงินเดือน | หนี้ — แสดงครบ 3 แท็บเสมอ (ผู้บริหาร 07/11/2569)
+let moneyTab = 'comm';
+function setMoneyTab(t){
+  moneyTab = t;
+  document.querySelectorAll('#moneyTabBar [data-mtab]').forEach(b=> b.classList.toggle('active', b.dataset.mtab===t));
+  document.getElementById('mtabComm').classList.toggle('hidden', t!=='comm');
+  document.getElementById('mtabSalary').classList.toggle('hidden', t!=='salary');
+  document.getElementById('mtabDebt').classList.toggle('hidden', t!=='debt');
+}
+function openMoneyTab(t){ setMoneyTab(t); switchETab('Comm'); window.scrollTo({top:0}); }
+document.querySelectorAll('#moneyTabBar [data-mtab]').forEach(b=> b.onclick = ()=> setMoneyTab(b.dataset.mtab));
+document.querySelectorAll('#homeMoneySec [data-mtab]').forEach(c=> c.onclick = ()=> openMoneyTab(c.dataset.mtab));
 document.getElementById('qaCal').onclick = ()=> switchETab('Cal');
 document.getElementById('qaProfile').onclick = ()=> switchETab('Profile');
 document.getElementById('menuAcShort').onclick = ()=> switchETab('Ac');
@@ -4581,7 +4631,11 @@ const moneyItem = (title, amount, sub, line) => `<div class="listrow" style="dis
   ${sub?`<div style="font-size:12px;color:var(--muted);margin-top:2px;">${sub}</div>`:''}
   ${line?`<div style="font-size:12px;color:var(--text);margin-top:2px;">${line}</div>`:''}
 </div>`;
-const moneyEmpty = t => `<div class="empty" style="padding:16px 0;">${t}</div>`;
+const moneyEmpty = t => `<div class="moneyline">${t}</div>`; // ไม่มีข้อมูล = บรรทัดเดียว หัวข้อยังอยู่ (ผู้บริหาร 07/11/2569)
+// แสดง 3 รายการล่าสุด ที่เหลือกด "ดูทั้งหมด"
+const moneyList = (rows, n = 3) => rows.length <= n ? rows.join('')
+  : rows.slice(0, n).join('') + `<div class="hidden" data-more>${rows.slice(n).join('')}</div>`
+    + `<button class="moneymore" type="button" onclick="this.previousElementSibling.classList.remove('hidden');this.remove();">ดูทั้งหมด (${rows.length} รายการ)</button>`;
 let moneySlipsCache = [];
 let moneySeq = 0;
 async function renderMoneyTab(){
@@ -4590,7 +4644,7 @@ async function renderMoneyTab(){
   const today = dateKey(new Date());
   const to = rg.to > today ? today : rg.to;
   const from = rg.from > to ? to : rg.from;
-  const ids = ['commSummary','commList','moneyUpsell','moneyFollow','moneyDebt','moneySlips'];
+  const ids = ['commTotals','commSummary','commList','moneyUpsell','moneyFollow','moneyDebt','moneySlips'];
   ids.forEach(id=>{ const el = document.getElementById(id); if(el) el.innerHTML = moneyEmpty('กำลังโหลด…'); });
   document.getElementById('moneyMsg').textContent = '';
   const token = getStaffToken();
@@ -4610,13 +4664,16 @@ async function renderMoneyTab(){
   const eligible = c.eligible !== false;
   const label = `${moneyDate(from)} – ${moneyDate(to)}`;
 
-  // เงินเดือน / คอมมิชชั่น — ฐานเงินเดือนอยู่บนสุด
+  // แท็บค่าคอม: ยอดรวมค่าคอม/ค่ามือ
+  document.getElementById('commTotals').innerHTML = `<div style="font-size:13px;color:var(--muted);margin-bottom:6px;">${label}</div>`
+    + (eligible
+      ? moneyRow('ค่าคอมขายเพิ่ม', c.add) + moneyRow('ค่าคอมอัปเซล (อัพเพิ่ม)', c.up) + moneyRow('ค่าคอมอื่น ๆ', c.other)
+        + moneyRow('ค่ามือ', c.hand) + moneyRow('รวมค่าคอม / ค่ามือ', c.total, true)
+      : `<div style="font-size:13px;color:var(--muted);">ตำแหน่งของคุณไม่ได้ตั้งรับค่าคอม/ค่ามือ</div>`);
+  // แท็บเงินเดือน: ฐานเงินเดือน + คาดการณ์
   let sum = `<div style="font-size:13px;color:var(--muted);margin-bottom:6px;">${label}</div>`
     + moneyRow('ฐานเงินเดือน (ต่อเดือน)', m.base_salary);
-  if(eligible){
-    sum += moneyRow('ค่าคอมขายเพิ่ม', c.add) + moneyRow('ค่าคอมอัปเซล (อัพเพิ่ม)', c.up) + moneyRow('ค่าคอมอื่น ๆ', c.other)
-      + moneyRow('ค่ามือ', c.hand) + moneyRow('รวมค่าคอม / ค่ามือ', c.total, true);
-  }
+  if(eligible) sum += moneyRow('ค่าคอม / ค่ามือ', c.total);
   // รับสุทธิโดยประมาณ (ผู้บริหาร 06/11/2569) = ฐานเงินเดือน + ค่าคอม/ค่ามือ − ประกันสังคม · มาสายไม่หัก · รายการหักอื่นดูที่สลิปสิ้นเดือน
   const oneMonth = from.slice(0,7) === to.slice(0,7);
   const ssoAmt = (sso && sso.ok) ? (Number(sso.sso)||0) : 0;
@@ -4628,21 +4685,18 @@ async function renderMoneyTab(){
         + `<div style="font-size:11.5px;color:var(--muted);margin-top:4px;line-height:1.5;">ยังไม่รวม OT และรายการหักอื่นตอนสิ้นเดือน · ยอดจริงดูที่สลิปเงินเดือน</div>`
       : `<div style="font-size:12.5px;color:var(--muted);">เลือก "เดือนนี้" หรือ "เดือนก่อน" เพื่อดูรับสุทธิโดยประมาณ</div>`)
     + `</div>`;
-  if(!eligible){
-    sum += `<div style="font-size:12px;color:var(--muted);margin-top:6px;">ตำแหน่งของคุณไม่ได้ตั้งรับค่าคอม/ค่ามือ</div>`;
-  }
   document.getElementById('commSummary').innerHTML = sum;
 
   // รายการค่าคอม
   document.getElementById('commListSec').classList.toggle('hidden', !eligible);
   const items = eligible && Array.isArray(c.items) ? c.items : [];
-  document.getElementById('commList').innerHTML = items.length ? items.map(it=>{
+  document.getElementById('commList').innerHTML = items.length ? moneyList(items.map(it=>{
     const parts = [];
     if(Number(it.comm)) parts.push(`ค่าคอม${it.type?` (${moneyEsc(it.type)})`:''} ${commMoney(it.comm)}`);
     if(Number(it.hand)) parts.push(`ค่ามือ ${commMoney(it.hand)}`);
     return moneyItem(moneyEsc(it.program), commMoney(Number(it.comm||0)+Number(it.hand||0)),
       `${moneyDate(it.date)} · ${moneyEsc(it.origin)} · ลูกค้า ${moneyEsc(it.customer)}${it.branch?` · ${moneyEsc(it.branch)}`:''}`, parts.join(' · '));
-  }).join('') : moneyEmpty('ยังไม่มีรายการในช่วงนี้');
+  })) : moneyEmpty('ยังไม่มีรายการในช่วงนี้');
 
   // อัปเซลของฉัน
   document.getElementById('moneyUpsellSec').classList.toggle('hidden', !m.upsell);
@@ -4650,8 +4704,8 @@ async function renderMoneyTab(){
     const u = m.upsell, ui = Array.isArray(u.items) ? u.items : [];
     document.getElementById('moneyUpsell').innerHTML =
       `<div style="padding:12px 0 6px;">${moneyRow('จำนวนบิล', u.bills).replace(/\.00</,'<')}${moneyRow('ยอดอัปเซล', u.upsold)}${moneyRow('ค่าคอมอัปเซล', u.comm)}</div>`
-      + (ui.length ? ui.map(it=>moneyItem(moneyEsc(it.program), commMoney(it.upsold),
-          `${moneyDate(it.date)} · ${moneyEsc(it.type)} · ลูกค้า ${moneyEsc(it.customer)}${it.branch?` · ${moneyEsc(it.branch)}`:''}`, `ค่าคอม ${commMoney(it.comm)}`)).join('')
+      + (ui.length ? moneyList(ui.map(it=>moneyItem(moneyEsc(it.program), commMoney(it.upsold),
+          `${moneyDate(it.date)} · ${moneyEsc(it.type)} · ลูกค้า ${moneyEsc(it.customer)}${it.branch?` · ${moneyEsc(it.branch)}`:''}`, `ค่าคอม ${commMoney(it.comm)}`)))
         : moneyEmpty('ยังไม่มีอัปเซลในช่วงนี้'));
   }
 
@@ -4660,10 +4714,10 @@ async function renderMoneyTab(){
   const sumLeft = fb.reduce((a,x)=>a+Number(x.left||0),0), sumDep = fd.reduce((a,x)=>a+Number(x.left||0),0);
   document.getElementById('moneyFollow').innerHTML = (fb.length||fd.length)
     ? `<div style="padding:12px 0 6px;">${moneyRow(`บิลค้างชำระ ${fb.length} บิล (ยอดค้าง)`, sumLeft)}${moneyRow(`มัดจำรอลูกค้ามาใช้ ${fd.length} รายการ`, sumDep)}</div>`
-      + fb.map(x=>moneyItem(moneyEsc(x.program), `ค้าง ${commMoney(x.left)}`,
-          `${moneyDate(x.date)} · บิลค้างชำระ · ลูกค้า ${moneyEsc(x.customer)}${x.branch?` · ${moneyEsc(x.branch)}`:''}`, `ยอดเต็ม ${commMoney(x.full)} · จ่ายแล้ว ${commMoney(x.paid)}`)).join('')
-      + fd.map(x=>moneyItem(moneyEsc(x.program), `มัดจำ ${commMoney(x.left)}`,
-          `${moneyDate(x.date)} · มัดจำยังไม่มาใช้ · ลูกค้า ${moneyEsc(x.customer)}${x.branch?` · ${moneyEsc(x.branch)}`:''}${x.appointment?` · นัด ${moneyDate(x.appointment)}`:''}`, `ยอดเต็ม ${commMoney(x.full)}`)).join('')
+      + moneyList([...fb.map(x=>moneyItem(moneyEsc(x.program), `ค้าง ${commMoney(x.left)}`,
+          `${moneyDate(x.date)} · บิลค้างชำระ · ลูกค้า ${moneyEsc(x.customer)}${x.branch?` · ${moneyEsc(x.branch)}`:''}`, `ยอดเต็ม ${commMoney(x.full)} · จ่ายแล้ว ${commMoney(x.paid)}`)),
+        ...fd.map(x=>moneyItem(moneyEsc(x.program), `มัดจำ ${commMoney(x.left)}`,
+          `${moneyDate(x.date)} · มัดจำยังไม่มาใช้ · ลูกค้า ${moneyEsc(x.customer)}${x.branch?` · ${moneyEsc(x.branch)}`:''}${x.appointment?` · นัด ${moneyDate(x.appointment)}`:''}`, `ยอดเต็ม ${commMoney(x.full)}`))])
     : moneyEmpty('ไม่มียอดรอตามในช่วงนี้');
   document.getElementById('moneyFollowNote').textContent = `นับเฉพาะบิล/มัดจำตั้งแต่ ${moneyDate(m.followup_start)} ที่คุณได้ค่าคอม · ตามลูกค้าให้มาชำระ/มาใช้บริการเพื่อปิดยอด`;
 
@@ -4676,7 +4730,9 @@ async function renderMoneyTab(){
     ? moneySlipsCache.map((s,i)=>`<div class="listrow" style="padding:10px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:8px;">
         <div><b style="font-size:14px;">${TH_MONTHS_FULL_SAFE[(s.month||1)-1]} ${(s.year||0)+543}</b><div style="font-size:12px;color:var(--muted);">รับสุทธิ ${commMoney(s.net_pay)}${s.pay_date?` · จ่าย ${moneyDate(s.pay_date)}`:''}</div></div>
         <button class="btn sm" type="button" data-slipidx="${i}">ดู / บันทึก</button></div>`).join('')
-    : moneyEmpty('ยังไม่มีสลิปที่อนุมัติในช่วงนี้ (เลือก "ปีนี้" เพื่อดูย้อนหลัง)');
+    : `<div class="moneyline">ยังไม่มีสลิปในช่วงนี้${empFilterMode==='year'?'':' · <a href="#" id="slipBackLink" style="color:var(--pink-dark);font-weight:600;">ดูย้อนหลัง</a>'}</div>`;
+  const sbl = document.getElementById('slipBackLink');
+  if(sbl) sbl.onclick = (e)=>{ e.preventDefault(); const sel = document.getElementById('empFilterPreset_money'); sel.value = 'year'; sel.dispatchEvent(new Event('change')); };
   document.querySelectorAll('#moneySlips [data-slipidx]').forEach(b=> b.onclick = ()=> openSlip(moneySlipsCache[Number(b.dataset.slipidx)]));
 }
 // หนี้ของฉัน + แจ้งชำระด้วยสลิป (ผู้บริหาร 06/11/2569: พนักงานแนบสลิป → HR ยืนยันใน ERP → ยอดลด)
@@ -4701,16 +4757,19 @@ async function renderDebts(){
   const payBtn = (kind, id) => pending(id) ? ''
     : `<button class="btn sm" type="button" style="margin-top:6px;" data-debtpay="${kind}|${id}">แจ้งชำระ (แนบสลิป)</button>`;
   const withExtra = (html, extra) => html.replace(/<\/div>\s*$/, () => `${extra}</div>`);
+  const debtTotal = [...pi, ...sb].reduce((a,x)=>a+Math.max(0, Number(x.left||0)),0);
+  document.getElementById('moneyDebtDot').classList.toggle('hidden', !(debtTotal > 0));
+  const clamp = t => `<span class="clamp2" onclick="this.classList.toggle('clamp2')">${t}</span>`; // ชื่อรายการยาว ตัดเหลือ 2 บรรทัด กดดูเต็ม
   debtCache = { items: [...pi.map(x=>({...x, kind:'pay_item', title:x.category})), ...sb.map(x=>({...x, kind:'receipt', title:x.service}))], subs };
   box.innerHTML = (pi.length||sb.length)
-    ? pi.map(x=>withExtra(moneyItem(moneyEsc(x.category), `คงเหลือ ${commMoney(x.left)}`,
+    ? pi.map(x=>withExtra(moneyItem(clamp(moneyEsc(x.category)), `คงเหลือ ${commMoney(x.left)}`,
           `${modeTh[x.mode]||moneyEsc(x.mode)} · หักเดือนละ ${commMoney(x.monthly)}${x.note?` · ${moneyEsc(x.note)}`:''}`,
           `ยอดเต็ม ${commMoney(x.total)} · หักแล้ว ${commMoney(x.paid)}`), statusLine(x.id) + (Number(x.left)>0 ? payBtn('pay_item', x.id) : ''))).join('')
-      + sb.map(x=>withExtra(moneyItem(moneyEsc(x.service), `ค้าง ${commMoney(x.left)}`,
+      + sb.map(x=>withExtra(moneyItem(clamp(moneyEsc(x.service)), `ค้าง ${commMoney(x.left)}`,
           `${moneyDate(x.date)} · บิล ${moneyEsc(x.receipt_no)}${x.branch?` · ${moneyEsc(x.branch)}`:''}`,
           `ยอดเต็ม ${commMoney(x.amount)} · จ่ายแล้ว ${commMoney(x.paid)}`), statusLine(x.id) + payBtn('receipt', x.id))).join('')
       + `<div style="font-size:12px;color:var(--muted);padding:10px 0;line-height:1.6;">โอนเข้าบัญชีบริษัทแล้วกด "แจ้งชำระ" แนบสลิป · ยอดจะลดเมื่อ HR ยืนยัน</div>`
-    : moneyEmpty('ไม่มียอดค้างกับบริษัท');
+    : `<div class="moneyline ok">ไม่มียอดค้าง</div>`;
   box.querySelectorAll('[data-debtpay]').forEach(b=> b.onclick = ()=>{ const [k, id] = b.dataset.debtpay.split('|'); openDebtPay(k, id); });
 }
 let debtPayTarget = null, debtPaySlip = '';
@@ -4776,7 +4835,49 @@ document.getElementById('debtPaySendBtn').onclick = async ()=>{
   }
   document.getElementById('debtPayOverlay').classList.remove('show');
   renderDebts();
+  homeMoneyAt = 0;
 };
+
+// หน้าแรก: การ์ดสรุป เงินเดือนประมาณ / หนี้บริษัท / สลิปล่าสุด — กดแล้วไปแท็บนั้นในเงินของฉัน (ผู้บริหาร 07/11/2569)
+// แสดงทุกคนเสมอ · โหลดซ้ำไม่บ่อยกว่า 3 นาที
+let homeMoneyAt = 0, homeMoneySeq = 0;
+async function renderHomeMoney(){
+  if(Date.now() - homeMoneyAt < 180000) return;
+  const seq = ++homeMoneySeq;
+  document.querySelectorAll('#homeMoneySec .hm .v').forEach(v=> v.textContent = '…');
+  const setCard = (id, v, s, tone) => {
+    const el = document.getElementById(id); if(!el) return;
+    el.classList.toggle('warn', tone==='warn'); el.classList.toggle('ok', tone==='ok');
+    el.querySelector('.v').textContent = v; el.querySelector('.s').textContent = s || ' ';
+  };
+  const now = new Date(), y = now.getFullYear(), mo = now.getMonth();
+  const mFrom = dateKey(new Date(y, mo, 1)), today = dateKey(now);
+  const sFrom = dateKey(new Date(y - 1, mo, 1)); // สลิปย้อนหลัง 12 เดือน
+  const token = getStaffToken();
+  const [c, m, sso, d] = await Promise.all([
+    portalRpc('portal_my_commission', { p_token: token, p_from: mFrom, p_to: today }),
+    portalRpc('portal_my_money', { p_token: token, p_from: sFrom, p_to: today }),
+    portalRpc('portal_my_sso', { p_token: token }),
+    portalRpc('portal_my_debts', { p_token: token }),
+  ]);
+  if(seq !== homeMoneySeq) return;
+  if(!m || m.ok === false){ ['hmSalary','hmDebt','hmSlip'].forEach(id=> setCard(id, '-', 'กดเพื่อดู')); return; }
+  homeMoneyAt = Date.now();
+  const comm = (c && c.ok !== false && c.eligible !== false) ? (Number(c.total)||0) : 0;
+  const ssoAmt = (sso && sso.ok) ? (Number(sso.sso)||0) : 0;
+  setCard('hmSalary', commMoney((Number(m.base_salary)||0) + comm - ssoAmt), 'เดือนนี้ (ประมาณ)');
+  if(d && d.ok !== false){
+    const left = [...(d.pay_items||[]), ...(d.self_bills||[])].reduce((a,x)=>a+Math.max(0, Number(x.left||0)),0);
+    document.getElementById('moneyDebtDot').classList.toggle('hidden', !(left > 0));
+    if(left > 0) setCard('hmDebt', commMoney(left), 'ค้างชำระ · กดแจ้งชำระ', 'warn');
+    else setCard('hmDebt', 'ไม่มี', 'ไม่มีหนี้ค้าง', 'ok');
+  } else setCard('hmDebt', '-', 'กดเพื่อดู');
+  const slips = (Array.isArray(m.slips) ? m.slips : []).slice().sort((a,b)=> (b.year*12+b.month) - (a.year*12+a.month));
+  const s0 = slips[0];
+  if(s0) setCard('hmSlip', `${TH_MONTHS_SAFE_SHORT[(s0.month||1)-1]} ${String((s0.year||0)+543).slice(2)}`, `สุทธิ ${commMoney(s0.net_pay)}`);
+  else setCard('hmSlip', 'ยังไม่มี', 'ยังไม่มีสลิป');
+}
+const TH_MONTHS_SAFE_SHORT = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
 
 // เปิดสลิปในหน้าต่างใหม่ → พิมพ์ / บันทึกเป็น PDF ได้จากเมนูของเครื่อง
 function openSlip(s){
