@@ -4780,8 +4780,10 @@ async function renderDebts(){
           `${modeTh[x.mode]||moneyEsc(x.mode)} · หักเดือนละ ${commMoney(x.monthly)}${x.note?` · ${moneyEsc(x.note)}`:''}`,
           `ยอดเต็ม ${commMoney(x.total)} · หักแล้ว ${commMoney(x.paid)}`), statusLine(x.id) + (Number(x.left)>0 ? payBtn('pay_item', x.id) : ''))).join('')
       + sb.map(x=>withExtra(moneyItem(clamp(moneyEsc(x.service)), `ค้าง ${commMoney(x.left)}`,
-          `${moneyDate(x.date)} · บิล ${moneyEsc(x.receipt_no)}${x.branch?` · ${moneyEsc(x.branch)}`:''}`,
-          `ยอดเต็ม ${commMoney(x.amount)} · จ่ายแล้ว ${commMoney(x.paid)}`), statusLine(x.id) + payBtn('receipt', x.id))).join('')
+          `${moneyDate(x.date)} · บิล ${moneyEsc(x.receipt_no)}${x.branch?` · ${moneyEsc(x.branch)}`:''}${x.moved?' · ย้ายเป็นมัดจำ (ยังไม่มาใช้คอร์ส)':''}`,
+          `ยอดเต็ม ${commMoney(x.amount)} · จ่ายแล้ว ${commMoney(x.paid)}`), statusLine(x.id) + (x.moved
+            ? `<div style="font-size:12px;color:var(--muted);margin-top:4px;">บิลนี้ชำระผ่านฝ่ายบัญชี/HR (แจ้งชำระในแอปไม่ได้)</div>`
+            : payBtn('receipt', x.id)))).join('')
       + `<div style="font-size:12px;color:var(--muted);padding:10px 0;line-height:1.6;">โอนเข้าบัญชีบริษัทแล้วกด "แจ้งชำระ" แนบสลิป · ยอดจะลดเมื่อ HR ยืนยัน</div>`
     : `<div class="moneyline ok">ไม่มียอดค้าง</div>`;
   box.querySelectorAll('[data-debtpay]').forEach(b=> b.onclick = ()=>{ const [k, id] = b.dataset.debtpay.split('|'); openDebtPay(k, id); });
