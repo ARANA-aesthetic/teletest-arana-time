@@ -4767,6 +4767,11 @@ async function renderManagerKpi(cyc){
   if(seq !== kpiSeq) return;
   if(!k || k.ok === false || !k.has_plan){ sec.classList.add('hidden'); return; }
   sec.classList.remove('hidden');
+  if(k.started === false){ // ก่อนเดือนที่เริ่มใช้ KPI (เริ่มเงินเดือน พ.ย. 2569)
+    const sm = String(k.start_month||'').slice(0,10).split('-');
+    box.innerHTML = `<div style="font-size:13px;color:var(--muted);">เริ่มคิดค่าคอม KPI ตั้งแต่เงินเดือน${sm.length===3 ? ` ${TH_MONTHS_FULL_SAFE[Number(sm[1])-1]} ${Number(sm[0])+543}` : ''} (รอบ 26–25) · รอบนี้ยังไม่คิด</div>`;
+    return;
+  }
   const run = !!k.running, pct = v => v == null ? '-' : `${v}%`;
   const rows = (k.branches || []).map(b => {
     const name = moneyEsc(b.branch);
