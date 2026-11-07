@@ -929,6 +929,10 @@
         <div class="sectitle">ค่าคอม / ค่ามือ</div>
         <div class="card" id="commTotals" style="padding:16px;"></div>
       </section>
+      <section id="moneyKpiSec" class="hidden">
+        <div class="sectitle">ค่าคอม KPI ผู้จัดการ (คาดการณ์)</div>
+        <div class="card" id="moneyKpi" style="padding:16px;"></div>
+      </section>
       <section id="commListSec">
         <div class="sectitle">รายการค่าคอม / ค่ามือ</div>
         <div class="card" id="commList" style="padding:0 16px;"></div>
@@ -4737,6 +4741,8 @@ async function renderMoneyTab(){
 
   // หนี้ของฉัน — โหลดแยก (มีปุ่มแจ้งชำระด้วยสลิป)
   renderDebts();
+  // ค่าคอม KPI ผู้จัดการ — แสดงเฉพาะคนที่มีเกณฑ์ KPI (ผู้บริหาร 07/11/2569)
+  renderManagerKpi(cyc);
 
   // สลิปเงินเดือน
   moneySlipsCache = Array.isArray(m.slips) ? m.slips : [];
@@ -4748,6 +4754,38 @@ async function renderMoneyTab(){
   const sbl = document.getElementById('slipBackLink');
   if(sbl) sbl.onclick = (e)=>{ e.preventDefault(); const sel = document.getElementById('empFilterPreset_money'); sel.value = 'year'; sel.dispatchEvent(new Event('change')); };
   document.querySelectorAll('#moneySlips [data-slipidx]').forEach(b=> b.onclick = ()=> openSlip(moneySlipsCache[Number(b.dataset.slipidx)]));
+}
+// ค่าคอม KPI ผู้จัดการ (ผู้บริหาร 07/11/2569) — คิดแยกสาขา: ยอดรอบ 26–25 เทียบเป้า = เฉลี่ย 6 รอบก่อนหน้า
+// รอบที่ยังไม่จบ = คาดการณ์ (ยอดถึงวันนี้ เดินต่อด้วยอัตราเดิมจนวันที่ 25) · TopUp รอผู้บริหารอนุมัติ · สาขาที่เปิดไม่ครบ 6 รอบ = ยังไม่มีสถิติ
+let kpiSeq = 0;
+async function renderManagerKpi(cyc){
+  const seq = ++kpiSeq;
+  const sec = document.getElementById('moneyKpiSec'), box = document.getElementById('moneyKpi');
+  const ref = cyc ? cyc.to : commCycleRange('month').to; // เดือนเงินเดือน = เดือนของวันตัดรอบ
+  const [yy, mm] = ref.split('-').map(Number);
+  const k = await portalRpc('portal_my_manager_kpi', { p_token: getStaffToken(), p_year: yy, p_month: mm });
+  if(seq !== kpiSeq) return;
+  if(!k || k.ok === false || !k.has_plan){ sec.classList.add('hidden'); return; }
+  sec.classList.remove('hidden');
+  const run = !!k.running, pct = v => v == null ? '-' : `${v}%`;
+  const rows = (k.branches || []).map(b => {
+    const name = moneyEsc(b.branch);
+    if(!b.eligible) return moneyItem(`คาดการณ์${name} (ยังไม่มีสถิติ)`, '-',
+      `ยอด${run ? 'ถึงวันนี้' : 'รอบนี้'} ${commMoney(b.actual)}`, `ยังไม่ได้ค่าคอม จนกว่าสาขาเปิดครบ ${b.need_months} รอบ (มีแล้ว ${b.full_months} รอบ)`);
+    const base = run ? b.proj_base : b.base, top = run ? b.proj_topup : b.topup, fac = run ? b.proj_factor : b.factor;
+    const lines = [`เป้า ${commMoney(b.avg)} · ยอด${run ? 'ถึงวันนี้' : 'รอบนี้'} ${commMoney(b.actual)} (${pct(b.pct)})`];
+    if(run) lines.push(`ถ้ายอดเดินเท่านี้ถึงวันที่ 25 ≈ ${commMoney(b.proj_actual)} (${pct(b.proj_pct)}) ได้ค่าคอม ${Math.round(Number(fac)*100)}%`);
+    else lines.push(`ได้ค่าคอม ${Math.round(Number(fac)*100)}%`);
+    if(Number(top) > 0) lines.push(`TopUp ${commMoney(top)} (รอผู้บริหารอนุมัติ)`);
+    return moneyItem(name, commMoney(base), lines[0], lines.slice(1).join(' · '));
+  });
+  const tb = run ? k.proj_total_base : k.total_base, tt = run ? k.proj_total_topup : k.total_topup;
+  const appr = Number(k.topup_approved) || 0;
+  box.innerHTML = `<div style="font-size:13px;color:var(--muted);margin-bottom:6px;">รอบ ${moneyDate(k.from)} – ${moneyDate(k.to)}${run ? ` · ผ่านมา ${k.days_elapsed}/${k.days_total} วัน` : ' · ปิดรอบแล้ว'}</div>`
+    + rows.join('')
+    + moneyRow(run ? 'ค่าคอม KPI คาดการณ์รวม' : 'ค่าคอม KPI รวม', tb, true)
+    + (appr > 0 ? moneyRow('TopUp อนุมัติแล้ว', appr) : Number(tt) > 0 ? moneyRow('TopUp คาดการณ์ (รออนุมัติ)', tt) : '')
+    + `<div style="font-size:11.5px;color:var(--muted);margin-top:8px;line-height:1.6;">เกณฑ์: ยอดขายสาขา × 0.5% (ไม่นับยอดที่พนักงานเป็นลูกค้าเอง) · ถึงเป้า (เฉลี่ย 6 รอบก่อนหน้า) ได้เต็ม · ยอดลดลงไม่ถึง 30% ได้ 75% · ลดลงตั้งแต่ 30% ได้ 50% · เกินเป้ามากกว่า 15% ได้ TopUp (ยอด − เป้า) × 0.5% · ยอดจริงยึดตามรอบเงินเดือนที่ HR ปิดงวด</div>`;
 }
 // หนี้ของฉัน + แจ้งชำระด้วยสลิป (ผู้บริหาร 06/11/2569: พนักงานแนบสลิป → HR ยืนยันใน ERP → ยอดลด)
 let debtCache = { items: [], subs: [] };
