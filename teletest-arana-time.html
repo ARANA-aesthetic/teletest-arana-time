@@ -2837,6 +2837,13 @@ function isApprovedLeaveOnDate(empId, date){
 // ===== Employee-side period filter (day/month/year/custom) for Home summary + Leave list =====
 let empFilterMode = 'month';
 let empFilterFrom = null, empFilterTo = null;
+// รอบค่าคอม (ผู้บริหาร 07/11/2569): ตัดรอบทุกวันที่ 25 · รอบ = 26 เดือนก่อน ถึง 25 เดือนนี้ · เงินเดือนยังนับตามเดือน
+function commCycleRange(mode){
+  const n = new Date(), y = n.getFullYear();
+  let m = n.getMonth() + (n.getDate() > 25 ? 1 : 0);
+  if(mode === 'lastmonth') m -= 1;
+  return { from: dateKey(new Date(y, m - 1, 26)), to: dateKey(new Date(y, m, 25)) };
+}
 function getEmpFilterRange(){
   const now = new Date();
   if(empFilterMode==='today'){ const k=dateKey(now); return {from:k, to:k}; }
@@ -4648,10 +4655,15 @@ async function renderMoneyTab(){
   ids.forEach(id=>{ const el = document.getElementById(id); if(el) el.innerHTML = moneyEmpty('กำลังโหลด…'); });
   document.getElementById('moneyMsg').textContent = '';
   const token = getStaffToken();
-  const [c, m, sso] = await Promise.all([
-    portalRpc('portal_my_commission', { p_token: token, p_from: from, p_to: to }),
+  // ค่าคอม/อัปเซล ใช้รอบ 26–25 เมื่อเลือก "เดือนนี้"/"เดือนก่อน" · ช่วงอื่นใช้ตามที่เลือก
+  const cyc = (empFilterMode === 'month' || empFilterMode === 'lastmonth') ? commCycleRange(empFilterMode) : null;
+  const cTo = cyc ? (cyc.to > today ? today : cyc.to) : to;
+  const cFrom = cyc ? (cyc.from > cTo ? cTo : cyc.from) : from;
+  const [c, m, sso, mc] = await Promise.all([
+    portalRpc('portal_my_commission', { p_token: token, p_from: cFrom, p_to: cTo }),
     portalRpc('portal_my_money', { p_token: token, p_from: from, p_to: to }),
     portalRpc('portal_my_sso', { p_token: token }),
+    cyc ? portalRpc('portal_my_money', { p_token: token, p_from: cFrom, p_to: cTo }) : Promise.resolve(null),
   ]);
   if(seq !== moneySeq) return; // เปลี่ยนช่วงวันที่ระหว่างโหลด — ใช้ผลรอบล่าสุดเท่านั้น
   const bad = [c, m].find(r=>!r || r.ok===false);
@@ -4663,9 +4675,10 @@ async function renderMoneyTab(){
   }
   const eligible = c.eligible !== false;
   const label = `${moneyDate(from)} – ${moneyDate(to)}`;
+  const cLabel = cyc ? `รอบค่าคอม ${moneyDate(cyc.from)} – ${moneyDate(cyc.to)} (ตัดรอบวันที่ 25)` : label;
 
   // แท็บค่าคอม: ยอดรวมค่าคอม/ค่ามือ
-  document.getElementById('commTotals').innerHTML = `<div style="font-size:13px;color:var(--muted);margin-bottom:6px;">${label}</div>`
+  document.getElementById('commTotals').innerHTML = `<div style="font-size:13px;color:var(--muted);margin-bottom:6px;">${cLabel}</div>`
     + (eligible
       ? moneyRow('ค่าคอมขายเพิ่ม', c.add) + moneyRow('ค่าคอมอัปเซล (อัพเพิ่ม)', c.up) + moneyRow('ค่าคอมอื่น ๆ', c.other)
         + moneyRow('ค่ามือ', c.hand) + moneyRow('รวมค่าคอม / ค่ามือ', c.total, true)
@@ -4673,7 +4686,7 @@ async function renderMoneyTab(){
   // แท็บเงินเดือน: ฐานเงินเดือน + คาดการณ์
   let sum = `<div style="font-size:13px;color:var(--muted);margin-bottom:6px;">${label}</div>`
     + moneyRow('ฐานเงินเดือน (ต่อเดือน)', m.base_salary);
-  if(eligible) sum += moneyRow('ค่าคอม / ค่ามือ', c.total);
+  if(eligible) sum += moneyRow(cyc ? `ค่าคอม / ค่ามือ (รอบ ${moneyDate(cyc.from)} – ${moneyDate(cyc.to)})` : 'ค่าคอม / ค่ามือ', c.total);
   // รับสุทธิโดยประมาณ (ผู้บริหาร 06/11/2569) = ฐานเงินเดือน + ค่าคอม/ค่ามือ − ประกันสังคม · มาสายไม่หัก · รายการหักอื่นดูที่สลิปสิ้นเดือน
   const oneMonth = from.slice(0,7) === to.slice(0,7);
   const ssoAmt = (sso && sso.ok) ? (Number(sso.sso)||0) : 0;
@@ -4699,9 +4712,10 @@ async function renderMoneyTab(){
   })) : moneyEmpty('ยังไม่มีรายการในช่วงนี้');
 
   // อัปเซลของฉัน
-  document.getElementById('moneyUpsellSec').classList.toggle('hidden', !m.upsell);
-  if(m.upsell){
-    const u = m.upsell, ui = Array.isArray(u.items) ? u.items : [];
+  const upsell = (mc && mc.ok !== false) ? mc.upsell : m.upsell;
+  document.getElementById('moneyUpsellSec').classList.toggle('hidden', !upsell);
+  if(upsell){
+    const u = upsell, ui = Array.isArray(u.items) ? u.items : [];
     document.getElementById('moneyUpsell').innerHTML =
       `<div style="padding:12px 0 6px;">${moneyRow('จำนวนบิล', u.bills).replace(/\.00</,'<')}${moneyRow('ยอดอัปเซล', u.upsold)}${moneyRow('ค่าคอมอัปเซล', u.comm)}</div>`
       + (ui.length ? moneyList(ui.map(it=>moneyItem(moneyEsc(it.program), commMoney(it.upsold),
@@ -4851,7 +4865,7 @@ async function renderHomeMoney(){
     el.querySelector('.v').textContent = v; el.querySelector('.s').textContent = s || ' ';
   };
   const now = new Date(), y = now.getFullYear(), mo = now.getMonth();
-  const mFrom = dateKey(new Date(y, mo, 1)), today = dateKey(now);
+  const today = dateKey(now), mFrom = commCycleRange('month').from; // ค่าคอมบนการ์ด = รอบ 26–25 ปัจจุบัน
   const sFrom = dateKey(new Date(y - 1, mo, 1)); // สลิปย้อนหลัง 12 เดือน
   const token = getStaffToken();
   const [c, m, sso, d] = await Promise.all([
