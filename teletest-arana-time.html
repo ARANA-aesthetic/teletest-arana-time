@@ -1948,6 +1948,7 @@
   <div class="modal">
     <h3 id="debtPayTitle">แจ้งชำระ</h3>
     <div class="hint" id="debtPayLeft"></div>
+    <div class="debtBankBox"></div>
     <label for="debtPayAmount">ยอดที่โอน (บาท)</label>
     <input type="text" id="debtPayAmount" inputmode="decimal" autocomplete="off">
     <label for="debtPayFile" style="margin-top:10px;">รูปสลิป</label>
@@ -4827,9 +4828,27 @@ async function renderDebts(){
           `ยอดเต็ม ${commMoney(x.amount)} · จ่ายแล้ว ${commMoney(x.paid)}`), statusLine(x.id) + (x.moved
             ? `<div style="font-size:12px;color:var(--muted);margin-top:4px;">บิลนี้ชำระผ่านฝ่ายบัญชี/HR (แจ้งชำระในแอปไม่ได้)</div>`
             : payBtn('receipt', x.id)))).join('')
-      + `<div style="font-size:12px;color:var(--muted);padding:10px 0;line-height:1.6;">โอนเข้าบัญชีบริษัทแล้วกด "แจ้งชำระ" แนบสลิป · ยอดจะลดเมื่อ HR ยืนยัน</div>`
+      + `<div class="debtBankBox"></div><div style="font-size:12px;color:var(--muted);padding:10px 0;line-height:1.6;">โอนเข้าบัญชีบริษัทแล้วกด "แจ้งชำระ" แนบสลิป · ยอดจะลดเมื่อ HR ยืนยัน</div>`
     : `<div class="moneyline ok">ไม่มียอดค้าง</div>`;
   box.querySelectorAll('[data-debtpay]').forEach(b=> b.onclick = ()=>{ const [k, id] = b.dataset.debtpay.split('|'); openDebtPay(k, id); });
+  fillDebtBank(box);
+}
+// บัญชีบริษัทสำหรับชำระหนี้พนักงาน (ผู้บริหาร 08/11/2569)
+const DEBT_BANK = { name: 'บริษัท เอ็มเอ็นเอส เมดิคอล กรุ๊ป จำกัด', bank: 'กสิกรไทย', no: '1843742382' };
+function fillDebtBank(root){
+  (root || document).querySelectorAll('.debtBankBox').forEach(el=>{
+    el.innerHTML = `<div style="margin:8px 0;padding:10px 12px;border:1px solid var(--border, #e5e5e5);border-radius:10px;font-size:13px;line-height:1.7;">`
+      + `<div style="font-weight:700;">โอนชำระเข้าบัญชีบริษัท</div>`
+      + `<div>ชื่อบัญชี: ${DEBT_BANK.name}</div><div>ธนาคาร: ${DEBT_BANK.bank}</div>`
+      + `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">เลขบัญชี: <b style="font-size:15px;letter-spacing:.5px;">184-3-74238-2</b>`
+      + `<button class="btn sm gray" type="button" data-copybank>คัดลอกเลขบัญชี</button></div></div>`;
+    const b = el.querySelector('[data-copybank]');
+    b.onclick = async ()=>{
+      try { await navigator.clipboard.writeText(DEBT_BANK.no); b.textContent = 'คัดลอกแล้ว'; }
+      catch(e){ b.textContent = DEBT_BANK.no; }
+      setTimeout(()=>{ b.textContent = 'คัดลอกเลขบัญชี'; }, 2000);
+    };
+  });
 }
 let debtPayTarget = null, debtPaySlip = '';
 function openDebtPay(kind, id){
@@ -4843,6 +4862,7 @@ function openDebtPay(kind, id){
   document.getElementById('debtPayNote').value = '';
   document.getElementById('debtPayMsg').textContent = '';
   document.getElementById('debtPaySendBtn').disabled = false;
+  fillDebtBank(document.getElementById('debtPayOverlay'));
   document.getElementById('debtPayOverlay').classList.add('show');
 }
 // ย่อรูปสลิปให้ด้านยาวไม่เกิน 1280px เป็น JPEG — ส่งเร็ว ไม่เกินขนาดที่ฐานข้อมูลรับ
