@@ -1600,6 +1600,12 @@
       <div><label>ถึงวันที่</label><div id="leaveTo_holder"></div></div>
     </div>
 
+    <!-- ลาประเพณี: เลือกวันหยุดที่ยังไม่ใช้สิทธิ์ (กันใช้ซ้ำ) — 12/11/2569 -->
+    <div id="leaveHolidayPick" class="hidden">
+      <label>เลือกวันหยุดประเพณีที่จะใช้สิทธิ์ (1 วันลา = 1 วันหยุด)</label>
+      <div id="leaveHolidayList" style="display:flex;flex-direction:column;gap:4px;margin-bottom:6px;"></div>
+    </div>
+
     <div id="leaveHourlyFields" class="hidden">
       <label>วันที่ลา</label>
       <div id="leaveSingleDate_holder"></div>
@@ -2414,8 +2420,8 @@ const warningLetterToRow = w => ({ id:w.id, employee_id:w.employeeId, company_id
 const rowToCompany = r => ({ id:r.id, name:r.name||'', logoBase64:r.logo_base64||null, createdAt:r.created_at });
 const companyToRow = c => ({ id:c.id, name:c.name||null, logo_base64:c.logoBase64||null, created_at:c.createdAt });
 
-const rowToLeave = r => ({ id:r.id, employeeId:r.employee_id, kind:r.kind, from:r.from_date, to:r.to_date, hourStart:r.from_time||null, hourEnd:r.to_time||null, reason:r.reason||'', status:r.status, requestedAt:r.requested_at, decidedAt:r.decided_at||null, evidenceSent:r.evidence_sent??null, evidenceFileId:r.evidence_file_id||null, editRequest:r.edit_request||null, locationLat:r.location_lat??null, locationLng:r.location_lng??null, locationAddress:r.location_address||null });
-const leaveToRow = l => ({ id:l.id, employee_id:l.employeeId, kind:l.kind, from_date:l.from, to_date:l.to, from_time:l.hourStart||null, to_time:l.hourEnd||null, reason:l.reason||null, status:l.status, requested_at:l.requestedAt, decided_at:l.decidedAt||null, evidence_sent:l.evidenceSent??null, evidence_file_id:l.evidenceFileId||null, edit_request:l.editRequest||null, location_lat:l.locationLat??null, location_lng:l.locationLng??null, location_address:l.locationAddress||null, days: (l.from && l.to) ? (Math.round((new Date(l.to)-new Date(l.from))/86400000)+1) : null });
+const rowToLeave = r => ({ id:r.id, employeeId:r.employee_id, kind:r.kind, from:r.from_date, to:r.to_date, hourStart:r.from_time||null, hourEnd:r.to_time||null, reason:r.reason||'', status:r.status, requestedAt:r.requested_at, decidedAt:r.decided_at||null, evidenceSent:r.evidence_sent??null, evidenceFileId:r.evidence_file_id||null, editRequest:r.edit_request||null, locationLat:r.location_lat??null, locationLng:r.location_lng??null, locationAddress:r.location_address||null, holidayDates:r.holiday_dates||null });
+const leaveToRow = l => ({ id:l.id, employee_id:l.employeeId, kind:l.kind, from_date:l.from, to_date:l.to, from_time:l.hourStart||null, to_time:l.hourEnd||null, reason:l.reason||null, status:l.status, requested_at:l.requestedAt, decided_at:l.decidedAt||null, evidence_sent:l.evidenceSent??null, evidence_file_id:l.evidenceFileId||null, edit_request:l.editRequest||null, location_lat:l.locationLat??null, location_lng:l.locationLng??null, location_address:l.locationAddress||null, holiday_dates:(l.kind==='traditional' && l.holidayDates && l.holidayDates.length) ? l.holidayDates : null, days: (l.from && l.to) ? (Math.round((new Date(l.to)-new Date(l.from))/86400000)+1) : null });
 
 const rowToOt = r => ({ id:r.id, employeeId:r.employee_id, date:r.date, hourStart:r.hour_start, hourEnd:r.hour_end, reason:r.reason||'', status:r.status, requestedAt:r.requested_at, decidedAt:r.decided_at||null, groupId:r.group_id||null, editRequest:r.edit_request||null, requestedByEmployeeId:r.requested_by_employee_id||null });
 const otToRow = o => ({ id:o.id, employee_id:o.employeeId, date:o.date, hour_start:o.hourStart, hour_end:o.hourEnd, reason:o.reason||null, status:o.status, requested_at:o.requestedAt, decided_at:o.decidedAt||null, group_id:o.groupId||null, edit_request:o.editRequest||null, requested_by_employee_id:o.requestedByEmployeeId||null });
@@ -3638,7 +3644,46 @@ document.getElementById('leaveType').addEventListener('change', ()=>{
   const isHourly = HOURLY_KINDS.includes(document.getElementById('leaveType').value);
   document.getElementById('leaveDateRangeFields').classList.toggle('hidden', isHourly);
   document.getElementById('leaveHourlyFields').classList.toggle('hidden', !isHourly);
+  renderLeaveHolidayPick();
 });
+// ── ลาประเพณี: วันหยุดยืดหยุ่นที่ยังไม่ใช้สิทธิ์ (12/11/2569) ──
+// ใบลาที่ระบุวันหยุด (holidayDates) หักวันนั้นตรงตัว · ใบลาเก่าที่ไม่ได้ระบุ หักวันหยุดที่เก่าที่สุดก่อน
+// นับใบลาที่รออนุมัติด้วย (กันยื่นซ้ำวันหยุดเดียวกัน) · ไม่นับใบที่ถูกปฏิเสธ และใบที่กำลังแก้ไขอยู่
+function traditionalHolidayBalance(emp, year, excludeLeaveId){
+  const start = emp?.startDate || '';
+  const pool = (db.settings.holidays||[]).filter(h=> h.flexible && String(h.date).startsWith(year+'-') && (!start || h.date >= start))
+    .map(h=>h.date).sort();
+  const used = new Set();
+  let legacy = 0;
+  db.leaves.filter(l=> l.employeeId===emp.id && l.kind==='traditional' && l.status!=='rejected' && l.id!==excludeLeaveId && String(l.from).startsWith(year+'-'))
+    .sort((a,b)=> String(a.from).localeCompare(String(b.from)))
+    .forEach(l=>{
+      const picked = (l.holidayDates||[]).filter(d=> pool.includes(d) && !used.has(d));
+      picked.forEach(d=> used.add(d));
+      legacy += Math.max(0, daysBetweenInclusive(l.from, l.to) - picked.length);
+    });
+  for(const d of pool){ if(legacy<=0) break; if(!used.has(d)){ used.add(d); legacy--; } }
+  return { pool, used, left: pool.filter(d=> !used.has(d)) };
+}
+function renderLeaveHolidayPick(preselect){
+  const wrap = document.getElementById('leaveHolidayPick');
+  const isTrad = document.getElementById('leaveType').value==='traditional';
+  wrap.classList.toggle('hidden', !isTrad);
+  if(!isTrad) return;
+  const emp = currentEmployee(); if(!emp) return;
+  const editId = editingLeaveId || requestingEditLeaveId || null;
+  const year = (getDateVal('leaveFrom') || dateKey(new Date())).slice(0,4);
+  const bal = traditionalHolidayBalance(emp, year, editId);
+  const keep = new Set(preselect || Array.from(document.querySelectorAll('#leaveHolidayList [data-holdate]:checked')).map(cb=>cb.dataset.holdate));
+  const list = bal.pool.filter(d=> !bal.used.has(d) || keep.has(d));
+  const nameOf = d => (db.settings.holidays||[]).find(h=>h.date===d)?.name || '';
+  document.getElementById('leaveHolidayList').innerHTML = list.length
+    ? list.map(d=>`<label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;"><input type="checkbox" data-holdate="${d}" ${keep.has(d)?'checked':''}> ${ddmmyyyy(d)} · ${nameOf(d)}</label>`).join('')
+    : '<div class="empty" style="padding:6px 0;">ไม่มีวันหยุดประเพณีคงเหลือในปีนี้</div>';
+}
+function pickedHolidayDates(){
+  return Array.from(document.querySelectorAll('#leaveHolidayList [data-holdate]:checked')).map(cb=>cb.dataset.holdate).sort();
+}
 // ร่างยื่นใบลาใหม่ (กันข้อมูลหายถ้าแท็บถูกปิด/รีโหลดระหว่างออกไปเปิดสิทธิ์ตำแหน่ง) — ใช้เฉพาะตอน "ยื่นใหม่" เท่านั้น
 function leaveDraftKey(){ const emp = currentEmployee(); return `aranaLeaveDraft_${emp?.id||'anon'}`; }
 function saveLeaveDraft(){
@@ -3666,6 +3711,7 @@ function clearLeaveDraft(){
   document.getElementById(id).addEventListener('change', saveLeaveDraft);
 });
 wireDateChange('leaveFrom', saveLeaveDraft);
+wireDateChange('leaveFrom', ()=> renderLeaveHolidayPick());
 wireDateChange('leaveTo', saveLeaveDraft);
 wireDateChange('leaveSingleDate', saveLeaveDraft);
 
@@ -3877,6 +3923,7 @@ function openLeaveEditRequestForm(leaveId){
   document.getElementById('leaveEvidenceViewBtn').classList.toggle('hidden', !leave.evidenceFileId);
   document.getElementById('leaveEvidenceViewBtn').onclick = ()=> leave.evidenceFileId && viewTelegramPhoto(leave.evidenceFileId);
   document.getElementById('submitLeaveBtn').textContent = 'ส่งคำขอแก้ไข';
+  renderLeaveHolidayPick(leave.holidayDates || []);
   document.getElementById('leaveOverlay').classList.add('show');
 }
 function openLeaveForm(leaveId){
@@ -3925,6 +3972,7 @@ function openLeaveForm(leaveId){
   viewBtn.classList.toggle('hidden', !(existing && existing.evidenceFileId));
   viewBtn.onclick = ()=> existing && existing.evidenceFileId && viewTelegramPhoto(existing.evidenceFileId);
   document.getElementById('submitLeaveBtn').textContent = existing ? 'บันทึกการแก้ไข' : 'ส่งใบลา';
+  renderLeaveHolidayPick(existing?.holidayDates || []);
   document.getElementById('leaveOverlay').classList.add('show');
 }
 document.getElementById('openLeaveFormBtn').onclick = ()=> openLeaveForm(null);
@@ -3948,12 +3996,20 @@ document.getElementById('submitLeaveBtn').onclick = async ()=>{
     to = getDateVal('leaveTo');
     if(!from || !to){ msg.className='msg err'; msg.textContent='กรุณาระบุวันที่'; return; }
   }
+  // ลาประเพณี: ต้องเลือกวันหยุดที่ยังไม่ใช้สิทธิ์ ให้เท่ากับจำนวนวันที่ลา (12/11/2569)
+  let holidayDates = null;
+  if(kind==='traditional'){
+    holidayDates = pickedHolidayDates();
+    const nDays = daysBetweenInclusive(from, to);
+    if(holidayDates.length !== nDays){ msg.className='msg err'; msg.textContent=`กรุณาเลือกวันหยุดประเพณีที่จะใช้ ${nDays} วัน ให้เท่ากับจำนวนวันที่ลา (เลือกแล้ว ${holidayDates.length} วัน)`; return; }
+  }
+  const holidayLine = holidayDates && holidayDates.length ? `\n▪️ใช้สิทธิ์วันหยุด: ${holidayDates.map(ddmmyyyy).join(', ')}` : '';
   if(requestingEditLeaveId){
     const leave = db.leaves.find(l=>l.id===requestingEditLeaveId);
     if(!leave || leave.status!=='approved'){ msg.className='msg err'; msg.textContent='ไม่สามารถขอแก้ไขได้ (สถานะเปลี่ยนไปแล้ว)'; return; }
     const oldRangeText = leaveRangeText(leave);
     const oldKind = leave.kind;
-    leave.editRequest = {kind, from, to, hourStart, hourEnd, reason, requestedAt:new Date().toISOString()};
+    leave.editRequest = {kind, from, to, hourStart, hourEnd, reason, holidayDates, requestedAt:new Date().toISOString()};
     await saveLeaveRow(leave);
     msg.className='msg ok'; msg.textContent='ส่งคำขอแก้ไขเรียบร้อย รออนุมัติจาก HR';
     renderLeaveTab();
@@ -3968,7 +4024,7 @@ document.getElementById('submitLeaveBtn').onclick = async ()=>{
   if(editingLeaveId){
     const leave = db.leaves.find(l=>l.id===editingLeaveId);
     if(!leave || leave.status!=='pending'){ msg.className='msg err'; msg.textContent='ไม่สามารถแก้ไขได้ (อาจถูกอนุมัติ/ปฏิเสธไปแล้ว)'; return; }
-    Object.assign(leave, {kind, from, to, hourStart, hourEnd, reason});
+    Object.assign(leave, {kind, from, to, hourStart, hourEnd, reason, holidayDates});
     if(evidenceFile){
       const caption = `<b>${notifyName(emp)}</b> แก้ไขหลักฐาน${leaveLabel(kind)} ${leaveRangeText(leave)} (♻️ รูปแก้ไข)\nเหตุผล: ${reason||'-'}`;
       const r = await tgSendPhoto(db.settings.centralToken, db.settings.centralChatId, evidenceFile, caption);
@@ -3989,7 +4045,7 @@ document.getElementById('submitLeaveBtn').onclick = async ()=>{
     locationLat = pos.lat; locationLng = pos.lng;
     locationAddress = await reverseGeocodeThai(pos.lat, pos.lng);
   }
-  const leave = {id:uid(), employeeId:emp.id, kind, from, to, hourStart, hourEnd, reason, status:'pending', requestedAt:new Date().toISOString(), evidenceSent:null, evidenceFileId:null, locationLat, locationLng, locationAddress};
+  const leave = {id:uid(), employeeId:emp.id, kind, from, to, hourStart, hourEnd, reason, holidayDates, status:'pending', requestedAt:new Date().toISOString(), evidenceSent:null, evidenceFileId:null, locationLat, locationLng, locationAddress};
   db.leaves.push(leave); await saveLeaveRow(leave);
   clearLeaveDraft();
   msg.className='msg ok'; msg.textContent='ส่งใบลาเรียบร้อย รออนุมัติจาก HR';
@@ -3997,7 +4053,7 @@ document.getElementById('submitLeaveBtn').onclick = async ()=>{
   renderLeaveTab();
   const br = currentBranch(emp);
   const rangeText = leaveRangeText(leave);
-  let text = `💌รออนุมัติ สาขา ${br?.name||'-'}\n▪️${notifyName(emp)}\n▪️ยื่น${leaveLabel(kind)}\n▪️${rangeText}\n▪️เหตุผล: ${reason||'-'}` + approveLinkLine('อนุมัติการลา');
+  let text = `💌รออนุมัติ สาขา ${br?.name||'-'}\n▪️${notifyName(emp)}\n▪️ยื่น${leaveLabel(kind)}\n▪️${rangeText}${holidayLine}\n▪️เหตุผล: ${reason||'-'}` + approveLinkLine('อนุมัติการลา');
   if(locationLat!=null){
     const mapLink = `https://maps.google.com/?q=${locationLat},${locationLng}`;
     text += `\n📍พิกัด: ${locationAddress||'-'} (<a href="${mapLink}">แผนที่</a>)`;
@@ -4238,6 +4294,32 @@ function openOtEditRequestForm(otId){
   document.getElementById('otOverlay').classList.add('show');
 }
 document.getElementById('closeOtBtn').onclick = ()=> document.getElementById('otOverlay').classList.remove('show');
+// คืน [{id,name,text}] ของคนที่สแกนออกก่อนเวลาจบ OT / ไม่มีสแกนออก · [] = ผ่านหรือ OT ยังไม่จบ · null = อ่านข้อมูลไม่ได้
+async function otScanOutWarnings(ids, date, hourStart, hourEnd){
+  const toM = t => { const p = String(t||'').split(':'); return (+p[0])*60 + (+p[1]); };
+  const end = new Date(`${date}T${hourEnd}:00+07:00`);
+  if(toM(hourEnd) <= toM(hourStart)) end.setTime(end.getTime() + 86400000);
+  if(end > new Date()) return [];
+  const dayStart = new Date(`${date}T00:00:00+07:00`);
+  const dayEnd = new Date(dayStart.getTime() + 2*86400000);
+  const filter = `type=eq.OUT&employee_id=in.(${ids.map(encodeURIComponent).join(',')})&time=gte.${encodeURIComponent(dayStart.toISOString())}&time=lt.${encodeURIComponent(dayEnd.toISOString())}`;
+  const before = sbLoadFailed.length;
+  const rows = await sbSelectAll('logs', filter, 'employee_id,time');
+  if(sbLoadFailed.length > before && !rows.length) return null;
+  const bkkDay = t => new Date(t).toLocaleDateString('sv-SE', { timeZone:'Asia/Bangkok' });
+  const hm = t => new Date(t).toLocaleTimeString('en-GB', { timeZone:'Asia/Bangkok', hour:'2-digit', minute:'2-digit' });
+  const out = [];
+  for(const id of ids){
+    const emp = db.employees.find(e=>e.id===id);
+    const name = emp ? `${emp.name}${emp.nickname?` (${emp.nickname})`:''}` : id;
+    const outs = rows.filter(r=> r.employee_id===id).map(r=> new Date(r.time))
+      .filter(t=> bkkDay(t)===date || t <= new Date(end.getTime() + 6*3600000)).sort((a,b)=> b-a);
+    if(!outs.length){ out.push({id, name, text:'ไม่มีสแกนออกงานในวันนั้น'}); continue; }
+    const short = Math.round((end - outs[0]) / 60000);
+    if(short >= 1) out.push({id, name, text:`สแกนออก ${hm(outs[0])} ก่อนเวลาจบ OT ${hourEnd} อยู่ ${short} นาที`});
+  }
+  return out;
+}
 function otHoursText(hourStart, hourEnd){
   const mins = (hourEnd.split(':')[0]*60 + +hourEnd.split(':')[1]) - (hourStart.split(':')[0]*60 + +hourStart.split(':')[1]);
   return (mins/60).toFixed(1);
@@ -4268,6 +4350,17 @@ document.getElementById('submitOtBtn').onclick = async ()=>{
   }
   const selectedIds = Array.from(document.querySelectorAll('#otEmpChecklist [data-otemp]:checked')).map(cb=>cb.dataset.otemp);
   if(!selectedIds.length){ msg.className='msg err'; msg.textContent='กรุณาเลือกพนักงานอย่างน้อย 1 คน'; return; }
+  // ขอ OT ย้อนหลัง (เวลาจบ OT ผ่านไปแล้ว): เวลาสแกนออกต้องไม่ก่อนเวลาจบ OT — ต่างกัน 1 นาทีก็ไม่ให้ส่ง (12/11/2569)
+  // ให้พนักงานยืนยันเวลาออกจริงกับ HR ก่อน (HR แก้เวลาออกใน ERP) แล้วค่อยขอ OT ใหม่
+  const otBad = await otScanOutWarnings(selectedIds, date, hourStart, hourEnd);
+  if(otBad === null){ msg.className='msg err'; msg.textContent='ตรวจเวลาสแกนออกไม่สำเร็จ กรุณาลองใหม่'; return; }
+  if(otBad.length){
+    msg.className='msg err';
+    msg.innerHTML = 'เวลาสแกนออกไม่ตรงกับช่วง OT — ยังขอ OT ให้คนเหล่านี้ไม่ได้<br>'
+      + otBad.map(x=> `- ${String(x.name).replace(/[<>&]/g,'')}: ${x.text}`).join('<br>')
+      + '<br>ให้พนักงานยืนยันเวลาออกจริงกับ HR ก่อน แล้วค่อยขอ OT ใหม่ (เอาติ๊กชื่อคนเหล่านี้ออก ถ้าต้องการส่งเฉพาะคนที่เหลือ)';
+    return;
+  }
   const groupId = uid();
   const rows = selectedIds.map(empId => ({id:uid(), employeeId:empId, date, hourStart, hourEnd, reason, status:'pending', requestedAt:new Date().toISOString(), groupId, requestedByEmployeeId:emp.id}));
   db.otRequests.push(...rows);
