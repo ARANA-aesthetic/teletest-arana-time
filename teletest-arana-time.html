@@ -224,6 +224,26 @@
     background:var(--red);color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 2px #fff;
   }
 
+  /* ---------- เอกสารบริษัท (18/11/2569) ---------- */
+  .docsbanner{background:#FEE2E2;color:#991B1B;border:1px solid #FCA5A5;border-radius:14px;padding:12px 14px;margin-bottom:12px;font-weight:600;font-size:13.5px;cursor:pointer;display:flex;align-items:center;gap:10px;}
+  .docsbanner .go{margin-left:auto;background:#DC2626;color:#fff;border-radius:99px;padding:5px 12px;font-size:12.5px;white-space:nowrap;}
+  #docsOverlay .modal{max-width:760px;padding:16px;}
+  .doctabs{display:flex;gap:6px;margin:4px 0 12px;}
+  .doctabs button{flex:1;padding:9px 6px;border-radius:12px;border:1px solid var(--border);background:#fff;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit;color:var(--text);}
+  .doctabs button.on{background:var(--pink-dark);border-color:var(--pink-dark);color:#fff;}
+  .docgrp{font-size:12px;font-weight:700;color:var(--muted,#888);margin:12px 0 6px;}
+  .docrow{border:1px solid var(--border);border-radius:14px;padding:11px 12px;margin-bottom:8px;cursor:pointer;background:#fff;}
+  .docrow .t{font-weight:600;font-size:14px;}
+  .docrow .m{font-size:12px;color:#888;margin-top:3px;}
+  .docrow .st{display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:99px;margin-left:6px;}
+  .docrow .st.p{background:#FEE2E2;color:#B91C1C;} .docrow .st.s{background:#DCFCE7;color:#15803D;} .docrow .st.r{background:#F3F4F6;color:#6B7280;}
+  .docpaper{background:#fff;border:1px solid var(--border);border-radius:12px;padding:12px 10px;overflow-x:auto;}
+  .docpaper .hd-page{width:auto !important;max-width:186mm;font-size:14.5px;}
+  .docsignbox{border:1.5px solid #FCA5A5;background:#FFF7F7;border-radius:14px;padding:12px;margin-top:12px;}
+  .docsignbox canvas{width:100%;height:170px;background:#fff;border:1.5px dashed #bbb;border-radius:10px;touch-action:none;display:block;}
+  .docsignbox label.chk{display:flex;gap:8px;align-items:flex-start;font-size:13.5px;margin:10px 0;font-weight:500;}
+  .docsignbox label.chk input{width:20px;height:20px;flex:0 0 auto;margin-top:1px;}
+
   /* ---------- calendar ---------- */
   .calnav{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
   .calnav .m{font-weight:600;font-family:'Prompt',sans-serif;font-size:14.5px;}
@@ -748,6 +768,7 @@
     <div id="etabHome">
       <div id="unsentPhotoBanner" class="hidden"></div>
       <div id="pendingSaveBanner" class="hidden"></div>
+      <div id="docsBanner" class="docsbanner hidden"></div>
       <section>
         <div class="card scancard">
           <div class="scanring">◎</div>
@@ -766,6 +787,7 @@
           <div class="qa hidden" id="qaGroom"><div class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9 10h.01M15 10h.01M8 15c1 1.3 2.5 2 4 2s3-.7 4-2"/></svg></div><div class="lbl">ความเรียบร้อย</div></div>
           <div class="qa" id="qaCal"><div class="ic">▦</div><div class="lbl">ปฏิทิน</div></div>
           <div class="qa" id="qaDebt"><div class="ic">฿</div><div class="lbl">ค้างชำระบริษัท</div></div>
+          <div class="qa" id="qaDocs"><div class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg></div><div class="lbl">เอกสารบริษัท</div></div>
           <div class="qa" id="qaProfile"><div class="ic">☰</div><div class="lbl">โปรไฟล์</div></div>
         </div>
       </section>
@@ -1967,6 +1989,18 @@
   </div>
 </div>
 
+<!-- เอกสารบริษัท (พนักงาน) 18/11/2569 — อ่านประกาศ + เซ็นรับทราบ + ดาวน์โหลด PDF -->
+<div class="overlay" id="docsOverlay">
+  <div class="modal">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+      <button class="btn gray sm hidden" id="docsBackBtn" type="button">‹ กลับ</button>
+      <h3 id="docsTitle" style="margin:0;flex:1;">เอกสารบริษัท</h3>
+      <button class="btn gray sm" id="docsCloseBtn" type="button">ปิด</button>
+    </div>
+    <div id="docsBody"></div>
+  </div>
+</div>
+
 <!-- Employee editor modal (admin) -->
 <div class="overlay" id="empEditOverlay">
   <div class="modal">
@@ -2308,7 +2342,7 @@ const PORTAL_ERR = { WRONG_PIN:'PIN ไม่ถูกต้อง', LOCKED:'ใ
   NOT_LINKED:'ยังไม่ได้ผูกกับทะเบียนพนักงาน กรุณาติดต่อ HR', NOT_FOUND:'ไม่พบพนักงาน', SESSION_EXPIRED:'หมดเวลาการเข้าสู่ระบบ กรุณาใส่ PIN ใหม่',
   PIN_FORMAT:'PIN ต้องเป็นตัวเลข 4 หลัก', WRONG_LOGIN:'รหัสพนักงานหรือ PIN ไม่ถูกต้อง', WEAK_PIN:'PIN นี้เดาง่ายเกินไป ห้ามใช้ 1234, 0000 หรือเลขซ้ำกันทั้ง 4 ตัว', BAD_AMOUNT:'ยอดที่โอนไม่ถูกต้อง', BAD_SLIP:'รูปสลิปไม่ถูกต้องหรือใหญ่เกินไป กรุณาเลือกรูปใหม่',
   TOO_MANY_PENDING:'มีรายการรอ HR ตรวจสอบ 5 รายการแล้ว กรุณารอ HR ยืนยันก่อน', ALREADY_PENDING:'รายการนี้แจ้งชำระแล้ว รอ HR ตรวจสอบ',
-  OVER_AMOUNT:'ยอดเกินยอดค้าง', NETWORK:'เชื่อมต่อไม่ได้ ตรวจอินเทอร์เน็ตแล้วลองใหม่', SERVER:'ระบบขัดข้อง ลองใหม่อีกครั้ง' };
+  OVER_AMOUNT:'ยอดเกินยอดค้าง', BAD_SIGNATURE:'ยังไม่ได้เซ็นชื่อ หรือรูปลายเซ็นไม่ถูกต้อง กรุณาเซ็นใหม่', ALREADY_SIGNED:'เอกสารนี้เซ็นรับทราบไปแล้ว', NETWORK:'เชื่อมต่อไม่ได้ ตรวจอินเทอร์เน็ตแล้วลองใหม่', SERVER:'ระบบขัดข้อง ลองใหม่อีกครั้ง' };
 const portalErrText = (r)=> (PORTAL_ERR[r?.error]||'ทำรายการไม่สำเร็จ') + (r?.error==='WRONG_PIN' && r.left!=null ? ` (เหลือ ${r.left} ครั้ง)` : '');
 // ข้อมูลของตัวเองหลังล็อกอิน: ใบหน้าที่ใช้สแกน / คำขอเปลี่ยนหน้า / พิกัดบ้าน / สิทธิ์ดูค่าคอม
 let staffMe = null;
@@ -3293,7 +3327,7 @@ function switchETab(tab){
   document.getElementById('empPageTitle').textContent = titles[tab];
   document.getElementById('empPageMeta').textContent = metas[tab];
   document.getElementById('empDropdownName').textContent = emp.name;
-  if(tab==='Home'){ syncEmpFilterUI(); renderEmployeeHome(); renderHomeMoney(); }
+  if(tab==='Home'){ syncEmpFilterUI(); renderEmployeeHome(); renderHomeMoney(); refreshMyDocs(); }
   if(tab==='Cal') renderCalendar();
   if(tab==='Leave'){ syncEmpFilterUI(); renderLeaveTab(); }
   if(tab==='Ac') renderAcTab();
@@ -3309,6 +3343,239 @@ document.getElementById('qaOt').onclick = ()=> switchETab('Ot');
 document.getElementById('qaGroom').onclick = ()=> submitGrooming();
 // ค้างชำระบริษัท (หนี้ของฉัน) — แทนปุ่มยื่นใบลา/แจ้งเตือนที่ซ้ำกับเมนูล่าง (ผู้บริหาร 06/11/2569)
 document.getElementById('qaDebt').onclick = ()=> openMoneyTab('debt');
+// ===== เอกสารบริษัท (คุณออม 18/11/2569) =====
+// HR ออกประกาศใน ERP → พนักงานอ่าน + เซ็นด้วยนิ้ว + กด "ข้าพเจ้ารับทราบ" ที่นี่
+// เซ็นแล้วไม่หายไป ย้ายไปแท็บ "เซ็นแล้ว" · ดูซ้ำ/ดาวน์โหลด PDF (ประกาศ + ช่องผู้ประกาศ + ช่องผู้รับทราบ หน้าเดียวกัน) ได้ตลอด
+// ข้อมูลผ่าน portal_my_documents / portal_document_get / portal_document_sign (ตรวจ token ทุกครั้ง · ERP migration 00295)
+const DOC_TYPE_LABEL = { announcement:'ประกาศ', employment_certificate:'หนังสือรับรองการทำงาน', warning_letter:'ใบเตือน' };
+const DOC_HEADING = { announcement:'ประกาศ', employment_certificate:'หนังสือรับรองการทำงาน', warning_letter:'หนังสือเตือน' };
+const DOC_LIBS = {
+  purify:'https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.6/purify.min.js',
+  pdf:'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js',
+};
+const docLibLoading = {};
+function loadDocLib(key){
+  if(key==='purify' && window.DOMPurify) return Promise.resolve();
+  if(key==='pdf' && window.html2pdf) return Promise.resolve();
+  if(!docLibLoading[key]) docLibLoading[key] = new Promise((res, rej)=>{
+    const s = document.createElement('script'); s.src = DOC_LIBS[key]; s.onload = res;
+    s.onerror = ()=>{ delete docLibLoading[key]; rej(new Error('โหลดไม่สำเร็จ ตรวจอินเทอร์เน็ตแล้วลองใหม่')); };
+    document.head.appendChild(s);
+  });
+  return docLibLoading[key];
+}
+var docsState = { items:[], tab:'pending', doc:null };
+const docEsc = (s)=> String(s ?? '').replace(/[&<>"']/g, c=> ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const DOC_MONTHS = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+const docThaiDate = (d)=>{ if(!d) return '-'; const [y,m,dd] = String(d).slice(0,10).split('-').map(Number); return `${dd} ${DOC_MONTHS[m-1]} ${y+543}`; };
+const docDmy = (d)=>{ if(!d) return '-'; const [y,m,dd] = String(d).slice(0,10).split('-'); return `${dd}/${m}/${Number(y)+543}`; };
+const docDmyhm = (ts)=>{ if(!ts) return '-'; const s = new Date(ts).toLocaleString('sv-SE', { timeZone:'Asia/Bangkok' }); return `${docDmy(s.slice(0,10))} ${s.slice(11,16)} น.`; };
+const docHashCode = (h)=> h ? `${h.slice(0,4)}-${h.slice(4,8)}`.toUpperCase() : '';
+const DOC_PURIFY = { ALLOWED_TAGS:['p','br','b','strong','i','em','u','s','span','div','h2','h3','ul','ol','li','table','thead','tbody','tr','th','td','hr','font','blockquote'], ALLOWED_ATTR:['style','colspan','rowspan','align','color','size'] };
+// หน้าตาเดียวกับฉบับพนักงานใน ERP (src/lib/hr-documents.js buildDocMarkup mode "person")
+const DOC_CSS = `.hd-page{width:186mm;margin:0 auto;font-family:'Sarabun','Prompt',sans-serif;color:#111;font-size:15px;line-height:1.65;background:#fff;}
+.hd-lh{display:flex;align-items:center;gap:12px;border-bottom:2px solid #8a6d46;padding-bottom:8px;margin-bottom:14px;}
+.hd-lh img{height:54px;max-width:90px;object-fit:contain;}
+.hd-co{font-weight:700;font-size:17px;}
+.hd-title{text-align:center;font-weight:700;font-size:19px;margin:4px 0 0;}
+.hd-sub{text-align:center;font-weight:700;font-size:16px;margin:2px 0 6px;}
+.hd-no{text-align:right;font-size:13px;margin-bottom:8px;}
+.hd-body p{margin:0 0 8px;text-indent:2.2em;}
+.hd-body ul,.hd-body ol{margin:0 0 8px 2.2em;padding:0;}
+.hd-body table{border-collapse:collapse;margin:6px 0 10px;}
+.hd-body td,.hd-body th{border:1px solid #444;padding:4px 8px;}
+.hd-body h2{font-size:17px;margin:10px 0 6px;} .hd-body h3{font-size:16px;margin:8px 0 4px;}
+.hd-date{text-align:center;margin:14px 0 4px;}
+.hd-sigs{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px;page-break-inside:avoid;break-inside:avoid;}
+.hd-box{border:0;padding:8px 10px;text-align:center;font-size:13.5px;}
+.hd-box.ack{border:0;background:none;}
+.hd-box .k{color:#777;font-size:12.5px;}
+.hd-box .sig{height:58px;display:flex;align-items:center;justify-content:center;}
+.hd-box .sig img{max-height:56px;max-width:92%;}
+.hd-box .ln{border-top:1px dotted #888;padding-top:3px;margin-top:2px;}
+.hd-acklbl{font-size:12.5px;color:#333;margin-top:4px;}
+.hd-foot{margin-top:12px;border-top:1px dashed #bbb;padding-top:5px;color:#888;font-size:11px;}`;
+function docMarkup(r){
+  const d = r.doc || {}, me = r.me || {}, co = r.company || {};
+  const body = window.DOMPurify ? window.DOMPurify.sanitize(String(d.body_html||''), DOC_PURIFY) : docEsc(String(d.body_html||'').replace(/<[^>]*>/g,' '));
+  const heading = DOC_HEADING[d.doc_type] || 'ประกาศ', short = DOC_TYPE_LABEL[d.doc_type] || 'ประกาศ';
+  const issuer = `<div class="hd-box"><div class="k">ผู้ประกาศ</div>
+    <div class="sig">${d.issuer_signature ? `<img src="${docEsc(d.issuer_signature)}" alt="">` : ''}</div>
+    <div class="ln">( ${docEsc(d.issuer_name||'')} )</div><div>${docEsc(d.issuer_title||'')}</div><div>${docThaiDate(d.doc_date)}</div></div>`;
+  const ack = d.ack_required === false ? '<div></div>' : `<div class="hd-box ack"><div class="k">ผู้รับทราบ</div>
+    <div class="sig">${me.signature ? `<img src="${docEsc(me.signature)}" alt="">` : '<span style="color:#aaa">(ยังไม่ได้เซ็น)</span>'}</div>
+    <div class="ln">( ${docEsc(me.name||'')} )</div>
+    <div>${me.signed_at ? `รับทราบ ${docDmyhm(me.signed_at)}` : '&nbsp;'}</div><div class="hd-acklbl">${docEsc(d.ack_label||'')}</div></div>`;
+  const foot = [d.doc_no ? `เลขที่ ${docEsc(d.doc_no)}` : '', d.content_hash ? `รหัสตรวจสอบ ${docHashCode(d.content_hash)}` : '', 'ฉบับพนักงาน', d.ack_required !== false ? 'เซ็นรับทราบผ่านแอป ARANA Staff' : ''].filter(Boolean).join(' · ');
+  return `<style>${DOC_CSS}</style><div class="hd-page">
+    <div class="hd-lh">${co.logo ? `<img src="${docEsc(co.logo)}" alt="">` : ''}<div class="hd-co">${docEsc(co.name||'')}</div></div>
+    <div class="hd-title">${docEsc(heading)}</div><div class="hd-sub">เรื่อง ${docEsc(d.title||'')}</div>
+    ${d.doc_no ? `<div class="hd-no">เลขที่ ${docEsc(d.doc_no)}</div>` : ''}
+    <div class="hd-body">${body}</div>
+    <div class="hd-date">${docEsc(short)} ณ วันที่ ${docThaiDate(d.doc_date)}</div>
+    <div class="hd-sigs">${issuer}${ack}</div>
+    <div class="hd-foot">${foot}</div></div>`;
+}
+function setDocsBadge(n){
+  const qa = document.getElementById('qaDocs'); if(!qa) return;
+  let b = document.getElementById('qaDocsBadge');
+  if(n > 0){
+    if(!b){ b = document.createElement('div'); b.className = 'qbadge'; b.id = 'qaDocsBadge'; qa.appendChild(b); }
+    b.textContent = n > 99 ? '99+' : String(n);
+  } else if(b) b.remove();
+  const ban = document.getElementById('docsBanner');
+  if(ban){
+    ban.classList.toggle('hidden', !(n > 0));
+    if(n > 0) ban.innerHTML = `<span>มีเอกสารบริษัทรอคุณเซ็นรับทราบ ${n} ฉบับ</span><span class="go">อ่านและเซ็น</span>`;
+  }
+}
+var docsRefreshAt = 0;
+async function refreshMyDocs(force){
+  const t = getStaffToken(); if(!t){ setDocsBadge(0); return null; }
+  if(!force && Date.now() - docsRefreshAt < 60000) return null;
+  docsRefreshAt = Date.now();
+  const r = await portalRpc('portal_my_documents', { p_token: t });
+  if(r && r.ok){ docsState.items = r.items || []; setDocsBadge(r.pending || 0); }
+  return r;
+}
+const docIsPending = (it)=> it.ack_required !== false && !it.signed_at;
+function docsSetHead(title, back){
+  document.getElementById('docsTitle').textContent = title;
+  document.getElementById('docsBackBtn').classList.toggle('hidden', !back);
+}
+function renderDocsList(){
+  docsState.doc = null;
+  docsSetHead('เอกสารบริษัท', false);
+  const pend = docsState.items.filter(docIsPending), done = docsState.items.filter(it=> !docIsPending(it));
+  const list = docsState.tab === 'pending' ? pend : done;
+  const groups = {};
+  list.forEach(it=> { (groups[it.doc_type] ||= []).push(it); });
+  const row = (it)=>{
+    const st = docIsPending(it) ? '<span class="st p">รอเซ็น</span>' : it.ack_required === false ? '<span class="st r">อ่านอย่างเดียว</span>' : '<span class="st s">เซ็นแล้ว</span>';
+    const meta = it.signed_at ? `เซ็นรับทราบ ${docDmyhm(it.signed_at)}` : `${it.doc_no||''} · ลงวันที่ ${docDmy(it.doc_date)}${it.ack_due && docIsPending(it) ? ` · ให้เซ็นภายใน ${docDmy(it.ack_due)}` : ''}`;
+    return `<div class="docrow" data-doc="${docEsc(it.id)}"><div class="t">${docEsc(it.title)}${st}</div><div class="m">${meta}</div></div>`;
+  };
+  let html = `<div class="doctabs"><button type="button" data-dtab="pending" class="${docsState.tab==='pending'?'on':''}">รอเซ็น (${pend.length})</button><button type="button" data-dtab="done" class="${docsState.tab==='done'?'on':''}">เซ็นแล้ว / อ่านแล้ว (${done.length})</button></div>`;
+  const keys = Object.keys(groups);
+  if(!keys.length) html += `<div class="empty">${docsState.tab==='pending' ? 'ไม่มีเอกสารที่รอเซ็น' : 'ยังไม่มีเอกสาร'}</div>`;
+  keys.forEach(k=> { html += `<div class="docgrp">${docEsc(DOC_TYPE_LABEL[k]||k)}</div>` + groups[k].map(row).join(''); });
+  const body = document.getElementById('docsBody');
+  body.innerHTML = html;
+  body.querySelectorAll('[data-dtab]').forEach(b=> b.onclick = ()=>{ docsState.tab = b.dataset.dtab; renderDocsList(); });
+  body.querySelectorAll('[data-doc]').forEach(b=> b.onclick = ()=> openDocRead(b.dataset.doc));
+}
+async function openDocsList(){
+  document.getElementById('docsOverlay').classList.add('show');
+  document.getElementById('docsBody').innerHTML = '<div class="empty">กำลังโหลด…</div>';
+  docsSetHead('เอกสารบริษัท', false);
+  const r = await refreshMyDocs(true);
+  if(r && r.ok === false){ document.getElementById('docsBody').innerHTML = `<div class="msg err">${docEsc(portalErrText(r))}</div>`; return; }
+  if(!docsState.items.filter(docIsPending).length) docsState.tab = 'done';
+  else docsState.tab = 'pending';
+  renderDocsList();
+}
+// ตัดพื้นที่ว่างรอบหมึก ให้ลายเซ็นอยู่กึ่งกลางช่องในเอกสาร (เหมือน trimSignature ใน ERP)
+function docTrimSignature(canvas){
+  const w = canvas.width, h = canvas.height, d = canvas.getContext('2d').getImageData(0,0,w,h).data;
+  let x0 = w, y0 = h, x1 = -1, y1 = -1;
+  for(let y=0; y<h; y++) for(let x=0; x<w; x++){
+    if(d[(y*w+x)*4+3] > 0){ if(x<x0) x0=x; if(x>x1) x1=x; if(y<y0) y0=y; if(y>y1) y1=y; }
+  }
+  if(x1 < 0) return canvas.toDataURL('image/png');
+  const pad = 12;
+  x0 = Math.max(0,x0-pad); y0 = Math.max(0,y0-pad); x1 = Math.min(w-1,x1+pad); y1 = Math.min(h-1,y1+pad);
+  const out = document.createElement('canvas'); out.width = x1-x0+1; out.height = y1-y0+1;
+  out.getContext('2d').drawImage(canvas, x0, y0, out.width, out.height, 0, 0, out.width, out.height);
+  return out.toDataURL('image/png');
+}
+function setupDocSignPad(canvas, onInk){
+  const ctx = canvas.getContext('2d');
+  ctx.lineWidth = 2.8; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#111';
+  let drawing = false, last = null;
+  const pos = (e)=>{ const r = canvas.getBoundingClientRect(); return { x:(e.clientX-r.left)*(canvas.width/r.width), y:(e.clientY-r.top)*(canvas.height/r.height) }; };
+  canvas.onpointerdown = (e)=>{ e.preventDefault(); drawing = true; last = pos(e); try{ canvas.setPointerCapture(e.pointerId); }catch(_){} };
+  canvas.onpointermove = (e)=>{ if(!drawing) return; e.preventDefault(); const p = pos(e); ctx.beginPath(); ctx.moveTo(last.x,last.y); ctx.lineTo(p.x,p.y); ctx.stroke(); last = p; onInk(true); };
+  canvas.onpointerup = canvas.onpointercancel = ()=>{ drawing = false; };
+  return ()=>{ ctx.clearRect(0,0,canvas.width,canvas.height); onInk(false); };
+}
+async function openDocRead(id){
+  const body = document.getElementById('docsBody');
+  docsSetHead('กำลังโหลด…', true);
+  body.innerHTML = '<div class="empty">กำลังโหลดเอกสาร…</div>';
+  try{ await loadDocLib('purify'); }catch(e){ body.innerHTML = `<div class="msg err">${docEsc(e.message)}</div>`; return; }
+  const r = await portalRpc('portal_document_get', { p_token: getStaffToken(), p_id: id });
+  if(!r || r.ok === false){ body.innerHTML = `<div class="msg err">${docEsc(portalErrText(r))}</div>`; return; }
+  docsState.doc = r;
+  const d = r.doc, me = r.me || {};
+  const needSign = d.ack_required !== false && !me.signed_at;
+  docsSetHead(DOC_TYPE_LABEL[d.doc_type] || 'เอกสาร', true);
+  let html = `<div class="docpaper">${docMarkup(r)}</div>`;
+  if(needSign){
+    html += `<div class="docsignbox"><div style="font-weight:700;">เซ็นรับทราบ</div>
+      <div class="hint" style="margin:2px 0 8px;">อ่านเอกสารด้านบนให้ครบ แล้วเซ็นชื่อด้วยนิ้วในกรอบ</div>
+      <canvas id="docSignCanvas" width="600" height="200"></canvas>
+      <button class="btn gray sm" type="button" id="docSignClear" style="margin-top:6px;">ล้างลายเซ็น</button>
+      <label class="chk"><input type="checkbox" id="docSignChk"><span>${docEsc(d.ack_label || 'ข้าพเจ้าได้อ่านและรับทราบเอกสารฉบับนี้แล้ว')}</span></label>
+      <div class="msg err" id="docSignMsg"></div>
+      <button class="btn block" type="button" id="docSignBtn" disabled>ข้าพเจ้ารับทราบ</button></div>`;
+  } else {
+    html += `<div class="hint" style="margin-top:10px;">${me.signed_at ? `คุณเซ็นรับทราบแล้วเมื่อ ${docDmyhm(me.signed_at)}` : 'เอกสารนี้ให้อ่านอย่างเดียว ไม่ต้องเซ็น'}</div>
+      <button class="btn block" type="button" id="docPdfBtn" style="margin-top:10px;">ดาวน์โหลด PDF</button><div class="msg err" id="docPdfMsg"></div>`;
+  }
+  body.innerHTML = html;
+  body.scrollTop = 0; body.closest('.modal').scrollTop = 0;
+  if(needSign){
+    let inked = false;
+    const btn = document.getElementById('docSignBtn'), chk = document.getElementById('docSignChk');
+    const upd = ()=>{ btn.disabled = !(inked && chk.checked); };
+    const clear = setupDocSignPad(document.getElementById('docSignCanvas'), (v)=>{ inked = v; upd(); });
+    document.getElementById('docSignClear').onclick = clear;
+    chk.onchange = upd;
+    btn.onclick = async ()=>{
+      const msg = document.getElementById('docSignMsg'); msg.textContent = '';
+      btn.disabled = true; btn.textContent = 'กำลังบันทึก…';
+      const sig = docTrimSignature(document.getElementById('docSignCanvas'));
+      const meta = { ua: navigator.userAgent.slice(0,300), screen: `${screen.width}x${screen.height}`, hash: d.content_hash || null, at_client: new Date().toISOString() };
+      const s = await portalRpc('portal_document_sign', { p_token: getStaffToken(), p_id: d.id, p_signature: sig, p_meta: meta });
+      if(!s || s.ok === false){
+        msg.textContent = portalErrText(s); btn.textContent = 'ข้าพเจ้ารับทราบ'; upd();
+        if(s && s.error === 'ALREADY_SIGNED') openDocRead(d.id);
+        return;
+      }
+      refreshMyDocs(true);
+      if(typeof showToast === 'function') showToast('เซ็นรับทราบเรียบร้อย');
+      openDocRead(d.id);
+    };
+  } else {
+    document.getElementById('docPdfBtn').onclick = ()=> downloadDocPdf();
+  }
+}
+async function downloadDocPdf(){
+  const r = docsState.doc; if(!r) return;
+  const btn = document.getElementById('docPdfBtn'), msg = document.getElementById('docPdfMsg');
+  btn.disabled = true; btn.textContent = 'กำลังสร้าง PDF…'; msg.textContent = '';
+  const host = document.createElement('div');
+  host.setAttribute('aria-hidden','true');
+  host.style.cssText = 'position:fixed;left:-30000px;top:0;width:186mm;background:#fff;pointer-events:none;';
+  host.innerHTML = docMarkup(r);
+  document.body.appendChild(host);
+  try{
+    await loadDocLib('pdf');
+    if(document.fonts && document.fonts.ready) await Promise.race([document.fonts.ready, new Promise(x=> setTimeout(x, 2500))]);
+    const base = String(r.doc.doc_no || 'doc').replace(/[^0-9A-Za-z฀-๿-]+/g, '-');
+    await window.html2pdf().set({
+      margin:[12,12,12,12], filename:`${base}_${(r.me && r.me.employee_code) || 'staff'}.pdf`,
+      image:{ type:'jpeg', quality:0.95 }, html2canvas:{ scale:2, useCORS:true, backgroundColor:'#ffffff' },
+      jsPDF:{ unit:'mm', format:'a4', orientation:'portrait' }, pagebreak:{ mode:['css','legacy'], avoid:['.hd-sigs','tr'] },
+    }).from(host.querySelector('.hd-page')).save();
+  }catch(e){ msg.textContent = 'สร้าง PDF ไม่สำเร็จ: ' + (e.message || e); }
+  host.remove();
+  btn.disabled = false; btn.textContent = 'ดาวน์โหลด PDF';
+}
+document.getElementById('qaDocs').onclick = openDocsList;
+document.getElementById('docsBanner').onclick = openDocsList;
+document.getElementById('docsCloseBtn').onclick = ()=>{ document.getElementById('docsOverlay').classList.remove('show'); docsState.doc = null; };
+document.getElementById('docsBackBtn').onclick = ()=> renderDocsList();
 // เงินของฉัน แบ่งแท็บ ค่าคอม | เงินเดือน | หนี้ — แสดงครบ 3 แท็บเสมอ (ผู้บริหาร 07/11/2569)
 let moneyTab = 'comm';
 function setMoneyTab(t){
