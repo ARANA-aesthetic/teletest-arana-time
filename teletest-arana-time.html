@@ -3490,7 +3490,7 @@ function docTrimSignature(canvas){
 }
 function setupDocSignPad(canvas, onInk){
   const ctx = canvas.getContext('2d');
-  ctx.lineWidth = 2.8; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#111';
+  ctx.lineWidth = 3.6; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#1F3A93'; // หมึกน้ำเงิน เส้นหนาขึ้น (ออม 18/11/2569)
   let drawing = false, last = null;
   const pos = (e)=>{ const r = canvas.getBoundingClientRect(); return { x:(e.clientX-r.left)*(canvas.width/r.width), y:(e.clientY-r.top)*(canvas.height/r.height) }; };
   canvas.onpointerdown = (e)=>{ e.preventDefault(); drawing = true; last = pos(e); try{ canvas.setPointerCapture(e.pointerId); }catch(_){} };
