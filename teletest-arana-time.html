@@ -972,11 +972,19 @@
       </div>
       <div id="mtabSalary" class="hidden">
       <section>
+        <div class="sectitle" id="moneyPaidTitle">รวมที่ได้รับ</div>
+        <div class="card" id="moneyPaid" style="padding:16px;"></div>
+      </section>
+      <section>
         <div class="sectitle">คาดการณ์เงินเดือน</div>
         <div class="card" id="commSummary" style="padding:16px;"></div>
       </section>
+      <section id="moneyWeeklySec" class="hidden">
+        <div class="sectitle">สลิปค่าจ้างรายสัปดาห์</div>
+        <div class="card" id="moneyWeeklySlips" style="padding:0 16px;"></div>
+      </section>
       <section>
-        <div class="sectitle">สลิปเงินเดือน</div>
+        <div class="sectitle">สลิปเงินเดือน (รายเดือน)</div>
         <div class="card" id="moneySlips" style="padding:0 16px;"></div>
       </section>
       </div>
@@ -5016,7 +5024,7 @@ async function renderMoneyTab(){
   const today = dateKey(new Date());
   const to = rg.to > today ? today : rg.to;
   const from = rg.from > to ? to : rg.from;
-  const ids = ['commTotals','commSummary','commList','moneyUpsell','moneyFollow','moneyDebt','moneySlips'];
+  const ids = ['commTotals','commSummary','commList','moneyUpsell','moneyFollow','moneyDebt','moneySlips','moneyPaid','moneyWeeklySlips'];
   ids.forEach(id=>{ const el = document.getElementById(id); if(el) el.innerHTML = moneyEmpty('กำลังโหลด…'); });
   document.getElementById('moneyMsg').textContent = '';
   const token = getStaffToken();
@@ -5024,11 +5032,13 @@ async function renderMoneyTab(){
   const cyc = (empFilterMode === 'month' || empFilterMode === 'lastmonth') ? commCycleRange(empFilterMode) : null;
   const cTo = cyc ? (cyc.to > today ? today : cyc.to) : to;
   const cFrom = cyc ? (cyc.from > cTo ? cTo : cyc.from) : from;
-  const [c, m, sso, mc] = await Promise.all([
+  const [c, m, sso, mc, wk] = await Promise.all([
     portalRpc('portal_my_commission', { p_token: token, p_from: cFrom, p_to: cTo }),
     portalRpc('portal_my_money', { p_token: token, p_from: from, p_to: to }),
     portalRpc('portal_my_sso', { p_token: token }),
     cyc ? portalRpc('portal_my_money', { p_token: token, p_from: cFrom, p_to: cTo }) : Promise.resolve(null),
+    // สลิปรายสัปดาห์ + ยอดสะสมทั้งปี + เงินประกันสะสม (ERP 00304) — โหลดไม่ได้ = ไม่แสดงส่วนนี้ ไม่ขวางส่วนอื่น
+    portalRpc('portal_my_weekly_pay', { p_token: token, p_from: from, p_to: to }).catch(()=>null),
   ]);
   if(seq !== moneySeq) return; // เปลี่ยนช่วงวันที่ระหว่างโหลด — ใช้ผลรอบล่าสุดเท่านั้น
   const bad = [c, m].find(r=>!r || r.ok===false);
@@ -5115,6 +5125,42 @@ async function renderMoneyTab(){
   const sbl = document.getElementById('slipBackLink');
   if(sbl) sbl.onclick = (e)=>{ e.preventDefault(); const sel = document.getElementById('empFilterPreset_money'); sel.value = 'year'; sel.dispatchEvent(new Event('change')); };
   document.querySelectorAll('#moneySlips [data-slipidx]').forEach(b=> b.onclick = ()=> openSlip(moneySlipsCache[Number(b.dataset.slipidx)]));
+  renderWeeklyPay(wk, from, to);
+}
+// สลิปรายสัปดาห์ + กล่อง "รวมที่ได้รับ" แยกรายสัปดาห์/รายเดือน + เงินประกันสะสม (ERP ชุด ง 20/11/2569)
+// คนที่เปลี่ยนจากรายสัปดาห์เป็นรายเดือนกลางเดือน จะเห็นทั้ง 2 บรรทัด
+let moneyWeeklyCache = [];
+let moneyYtdCache = null;
+function renderWeeklyPay(wk, from, to){
+  const ok = wk && wk.ok !== false;
+  moneyWeeklyCache = ok && Array.isArray(wk.weekly_slips) ? wk.weekly_slips : [];
+  moneyYtdCache = ok ? (wk.ytd || null) : null;
+  const sec = document.getElementById('moneyWeeklySec');
+  const isWeekly = ok && wk.pay_mode === 'weekly';
+  if(sec) sec.classList.toggle('hidden', !(moneyWeeklyCache.length || isWeekly));
+  const wl = document.getElementById('moneyWeeklySlips');
+  if(wl) wl.innerHTML = moneyWeeklyCache.length
+    ? moneyList(moneyWeeklyCache.map((s,i)=>`<div class="listrow" style="padding:10px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:8px;">
+        <div><b style="font-size:14px;">${moneyDate(s.period_from)} – ${moneyDate(s.period_to)}</b><div style="font-size:12px;color:var(--muted);">รับสุทธิ ${commMoney(s.net_pay)}${s.pay_date?` · จ่าย ${moneyDate(s.pay_date)}`:''}</div></div>
+        <button class="btn sm" type="button" data-wslipidx="${i}">ดู / บันทึก</button></div>`), 4)
+    : moneyEmpty('ยังไม่มีสลิปรายสัปดาห์ในช่วงนี้');
+  document.querySelectorAll('#moneyWeeklySlips [data-wslipidx]').forEach(b=> b.onclick = ()=> openWeeklySlip(moneyWeeklyCache[Number(b.dataset.wslipidx)]));
+
+  // กล่องรวมที่ได้รับ: ช่วงอยู่ในเดือนเดียว → "เดือน …" · ช่วงอื่น → ตามวันที่เลือก
+  const sameMonth = String(from).slice(0,7) === String(to).slice(0,7);
+  const [yy, mm] = String(to).slice(0,10).split('-').map(Number);
+  document.getElementById('moneyPaidTitle').textContent = sameMonth ? `รวมที่ได้รับเดือน ${TH_MONTHS_FULL_SAFE[mm-1]} ${yy+543}` : `รวมที่ได้รับ ${moneyDate(from)} – ${moneyDate(to)}`;
+  const wSum = moneyWeeklyCache.reduce((a,s)=>a+(Number(s.net_pay)||0),0);
+  const mSum = moneySlipsCache.reduce((a,s)=>a+(Number(s.net_pay)||0),0);
+  const dep = ok ? (wk.deposit_total || {}) : {};
+  const y = moneyYtdCache;
+  document.getElementById('moneyPaid').innerHTML =
+      moneyRow(`ค่าจ้างรายสัปดาห์${moneyWeeklyCache.length?` (${moneyWeeklyCache.length} รอบ)`:''}`, wSum)
+    + moneyRow(`เงินเดือนรายเดือน${moneySlipsCache.length?` (${moneySlipsCache.length} เดือน)`:''}`, mSum)
+    + moneyRow('รวมรับสุทธิ', wSum + mSum, true)
+    + ((Number(dep.total)||0) > 0 || isWeekly ? `<div style="display:flex;justify-content:space-between;gap:8px;padding:8px 0 0;font-size:14px;color:var(--pink-dark);font-weight:600;"><span>เงินประกันสะสม</span><span style="white-space:nowrap;">${commMoney(dep.total)}</span></div>` : '')
+    + (y ? `<div style="font-size:12px;color:var(--muted);margin-top:8px;line-height:1.6;">ยอดสะสมทั้งปี ${(Number(y.year)||0)+543} (ถึงวันนี้): เงินได้ ${commMoney(y.income)} · ประกันสังคม ${commMoney(y.sso)}${Number(y.wht)?` · ภาษีหัก ณ ที่จ่าย ${commMoney(y.wht)}`:''}</div>` : '')
+    + `<div style="font-size:11.5px;color:var(--muted);margin-top:4px;line-height:1.5;">นับเฉพาะรอบที่อนุมัติแล้ว</div>`;
 }
 // ค่าคอม KPI ผู้จัดการ (ผู้บริหาร 07/11/2569) — คิดแยกสาขา: ยอดรอบ 26–25 เทียบเป้า = เฉลี่ย 6 เดือนปฏิทินก่อนหน้า (1–สิ้นเดือน, ผู้บริหาร 08/11/2569)
 // รอบที่ยังไม่จบ = คาดการณ์ (ยอดถึงวันนี้ เดินต่อด้วยอัตราเดิมจนวันที่ 25) · TopUp รอผู้บริหารอนุมัติ · สาขาที่เปิดไม่ครบ 6 รอบ = ยังไม่มีสถิติ
@@ -5318,31 +5364,73 @@ async function renderHomeMoney(){
 }
 const TH_MONTHS_SAFE_SHORT = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
 
-// เปิดสลิปในหน้าต่างใหม่ → พิมพ์ / บันทึกเป็น PDF ได้จากเมนูของเครื่อง
-function openSlip(s){
-  if(!s) return;
-  const r = (l, v) => Number(v) ? `<tr><td>${l}</td><td class="n">${commMoney(v)}</td></tr>` : '';
-  const extra = (Array.isArray(s.pay_items) ? s.pay_items : []).map(p=>r(moneyEsc(p.category||p.name||'รายการ')+(p.kind==='deduct'?' (หัก)':''), p.amount)).join('');
-  const html = `<!doctype html><html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>สลิปเงินเดือน ${TH_MONTHS_FULL_SAFE[(s.month||1)-1]} ${(s.year||0)+543}</title>
-<style>body{font-family:'Sarabun','Prompt',sans-serif;margin:0;padding:24px;color:#111;background:#fff;}h1{font-size:18px;margin:0 0 4px;}
-.m{color:#555;font-size:13px;margin-bottom:14px;}table{width:100%;border-collapse:collapse;font-size:14px;margin-bottom:12px;}
-td{padding:6px 4px;border-bottom:1px solid #eee;}td.n{text-align:right;white-space:nowrap;}th{text-align:left;font-size:13px;color:#555;padding:8px 4px 4px;}
-.net{font-size:18px;font-weight:700;display:flex;justify-content:space-between;border-top:2px solid #111;padding-top:10px;}
-.btn{margin-top:18px;padding:10px 16px;border-radius:10px;border:none;background:#b5487a;color:#fff;font-size:15px;}
-@media print{.btn{display:none;}body{padding:0;}}</style></head><body>
-<h1>สลิปเงินเดือน ${TH_MONTHS_FULL_SAFE[(s.month||1)-1]} ${(s.year||0)+543}</h1>
-<div class="m">${moneyEsc(s.name)} · ${moneyEsc(s.emp_code)}${s.position?` · ${moneyEsc(s.position)}`:''}${s.branch?` · ${moneyEsc(s.branch)}`:''}${s.pay_date?`<br>วันที่จ่าย ${moneyDate(s.pay_date)}`:''}${s.bank?` · ${moneyEsc(s.bank)}`:''}</div>
-<table><tr><th colspan="2">รายได้</th></tr>${r('เงินเดือน', s.base_salary)}${r('OT', s.ot)}${r('ค่าคอมมิชชั่น', s.commission)}${r('ค่ามือ', s.hand_fee)}${r('โบนัส', s.bonus)}${r('เงินเพิ่ม', s.allowance)}
-<tr><td><b>รวมรายได้</b></td><td class="n"><b>${commMoney(s.gross_income)}</b></td></tr></table>
-<table><tr><th colspan="2">รายการหัก</th></tr>${r('ประกันสังคม', s.sso)}${r('ภาษีหัก ณ ที่จ่าย', s.wht)}${r('หักมาสาย', s.late_deduct)}${r('หักขาดงาน', s.absent_deduct)}${r('หักลาเกินสิทธิ์', s.over_leave_deduct)}${r('หักอื่น ๆ', s.other_deduct)}</table>
-${extra?`<table><tr><th colspan="2">รายละเอียดเงินเพิ่ม/เงินหัก</th></tr>${extra}</table>`:''}
-<div class="net"><span>รับสุทธิ</span><span>${commMoney(s.net_pay)}</span></div>
+// สลิปแบบใหม่ (ERP ชุด ง 20/11/2569): ใช้ร่วมกันทั้งสลิปรายเดือนและรายสัปดาห์
+// หัว · ข้อมูลพนักงาน (ชื่อ(รหัส) / ตำแหน่ง / งวด / วันที่จ่าย / บัญชี) · เงินได้ / รายการหัก / ยอดสะสมทั้งปี · รับสุทธิ
+function staffSlipHTML(o){
+  const rows = arr => arr.length ? arr.map(([l,v])=>`<tr><td>${moneyEsc(l)}</td><td class="n">${commMoney(v)}</td></tr>`).join('') : `<tr><td class="mu">ไม่มีรายการ</td><td class="n mu">0.00</td></tr>`;
+  const y = o.ytd;
+  const ytdRows = [['เงินได้สะสม', y&&y.income], ['ภาษีหัก ณ ที่จ่ายสะสม', y&&y.wht], ['ประกันสังคมสะสม', y&&y.sso], ['กองทุนสงเคราะห์สะสม', y&&y.fund]]
+    .map(([l,v])=>`<tr><td>${l}</td><td class="n">${y?commMoney(v):'-'}</td></tr>`).join('');
+  return `<!doctype html><html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${moneyEsc(o.title)} ${moneyEsc(o.period)}</title>
+<style>*{box-sizing:border-box}body{font-family:'Sarabun','Prompt',sans-serif;margin:0;padding:18px;color:#1F2937;background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.doc{max-width:780px;margin:0 auto}.hd{display:flex;justify-content:space-between;align-items:center;gap:12px;padding-bottom:10px;border-bottom:2.5px solid #D9366F}
+.br{display:flex;gap:10px;align-items:center}.mk{width:46px;height:46px;border-radius:12px;background:linear-gradient(140deg,#F25C93,#B81E5A);color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:800;font-size:20px;line-height:1}.mk i{font-style:normal;font-size:6.5px;letter-spacing:1.3px;margin-top:2px}
+.cn{font-size:15px;font-weight:800}.tt{text-align:right}.tt b{display:block;font-size:17px;color:#B81E5A}.tt span{display:inline-block;margin-top:4px;padding:2px 10px;border-radius:20px;background:#FDEEF4;color:#B81E5A;font-size:12px;font-weight:700}
+.info{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));margin-top:10px;border:1px solid #F0D3DF;border-radius:10px;overflow:hidden;background:#FFFBFD}
+.info>div{padding:7px 11px;border-right:1px solid #F5E1E9;border-bottom:1px solid #F5E1E9}.info .k{font-size:10px;color:#9D6B80;font-weight:700}.info .v{font-size:13px;font-weight:700;margin-top:1px;word-break:break-word}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-top:10px}.col{border:1px solid #E5E7EB;border-radius:10px;overflow:hidden}
+.col h2{margin:0;font-size:12.5px;padding:7px 10px}.in h2{background:#FDEEF4;color:#B81E5A}.de h2{background:#F1F5F9;color:#334155}.yt h2{background:#F5F3FF;color:#5B21B6}
+table{width:100%;border-collapse:collapse;font-size:13px}td{padding:6px 10px;border-top:1px solid #F3F4F6;vertical-align:top}td.n{text-align:right;white-space:nowrap;font-weight:600}.yt td.n{color:#5B21B6}.mu{color:#9CA3AF}
+tr.s td{border-top:1.5px solid #E5E7EB;background:#FAFAFA;font-weight:800}.yt .note{font-size:10.5px;color:#6B7280;padding:6px 10px;border-top:1px solid #F3F4F6}
+.net{margin-top:10px;border-radius:12px;background:#FDEEF4;border:1.5px solid #F25C93;display:flex;justify-content:space-between;align-items:center;padding:11px 14px}.net b{color:#B81E5A}.net .r{font-size:22px;font-weight:800;color:#B81E5A;white-space:nowrap}
+.ft{margin-top:10px;font-size:10.5px;color:#6B7280;text-align:center;line-height:1.6}.btn{display:block;margin:16px auto 0;padding:10px 18px;border-radius:10px;border:none;background:#b5487a;color:#fff;font-size:15px;font-family:inherit}
+@media print{.btn{display:none}body{padding:0}}</style></head><body><div class="doc">
+<div class="hd"><div class="br"><div class="mk">A<i>ARANA</i></div><div class="cn">ARANA Clinic</div></div><div class="tt"><b>${moneyEsc(o.title)}</b><span>งวด ${moneyEsc(o.period)}</span></div></div>
+<div class="info">${o.info.map(([k,v])=>`<div><div class="k">${moneyEsc(k)}</div><div class="v">${moneyEsc(v||'-')}</div></div>`).join('')}</div>
+<div class="cols">
+<div class="col in"><h2>เงินได้</h2><table>${rows(o.inc)}<tr class="s"><td>รวมเงินได้</td><td class="n">${commMoney(o.totalIn)}</td></tr></table></div>
+<div class="col de"><h2>รายการหัก</h2><table>${rows(o.ded)}<tr class="s"><td>รวมรายการหัก</td><td class="n">${commMoney(o.totalDed)}</td></tr></table></div>
+<div class="col yt"><h2>ยอดสะสมทั้งปี</h2><table>${ytdRows}</table><div class="note">${y?`ปี ${(Number(y.year)||0)+543} นับถึงวันนี้`:'ยังไม่มีข้อมูลยอดสะสม'}</div></div>
+</div>
+<div class="net"><b>รับสุทธิ</b><span class="r">${commMoney(o.net)} <small style="font-size:12px;">บาท</small></span></div>
+<div class="ft">เอกสารลับเฉพาะบุคคล · หากรายการไม่ถูกต้อง โปรดติดต่อฝ่ายบุคคลภายใน 7 วัน</div>
 <button class="btn" onclick="window.print()">บันทึกเป็น PDF / พิมพ์</button>
-</body></html>`;
+</div></body></html>`;
+}
+function openSlipWindow(html){
   const w = window.open('', '_blank');
   if(!w){ alert('เบราว์เซอร์บล็อกหน้าต่างใหม่ — กรุณาอนุญาตป๊อปอัปแล้วลองอีกครั้ง'); return; }
   w.document.open(); w.document.write(html); w.document.close();
+}
+const slipNz = arr => arr.filter(([,v])=>Number(v));
+// สลิปเงินเดือนรายเดือน → หน้าต่างใหม่ พิมพ์ / บันทึกเป็น PDF ได้จากเมนูของเครื่อง
+function openSlip(s){
+  if(!s) return;
+  const items = Array.isArray(s.pay_items) ? s.pay_items : [];
+  const period = `${TH_MONTHS_FULL_SAFE[(s.month||1)-1]} ${(s.year||0)+543}`;
+  const inc = slipNz([['เงินเดือน', s.base_salary], ['ค่าล่วงเวลา (OT)', s.ot], ['ค่าคอมมิชชั่น', s.commission], ['ค่ามือ', s.hand_fee], ['โบนัส', s.bonus], ['เงินเพิ่ม', s.allowance]]);
+  const lines = items.filter(p=>p.kind==='deduct').map(p=>[p.category||p.name||'รายการหัก', p.amount]);
+  const lineSum = lines.reduce((a,[,v])=>a+(Number(v)||0),0);
+  const otherLeft = (Number(s.other_deduct)||0) - lineSum;
+  const ded = slipNz([['ประกันสังคม', s.sso], ['ภาษีหัก ณ ที่จ่าย', s.wht], ['หักมาสาย', s.late_deduct], ['หักขาดงาน', s.absent_deduct], ['หักลาเกินสิทธิ์', s.over_leave_deduct], ...lines, ['หักอื่น ๆ', otherLeft > 0.004 ? otherLeft : 0]]);
+  const totalIn = inc.reduce((a,[,v])=>a+(Number(v)||0),0); // ก่อนหักมาสาย/ขาด/ลาเกิน (หักแสดงฝั่งรายการหัก)
+  const totalDed = totalIn - (Number(s.net_pay)||0);
+  openSlipWindow(staffSlipHTML({ title:'สลิปเงินเดือน', period,
+    info:[['ชื่อ–นามสกุล (รหัส)', `${s.name||''}${s.emp_code?` (${s.emp_code})`:''}`], ['ตำแหน่ง / สาขา', [s.position, s.branch].filter(Boolean).join(' / ')], ['วันที่จ่าย', s.pay_date?moneyDate(s.pay_date):'-'], ['บัญชีรับเงิน', s.bank||'-']],
+    inc, ded, totalIn, totalDed, net:s.net_pay, ytd: moneyYtdCache }));
+}
+// สลิปค่าจ้างรายสัปดาห์
+function openWeeklySlip(s){
+  if(!s) return;
+  const period = `${moneyDate(s.period_from)} – ${moneyDate(s.period_to)}`;
+  const inc = slipNz([[`ค่าจ้าง ${Number(s.work_days)||0} วัน × ${commMoney(s.daily_rate)}`, s.wage], ['ค่าล่วงเวลา (OT)', s.ot]]);
+  const ded = slipNz([['หักลา (ไม่ได้รับค่าจ้าง)', s.leave_deduct], ['ประกันสังคม', s.sso], ['เงินประกันพนักงาน', s.deposit], ['หักอื่น ๆ', s.other_deduct]]);
+  const totalIn = (Number(s.wage)||0) + (Number(s.ot)||0);
+  const totalDed = ded.reduce((a,[,v])=>a+(Number(v)||0),0);
+  openSlipWindow(staffSlipHTML({ title:'สลิปค่าจ้างรายสัปดาห์', period,
+    info:[['ชื่อ–นามสกุล (รหัส)', `${s.name||''}${s.emp_code?` (${s.emp_code})`:''}`], ['ตำแหน่ง / สาขา', [s.position, s.branch].filter(Boolean).join(' / ')], ['วันที่จ่าย', s.pay_date?moneyDate(s.pay_date):'-'], ['บัญชีรับเงิน', s.bank||'-']],
+    inc, ded, totalIn, totalDed, net:s.net_pay, ytd: moneyYtdCache }));
 }
 
 function renderProfileTab(){
