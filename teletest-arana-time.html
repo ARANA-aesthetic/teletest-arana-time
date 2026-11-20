@@ -5374,7 +5374,7 @@ function staffSlipHTML(o){
   return `<!doctype html><html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${moneyEsc(o.title)} ${moneyEsc(o.period)}</title>
 <style>*{box-sizing:border-box}body{font-family:'Sarabun','Prompt',sans-serif;margin:0;padding:18px;color:#1F2937;background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-.doc{max-width:780px;margin:0 auto}.hd{display:flex;justify-content:space-between;align-items:center;gap:12px;padding-bottom:10px;border-bottom:2.5px solid #D9366F}
+.doc{max-width:780px;margin:0 auto}.hd{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:12px;padding-bottom:10px;border-bottom:2.5px solid #D9366F}
 .br{display:flex;gap:10px;align-items:center}.mk{width:46px;height:46px;border-radius:12px;background:linear-gradient(140deg,#F25C93,#B81E5A);color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:800;font-size:20px;line-height:1}.mk i{font-style:normal;font-size:6.5px;letter-spacing:1.3px;margin-top:2px}
 .cn{font-size:15px;font-weight:800}.tt{text-align:right}.tt b{display:block;font-size:17px;color:#B81E5A}.tt span{display:inline-block;margin-top:4px;padding:2px 10px;border-radius:20px;background:#FDEEF4;color:#B81E5A;font-size:12px;font-weight:700}
 .info{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));margin-top:10px;border:1px solid #F0D3DF;border-radius:10px;overflow:hidden;background:#FFFBFD}
@@ -5385,7 +5385,7 @@ table{width:100%;border-collapse:collapse;font-size:13px}td{padding:6px 10px;bor
 tr.s td{border-top:1.5px solid #E5E7EB;background:#FAFAFA;font-weight:800}.yt .note{font-size:10.5px;color:#6B7280;padding:6px 10px;border-top:1px solid #F3F4F6}
 .net{margin-top:10px;border-radius:12px;background:#FDEEF4;border:1.5px solid #F25C93;display:flex;justify-content:space-between;align-items:center;padding:11px 14px}.net b{color:#B81E5A}.net .r{font-size:22px;font-weight:800;color:#B81E5A;white-space:nowrap}
 .ft{margin-top:10px;font-size:10.5px;color:#6B7280;text-align:center;line-height:1.6}.btn{display:block;margin:16px auto 0;padding:10px 18px;border-radius:10px;border:none;background:#b5487a;color:#fff;font-size:15px;font-family:inherit}
-@media print{.btn{display:none}body{padding:0}}</style></head><body><div class="doc">
+@media(max-width:560px){.tt{text-align:left}.cols{grid-template-columns:1fr}}@media print{.btn{display:none}body{padding:0}}</style></head><body><div class="doc">
 <div class="hd"><div class="br"><div class="mk">A<i>ARANA</i></div><div class="cn">ARANA Clinic</div></div><div class="tt"><b>${moneyEsc(o.title)}</b><span>งวด ${moneyEsc(o.period)}</span></div></div>
 <div class="info">${o.info.map(([k,v])=>`<div><div class="k">${moneyEsc(k)}</div><div class="v">${moneyEsc(v||'-')}</div></div>`).join('')}</div>
 <div class="cols">
