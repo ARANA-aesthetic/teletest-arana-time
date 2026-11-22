@@ -2625,7 +2625,9 @@ async function saveDB(){
 }
 
 async function saveLogRow(row){ return await sbUpsertRow('logs', logToRow(row)); }
-async function saveLeaveRow(row){ await sbUpsertRow('leaves', leaveToRow(row)); }
+async function saveLeaveRow(row){ return await sbUpsertRow('leaves', leaveToRow(row)); }
+// ข้อความจากฐานข้อมูลเมื่อบันทึกใบลาไม่ได้ (เช่น ลากิจไม่หักเงินเกินโควตาต่อปี · ERP 00314)
+function dbErrText(r){ try{ return JSON.parse(r.error).message || r.error; }catch(e){ return (r && r.error) || 'ไม่ทราบสาเหตุ'; } }
 async function saveOtRow(row){ await sbUpsertRow('ot_requests', otToRow(row)); }
 async function saveWarningLetterRow(row){ await sbUpsertRow('warning_letters', warningLetterToRow(row)); }
 async function saveCompanyRow(row){ await sbUpsertRow('companies', companyToRow(row)); }
@@ -4142,8 +4144,9 @@ document.getElementById('saveAdminLeaveEditBtn').onclick = async ()=>{
       status, requestedAt:nowIso, decidedAt: status==='pending' ? null : nowIso,
       evidenceSent:null, evidenceFileId:null
     };
+    const saved = await saveLeaveRow(row);
+    if(!saved.ok){ msg.className='msg err'; msg.textContent='บันทึกไม่สำเร็จ: '+dbErrText(saved); return; }
     db.leaves.push(row);
-    await saveLeaveRow(row);
     await logAudit('create_by_admin', 'leave', row.id, `HR เพิ่มใบลาแทนพนักงาน ${emp.name}: ${leaveLabel(kind)} ${leaveRangeText(row)} (สถานะ ${leaveStatusLabel(status)})`);
     document.getElementById('adminLeaveEditOverlay').classList.remove('show');
     renderLeaveLists(); renderOverviewStats();
@@ -4152,11 +4155,13 @@ document.getElementById('saveAdminLeaveEditBtn').onclick = async ()=>{
   }
   const before = `${leaveLabel(leave.kind)} ${leaveRangeText(leave)}`;
   const oldFrom = leave.from, employeeId = leave.employeeId;
+  const keep = {kind:leave.kind, from:leave.from, to:leave.to, hourStart:leave.hourStart, hourEnd:leave.hourEnd, reason:leave.reason};
   Object.assign(leave, {kind, from, to, hourStart, hourEnd, reason});
   const after = `${leaveLabel(leave.kind)} ${leaveRangeText(leave)}`;
   // ใช้ PATCH แก้เฉพาะคอลัมน์ที่ HR แก้จริง — กันไม่ให้ evidence_file_id/evidence_sent ที่อาจเพิ่ง
   // ถูกเซ็ตจากเครื่องพนักงาน (ขณะที่หน้าจอ HR ยังถือข้อมูลเก่าค้างไว้) ถูกเขียนทับหายไป
-  await sbPatchRow('leaves', leave.id, { kind: leave.kind, from_date: leave.from, to_date: leave.to, from_time: leave.hourStart||null, to_time: leave.hourEnd||null, reason: leave.reason||null });
+  const patched = await sbPatchRow('leaves', leave.id, { kind: leave.kind, from_date: leave.from, to_date: leave.to, from_time: leave.hourStart||null, to_time: leave.hourEnd||null, reason: leave.reason||null });
+  if(!patched.ok){ Object.assign(leave, keep); msg.className='msg err'; msg.textContent='บันทึกไม่สำเร็จ: '+dbErrText(patched); return; }
   await logAudit('edit_by_admin', 'leave', leave.id, `HR แก้ไขข้อมูลใบลาโดยตรง: ${before} → ${after}`);
   document.getElementById('adminLeaveEditOverlay').classList.remove('show');
   adminEditingLeaveId = null;
@@ -4299,7 +4304,10 @@ document.getElementById('submitLeaveBtn').onclick = async ()=>{
   if(editingLeaveId){
     const leave = db.leaves.find(l=>l.id===editingLeaveId);
     if(!leave || leave.status!=='pending'){ msg.className='msg err'; msg.textContent='ไม่สามารถแก้ไขได้ (อาจถูกอนุมัติ/ปฏิเสธไปแล้ว)'; return; }
+    const keep = {kind:leave.kind, from:leave.from, to:leave.to, hourStart:leave.hourStart, hourEnd:leave.hourEnd, reason:leave.reason, holidayDates:leave.holidayDates};
     Object.assign(leave, {kind, from, to, hourStart, hourEnd, reason, holidayDates});
+    const savedEdit = await saveLeaveRow(leave);
+    if(!savedEdit.ok){ Object.assign(leave, keep); msg.className='msg err'; msg.textContent='บันทึกไม่สำเร็จ: '+dbErrText(savedEdit); return; }
     if(evidenceFile){
       const caption = `<b>${notifyName(emp)}</b> แก้ไขหลักฐาน${leaveLabel(kind)} ${leaveRangeText(leave)} (♻️ รูปแก้ไข)\nเหตุผล: ${reason||'-'}`;
       const r = await tgSendPhoto(db.settings.centralToken, db.settings.centralChatId, evidenceFile, caption);
@@ -4321,7 +4329,9 @@ document.getElementById('submitLeaveBtn').onclick = async ()=>{
     locationAddress = await reverseGeocodeThai(pos.lat, pos.lng);
   }
   const leave = {id:uid(), employeeId:emp.id, kind, from, to, hourStart, hourEnd, reason, holidayDates, status:'pending', requestedAt:new Date().toISOString(), evidenceSent:null, evidenceFileId:null, locationLat, locationLng, locationAddress};
-  db.leaves.push(leave); await saveLeaveRow(leave);
+  const savedNew = await saveLeaveRow(leave);
+  if(!savedNew.ok){ msg.className='msg err'; msg.textContent='ส่งใบลาไม่สำเร็จ: '+dbErrText(savedNew); return; }
+  db.leaves.push(leave);
   clearLeaveDraft();
   msg.className='msg ok'; msg.textContent='ส่งใบลาเรียบร้อย รออนุมัติจาก HR';
   showSubmitSuccessPopup(`${leaveLabel(kind)} ${leaveRangeText(leave)}\nไม่ต้องส่งซ้ำ — ระบบส่งคำขอเข้ากลุ่มรออนุมัติแล้ว`);
@@ -7320,6 +7330,7 @@ async function decideLeaveEdit(id, decision){
   const oldText = `${leaveLabel(leave.kind)} ${leaveRangeText(leave)}`;
   const emp = db.employees.find(e=>e.id===leave.employeeId);
   const br = db.branches.find(b=>b.id===emp?.branchId);
+  const keep = {kind:leave.kind, from:leave.from, to:leave.to, hourStart:leave.hourStart, hourEnd:leave.hourEnd, reason:leave.reason, editRequest:er};
   if(decision==='approved'){
     Object.assign(leave, {kind:er.kind, from:er.from, to:er.to, hourStart:er.hourStart, hourEnd:er.hourEnd, reason:er.reason});
   }
@@ -7329,7 +7340,8 @@ async function decideLeaveEdit(id, decision){
   // จากเครื่องพนักงาน (ขณะหน้าจอ HR ยังถือข้อมูลเก่าค้างไว้) ถูกเขียนทับหายไป
   const editPatch = { edit_request: null };
   if(decision==='approved') Object.assign(editPatch, { kind: leave.kind, from_date: leave.from, to_date: leave.to, from_time: leave.hourStart||null, to_time: leave.hourEnd||null, reason: leave.reason||null });
-  await sbPatchRow('leaves', leave.id, editPatch);
+  const patched = await sbPatchRow('leaves', leave.id, editPatch);
+  if(!patched.ok){ Object.assign(leave, keep); alert('บันทึกไม่สำเร็จ: '+dbErrText(patched)); return; }
   if(decision==='approved') await markLeaveForResync(leave.id);
   await logAudit(decision==='approved'?'approve_edit':'reject_edit', 'leave', leave.id,
     decision==='approved' ? `อนุมัติการแก้ไขใบลา: ${oldText} → ${newText}` : `ปฏิเสธการแก้ไขใบลา (คงค่าเดิม: ${oldText})`);
