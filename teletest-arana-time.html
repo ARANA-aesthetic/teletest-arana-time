@@ -1622,6 +1622,8 @@
       <option value="vacation">ลาพักร้อน</option>
       <option value="hourly_sick">ลาเป็นชั่วโมง (ป่วย)</option>
       <option value="hourly_personal">ลาเป็นชั่วโมง (กิจ)</option>
+      <option value="hourly_personal_nodeduct">ลาเป็นชั่วโมง (กิจ ไม่หักเงิน)</option>
+      <option value="election">ลาไปใช้สิทธิเลือกตั้ง</option>
       <option value="maternity">ลาคลอด</option>
     </select>
 
@@ -1687,6 +1689,8 @@
       <option value="vacation">ลาพักร้อน</option>
       <option value="hourly_sick">ลาเป็นชั่วโมง (ป่วย)</option>
       <option value="hourly_personal">ลาเป็นชั่วโมง (กิจ)</option>
+      <option value="hourly_personal_nodeduct">ลาเป็นชั่วโมง (กิจ ไม่หักเงิน)</option>
+      <option value="election">ลาไปใช้สิทธิเลือกตั้ง</option>
       <option value="maternity">ลาคลอด</option>
     </select>
 
@@ -2474,7 +2478,7 @@ const branchTransferToRow = t => ({ id:t.id, employee_id:t.employeeId, branch_id
 const rowToNoti = r => ({ id:r.id, employeeId:r.employee_id, title:r.title, body:r.body, time:r.time, read:!!r.read });
 const notiToRow = n => ({ id:n.id, employee_id:n.employeeId, title:n.title, body:n.body, time:n.time, read:!!n.read });
 
-const rowToSettings = r => ({ centralToken:r.central_token||'', centralChatId:r.central_chat_id||'', otChatId:r.ot_chat_id||'', graceMinutes:r.grace_minutes??15, adminPassword:r.admin_password||'admin1234', holidays:r.holidays||[], notifyTypes:r.notify_types||{}, telegramRooms:r.telegram_rooms||[], gsheetWebappUrl:r.gsheet_webapp_url||'', gsheetSecret:r.gsheet_secret||'', gsheetLastSync:r.gsheet_last_sync||null, shiftOverrides:r.shift_overrides||[], attendanceStartDate:r.attendance_start_date||null });
+const rowToSettings = r => ({ centralToken:r.central_token||'', centralChatId:r.central_chat_id||'', otChatId:r.ot_chat_id||'', graceMinutes:r.grace_minutes??15, adminPassword:r.admin_password||'admin1234', holidays:r.holidays||[], notifyTypes:r.notify_types||{}, telegramRooms:r.telegram_rooms||[], gsheetWebappUrl:r.gsheet_webapp_url||'', gsheetSecret:r.gsheet_secret||'', gsheetLastSync:r.gsheet_last_sync||null, shiftOverrides:r.shift_overrides||[], attendanceStartDate:r.attendance_start_date||null, leaveKindsHidden:Array.isArray(r.leave_kinds_hidden)?r.leave_kinds_hidden:['election'] });
 const settingsToRow = s => ({ id:1, central_token:s.centralToken||'', central_chat_id:s.centralChatId||'', ot_chat_id:s.otChatId||'', grace_minutes:s.graceMinutes??15, admin_password:s.adminPassword||'admin1234', holidays:s.holidays||[], notify_types:s.notifyTypes||{}, telegram_rooms:s.telegramRooms||[], gsheet_webapp_url:s.gsheetWebappUrl||'', gsheet_secret:s.gsheetSecret||'', shift_overrides:s.shiftOverrides||[], attendance_start_date:s.attendanceStartDate||null });
 
 // โหลดตารางพื้นฐาน (ไม่รวม logs/leaves/ot_requests/notifications ที่โตไม่หยุดและโตตามจำนวนพนักงาน)
@@ -2941,7 +2945,7 @@ function summaryForRange(empId, fromStr, toStr){
     else { absent++; }
   }
   // ลาเป็นชั่วโมงนับทั้งจำนวนครั้งและรวมชั่วโมง แยกจากลาเต็มวันด้านบน รวมจากใบลาที่วันที่เริ่มลาอยู่ในช่วงที่ดู
-  const hourKind = { hourly_sick:{count:0,hours:0}, hourly_personal:{count:0,hours:0} };
+  const hourKind = { hourly_sick:{count:0,hours:0}, hourly_personal:{count:0,hours:0}, hourly_personal_nodeduct:{count:0,hours:0} };
   db.leaves.filter(l=>l.employeeId===empId && l.status==='approved' && HOURLY_KINDS.includes(l.kind) && l.from>=fromStr && l.from<=toStr)
     .forEach(l=>{ hourKind[l.kind].count++; hourKind[l.kind].hours += leaveHoursNum(l); });
   // ลืมสแกน (แอดมินเพิ่มย้อนหลังให้) + ใบเตือน — นับจากวันที่ในช่วงที่ดูเหมือนกัน
@@ -2961,6 +2965,8 @@ const HOME_LEAVE_BOX_ORDER = [
   {key:'traditional', label:'ลาประเพณี', type:'quota'},
   {key:'vacation', label:'ลาพักร้อน', type:'quota'},
   {key:'hourly_personal', label:'ลาเป็นชั่วโมง (กิจ)', type:'hour'},
+  {key:'hourly_personal_nodeduct', label:'ลาเป็นชั่วโมง (กิจ ไม่หักเงิน)', type:'hour', hideable:true},
+  {key:'election', label:'ลาไปใช้สิทธิเลือกตั้ง', type:'day', hideable:true},
   {key:'hourly_sick', label:'ลาเป็นชั่วโมง (ป่วย)', type:'hour'},
   {key:'absent', label:'ขาดงาน', type:'day', color:'color:var(--red);'},
   {key:'maternity', label:'ลาคลอด', type:'day'},
@@ -3626,7 +3632,7 @@ function renderEmployeeHome(){
   const m = summaryForRange(emp.id, range.from, range.to);
   document.getElementById('mOnTime').textContent = m.onTime;
   document.getElementById('mLate').textContent = m.late;
-  document.getElementById('mLeaveByKind').innerHTML = HOME_LEAVE_BOX_ORDER.map(b=>{
+  document.getElementById('mLeaveByKind').innerHTML = HOME_LEAVE_BOX_ORDER.filter(b=> !b.hideable || m.byKind[b.key] || m.hourKind[b.key]?.count).map(b=>{
     const color = b.color || RPT_KIND_COLOR[b.key] || 'color:var(--muted);';
     if(b.type==='hour'){
       const hk = m.hourKind[b.key] || {count:0, hours:0};
@@ -3841,12 +3847,22 @@ const LEAVE_KIND_LABELS = {
   personal_nodeduct:'ลากิจ (ไม่หักเงิน)', personal_deduct:'ลากิจ (หักเงิน)',
   traditional:'ลาใช้สิทธิ์วันหยุดประเพณี', hourly_sick:'ลาเป็นชั่วโมง (ป่วย)',
   hourly_personal:'ลาเป็นชั่วโมง (กิจ)', maternity:'ลาคลอด',
+  hourly_personal_nodeduct:'ลาเป็นชั่วโมง (กิจ ไม่หักเงิน)', election:'ลาไปใช้สิทธิเลือกตั้ง',
   sick:'ลาป่วย', personal:'ลากิจ', vacation:'ลาพักร้อน'
 };
-const HOURLY_KINDS = ['hourly_sick','hourly_personal'];
+const HOURLY_KINDS = ['hourly_sick','hourly_personal','hourly_personal_nodeduct'];
+// ประเภทลาที่ซ่อนจากหน้ายื่นลาของพนักงาน (HR เปิด/ปิดใน ERP: ตั้งค่า ARANA Staff → กฎการทำงาน · 22/11/2569)
+// ใบลาเดิมที่ใช้ประเภทนั้นอยู่แล้วยังเห็นตัวเลือกของตัวเอง
+function applyLeaveKindVisibility(keepKind){
+  const hidden = db.settings.leaveKindsHidden || ['election'];
+  // ถอดตัวเลือกออกจริง (iPhone ไม่ซ่อน option ให้ แค่ทำเป็นสีเทา)
+  const sel = document.getElementById('leaveType');
+  if(!sel._allOptions) sel._allOptions = Array.from(sel.options);
+  sel.replaceChildren(...sel._allOptions.filter(o=> !hidden.includes(o.value) || o.value===keepKind));
+}
 // ลาป่วย/ลากิจ ทั้งเต็มวันและเป็นชั่วโมง — ต้องมีหลักฐานแนบ (แนบตอนยื่นหรือภายหลังก็ได้) และเก็บพิกัด GPS
 // ตอนยื่นไว้ให้แอดมินดูหลังบ้านเท่านั้น (ไม่โชว์ในแอปฝั่งพนักงาน)
-const EVIDENCE_REQUIRED_KINDS = ['sick_cert','sick_nocert','personal_deduct','personal_nodeduct','hourly_sick','hourly_personal'];
+const EVIDENCE_REQUIRED_KINDS = ['sick_cert','sick_nocert','personal_deduct','personal_nodeduct','hourly_sick','hourly_personal','hourly_personal_nodeduct'];
 function ddmmyyyy(dateStr){ if(!dateStr) return '-'; const [y,m,d] = dateStr.split('-'); return `${d}/${m}/${y}`; }
 // แปลงพิกัด GPS เป็นที่อยู่ภาษาไทยอ่านง่าย (ตำบล/อำเภอ/จังหวัด) ด้วย OpenStreetMap Nominatim (ฟรี ไม่ต้องใช้ API key)
 // เป็น best-effort เท่านั้น — ถ้าเรียกไม่สำเร็จ/timeout จะ return null แล้วโค้ดที่เรียกใช้จะ fallback ไปใช้แค่ลิงก์แผนที่แทน
@@ -4183,6 +4199,7 @@ function openLeaveEditRequestForm(leaveId){
   document.getElementById('leaveFormTitle').textContent = 'ขอแก้ไขใบลา (ต้องรออนุมัติอีกครั้ง)';
   document.getElementById('leaveFormMsg').textContent='';
   const kind = leave.kind;
+  applyLeaveKindVisibility(kind);
   document.getElementById('leaveType').value = kind;
   const isHourly = HOURLY_KINDS.includes(kind);
   document.getElementById('leaveDateRangeFields').classList.toggle('hidden', isHourly);
@@ -4214,7 +4231,9 @@ function openLeaveForm(leaveId){
   document.getElementById('leaveFormTitle').textContent = existing ? 'แก้ไขใบลา' : 'ยื่นใบลา';
   document.getElementById('leaveFormMsg').textContent='';
   const draft = !existing ? loadLeaveDraft() : null;
-  const kind = existing ? existing.kind : (draft?.kind || 'sick_cert');
+  let kind = existing ? existing.kind : (draft?.kind || 'sick_cert');
+  if(!existing && (db.settings.leaveKindsHidden || ['election']).includes(kind)) kind = 'sick_cert';
+  applyLeaveKindVisibility(kind);
   document.getElementById('leaveType').value = kind;
   const isHourly = HOURLY_KINDS.includes(kind);
   document.getElementById('leaveDateRangeFields').classList.toggle('hidden', isHourly);
@@ -5877,7 +5896,7 @@ function leaveAbbrev(kind){
     sick_nocert:'Sick/N', sick_cert:'Sick/Y',
     personal_nodeduct:'Leave/Y', personal_deduct:'Leave/N',
     traditional:'Holiday', vacation:'VAC', maternity:'MAT',
-    hourly_personal:'Hour-L', hourly_sick:'Hour-S'
+    hourly_personal:'Hour-L', hourly_personal_nodeduct:'Hour-P', hourly_sick:'Hour-S', election:'Vote'
   };
   return map[kind] || kind;
 }
@@ -6652,13 +6671,15 @@ const RPT_KIND_COLOR = {
   personal_nodeduct:'color:var(--amber);font-weight:600;', personal_deduct:'color:var(--amber);font-weight:600;',
   traditional:'color:#7C3AED;font-weight:600;', vacation:'color:#7C3AED;font-weight:600;',
   maternity:'color:var(--pink-dark);font-weight:600;',
-  hourly_sick:'color:#0D9488;font-weight:600;', hourly_personal:'color:#0D9488;font-weight:600;'
+  hourly_sick:'color:#0D9488;font-weight:600;', hourly_personal:'color:#0D9488;font-weight:600;',
+  hourly_personal_nodeduct:'color:#0D9488;font-weight:600;', election:'color:var(--amber);font-weight:600;'
 };
 const RPT_LEGEND = [
   ['Sick/Y','ลาป่วย (มีใบรับรองแพทย์)','color:#2563EB;'], ['Sick/N','ลาป่วย (ไม่มีใบรับรองแพทย์)','color:#2563EB;'],
   ['Leave/Y','ลากิจ (มีเอกสาร)','color:var(--amber);'], ['Leave/N','ลากิจ (หักเงิน)','color:var(--amber);'],
   ['Holiday','ลาประเพณี','color:#7C3AED;'], ['VAC','ลาพักร้อน','color:#7C3AED;'], ['MAT','ลาคลอด','color:var(--pink-dark);'],
   ['Hour-S','ลาเป็นชั่วโมง (ป่วย)','color:#0D9488;'], ['Hour-L','ลาเป็นชั่วโมง (กิจ)','color:#0D9488;'],
+  ['Hour-P','ลาเป็นชั่วโมง (กิจ ไม่หักเงิน)','color:#0D9488;'], ['Vote','ลาไปใช้สิทธิเลือกตั้ง','color:var(--amber);'],
   ['AWOL','ขาดงาน','color:var(--red);'], ['OFF','วันหยุด','color:#9CA3AF;'],
   ['OS','ทำงานสาขาอื่น/นอกสถานที่','color:var(--blue);'],
   ['1','มาทำงานปกติ'], ['1','ช่วงเทรนงาน','color:var(--blue);']
@@ -6768,7 +6789,7 @@ function buildMonthReport(){
         return cell;
       });
       // ลาเป็นชั่วโมงต้องแยก ป่วย/กิจ เพราะมีผลต่างกันกับเงินเดือน (ป่วยไม่หัก กิจหัก)
-      const s = { present:0, training:0, lateCount:0, lateMinutes:0, absent:0, otHours:0, hourSick:0, hourPersonal:0, hourSickCount:0, hourPersonalCount:0, byKind:{} };
+      const s = { present:0, training:0, lateCount:0, lateMinutes:0, absent:0, otHours:0, hourSick:0, hourPersonal:0, hourSickCount:0, hourPersonalCount:0, hourFree:0, hourFreeCount:0, byKind:{} };
       cells.forEach(c=>{
         if(c.na) return;
         s.otHours += c.ot;
@@ -6780,6 +6801,7 @@ function buildMonthReport(){
         if(c.leaveKind){
           if(HOURLY_KINDS.includes(c.leaveKind)){
             if(c.leaveKind==='hourly_sick'){ s.hourSick += c.leaveHours||0; s.hourSickCount++; }
+            else if(c.leaveKind==='hourly_personal_nodeduct'){ s.hourFree += c.leaveHours||0; s.hourFreeCount++; }
             else { s.hourPersonal += c.leaveHours||0; s.hourPersonalCount++; }
             s.present++;
           }
@@ -6791,6 +6813,7 @@ function buildMonthReport(){
       s.otHours = Math.round(s.otHours*100)/100;
       s.hourSick = Math.round(s.hourSick*100)/100;
       s.hourPersonal = Math.round(s.hourPersonal*100)/100;
+      s.hourFree = Math.round(s.hourFree*100)/100;
       s.leaveDays = Object.values(s.byKind).reduce((a,b)=>a+b,0);
       return { emp:e, cells, summary:s };
     })};
@@ -6798,7 +6821,7 @@ function buildMonthReport(){
   return { y, m, days, groups };
 }
 
-const RPT_SUMMARY_KINDS = ['sick_cert','sick_nocert','personal_nodeduct','personal_deduct','traditional','vacation','maternity'];
+const RPT_SUMMARY_KINDS = ['sick_cert','sick_nocert','personal_nodeduct','personal_deduct','election','traditional','vacation','maternity'];
 
 function renderReportsTab(){
   document.getElementById('reportMonthLabel').textContent = `${THAI_MONTHS[reportCursor.getMonth()]} ${reportCursor.getFullYear()+543}`;
@@ -7143,10 +7166,10 @@ function dailyTableHTML(rpt, view){
 
 function summaryTableHTML(rpt){
   const kindCols = RPT_SUMMARY_KINDS;
-  let html = rptColgroup(5 + kindCols.length + 5) + `<thead><tr><th class="namecol">ชื่อพนักงาน</th><th>มาทำงาน</th><th>เทรนงาน</th><th>สาย (ครั้ง)</th><th>รวมนาทีสาย</th><th>ขาดงาน</th>`;
+  let html = rptColgroup(5 + kindCols.length + 7) + `<thead><tr><th class="namecol">ชื่อพนักงาน</th><th>มาทำงาน</th><th>เทรนงาน</th><th>สาย (ครั้ง)</th><th>รวมนาทีสาย</th><th>ขาดงาน</th>`;
   kindCols.forEach(k=>{ html += `<th>${leaveLabel(k)}</th>`; });
-  html += `<th>ลาเป็นชม. (ป่วย) ครั้ง</th><th>ลาชม. ป่วย<br><span style="font-weight:400;font-size:10px;">ไม่หักเงิน</span></th><th>ลาเป็นชม. (กิจ) ครั้ง</th><th>ลาชม. กิจ<br><span style="font-weight:400;font-size:10px;">หักเงิน</span></th><th class="totcol">OT (ชม.)</th></tr></thead><tbody>`;
-  const span = 6 + kindCols.length + 5;
+  html += `<th>ลาเป็นชม. (ป่วย) ครั้ง</th><th>ลาชม. ป่วย<br><span style="font-weight:400;font-size:10px;">ไม่หักเงิน</span></th><th>ลาเป็นชม. (กิจ) ครั้ง</th><th>ลาชม. กิจ<br><span style="font-weight:400;font-size:10px;">หักเงิน</span></th><th>ลาเป็นชม. (กิจ ไม่หักเงิน) ครั้ง</th><th>ลาชม. กิจ<br><span style="font-weight:400;font-size:10px;">ไม่หักเงิน</span></th><th class="totcol">OT (ชม.)</th></tr></thead><tbody>`;
+  const span = 6 + kindCols.length + 7;
   rpt.groups.forEach(g=>{
     // แยกเป็น 2 เซลล์ (namecol + ส่วนที่เหลือ) แทนเซลล์เดียว colspan เต็มแถว เพราะ sticky บน td ที่
     // colspan ครอบทุกคอลัมน์ใช้ไม่ได้จริงกับการเลื่อนแนวนอน (เบราว์เซอร์ไม่ปักหมุดให้) ต้องใช้ namecol
@@ -7162,6 +7185,7 @@ function summaryTableHTML(rpt){
       kindCols.forEach(k=>{ html += `<td>${s.byKind[k]||''}</td>`; });
       html += `<td>${s.hourSickCount||''}</td><td>${s.hourSick||''}</td>`
         + `<td style="${s.hourPersonalCount?'color:var(--amber);font-weight:600;':''}">${s.hourPersonalCount||''}</td><td style="${s.hourPersonal?'color:var(--amber);font-weight:600;':''}">${s.hourPersonal||''}</td>`
+        + `<td>${s.hourFreeCount||''}</td><td>${s.hourFree||''}</td>`
         + `<td class="totcol">${s.otHours||''}</td></tr>`;
     });
   });
@@ -7186,10 +7210,10 @@ function reportSheetPayload(rpt){
       r=>[r.emp.employeeCode||'', r.br, r.emp.name, r.emp.nickname||'', ...r.cells.map(c=>c.ot||''), r.summary.otHours]),
     mk(`สรุปเดือน ${tag}`,
       ['รหัสพนักงาน','สาขา','ชื่อพนักงาน','ชื่อเล่น','วันที่พ้นสภาพ','มาทำงาน','เทรนงาน','สาย (ครั้ง)','รวมนาทีสาย','ขาดงาน', ...RPT_SUMMARY_KINDS.map(leaveLabel),
-       'ลาเป็นชม. (ป่วย) ครั้ง','ลาชั่วโมง ป่วย (ชม.) ไม่หักเงิน','ลาเป็นชม. (กิจ) ครั้ง','ลาชั่วโมง กิจ (ชม.) หักเงิน','OT (ชม.)'],
+       'ลาเป็นชม. (ป่วย) ครั้ง','ลาชั่วโมง ป่วย (ชม.) ไม่หักเงิน','ลาเป็นชม. (กิจ) ครั้ง','ลาชั่วโมง กิจ (ชม.) หักเงิน','ลาเป็นชม. (กิจ ไม่หักเงิน) ครั้ง','ลาชั่วโมง กิจ (ชม.) ไม่หักเงิน','OT (ชม.)'],
       r=>[r.emp.employeeCode||'', r.br, r.emp.name, r.emp.nickname||'', r.emp.resignDate||'', r.summary.present, r.summary.training, r.summary.lateCount, r.summary.lateMinutes, r.summary.absent,
           ...RPT_SUMMARY_KINDS.map(k=>r.summary.byKind[k]||0),
-          r.summary.hourSickCount, r.summary.hourSick, r.summary.hourPersonalCount, r.summary.hourPersonal, r.summary.otHours])
+          r.summary.hourSickCount, r.summary.hourSick, r.summary.hourPersonalCount, r.summary.hourPersonal, r.summary.hourFreeCount, r.summary.hourFree, r.summary.otHours])
   ];
 }
 
