@@ -5412,7 +5412,7 @@ function openSlip(s){
   const inc = slipNz([['เงินเดือน', s.base_salary], ['ค่าล่วงเวลา (OT)', s.ot], ['ค่าคอมมิชชั่น', s.commission], ['ค่ามือ', s.hand_fee], ['โบนัส', s.bonus], ['เงินเพิ่ม', s.allowance]]);
   const lines = items.filter(p=>p.kind==='deduct').map(p=>[p.category||p.name||'รายการหัก', p.amount]);
   const lineSum = lines.reduce((a,[,v])=>a+(Number(v)||0),0);
-  const otherLeft = (Number(s.other_deduct)||0) - lineSum;
+  const otherLeft = (Number(s.other_deduct)||0) - lineSum - (Number(s.late_deduct)||0) - (Number(s.absent_deduct)||0) - (Number(s.over_leave_deduct)||0); // other_deduct ของรอบที่ส่งจาก ERP รวมหักสาย/ขาด/ลาแล้ว
   const ded = slipNz([['ประกันสังคม', s.sso], ['ภาษีหัก ณ ที่จ่าย', s.wht], ['หักมาสาย', s.late_deduct], ['หักขาดงาน', s.absent_deduct], ['หักลาเกินสิทธิ์', s.over_leave_deduct], ...lines, ['หักอื่น ๆ', otherLeft > 0.004 ? otherLeft : 0]]);
   const totalIn = inc.reduce((a,[,v])=>a+(Number(v)||0),0); // ก่อนหักมาสาย/ขาด/ลาเกิน (หักแสดงฝั่งรายการหัก)
   const totalDed = totalIn - (Number(s.net_pay)||0);
