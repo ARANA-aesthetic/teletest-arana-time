@@ -2632,7 +2632,8 @@ async function saveLogRow(row){ return await sbUpsertRow('logs', logToRow(row));
 async function saveLeaveRow(row){ return await sbUpsertRow('leaves', leaveToRow(row)); }
 // ข้อความจากฐานข้อมูลเมื่อบันทึกใบลาไม่ได้ (เช่น ลากิจไม่หักเงินเกินโควตาต่อปี · ERP 00314)
 function dbErrText(r){ try{ return JSON.parse(r.error).message || r.error; }catch(e){ return (r && r.error) || 'ไม่ทราบสาเหตุ'; } }
-async function saveOtRow(row){ await sbUpsertRow('ot_requests', otToRow(row)); }
+// คืน {ok,error} — ฐานข้อมูลไม่รับ OT ที่ไม่ตรงกับเวลาสแกน (ERP 00316) ต้องแจ้งผู้ใช้ ไม่ใช่ขึ้นว่าบันทึกแล้ว
+async function saveOtRow(row){ return await sbUpsertRow('ot_requests', otToRow(row)); }
 async function saveWarningLetterRow(row){ await sbUpsertRow('warning_letters', warningLetterToRow(row)); }
 async function saveCompanyRow(row){ await sbUpsertRow('companies', companyToRow(row)); }
 // เรียกทุกครั้งที่ leave/ot แถวที่เคย sync ไป Google Sheets แล้วมีการเปลี่ยนสถานะ/ค่า (อนุมัติ/ปฏิเสธ/แก้ไข)
@@ -3862,7 +3863,7 @@ function applyLeaveKindVisibility(keepKind){
 }
 // ลาป่วย/ลากิจ ทั้งเต็มวันและเป็นชั่วโมง — ต้องมีหลักฐานแนบ (แนบตอนยื่นหรือภายหลังก็ได้) และเก็บพิกัด GPS
 // ตอนยื่นไว้ให้แอดมินดูหลังบ้านเท่านั้น (ไม่โชว์ในแอปฝั่งพนักงาน)
-const EVIDENCE_REQUIRED_KINDS = ['sick_cert','sick_nocert','personal_deduct','personal_nodeduct','hourly_sick','hourly_personal','hourly_personal_nodeduct'];
+const EVIDENCE_REQUIRED_KINDS = ['sick_cert','sick_nocert','personal_deduct','personal_nodeduct','hourly_sick','hourly_personal','hourly_personal_nodeduct','election'];
 function ddmmyyyy(dateStr){ if(!dateStr) return '-'; const [y,m,d] = dateStr.split('-'); return `${d}/${m}/${y}`; }
 // แปลงพิกัด GPS เป็นที่อยู่ภาษาไทยอ่านง่าย (ตำบล/อำเภอ/จังหวัด) ด้วย OpenStreetMap Nominatim (ฟรี ไม่ต้องใช้ API key)
 // เป็น best-effort เท่านั้น — ถ้าเรียกไม่สำเร็จ/timeout จะ return null แล้วโค้ดที่เรียกใช้จะ fallback ไปใช้แค่ลิงก์แผนที่แทน
@@ -4641,7 +4642,11 @@ document.getElementById('submitOtBtn').onclick = async ()=>{
     if(!ot || ot.status!=='approved'){ msg.className='msg err'; msg.textContent='ไม่สามารถขอแก้ไขได้ (สถานะเปลี่ยนไปแล้ว)'; return; }
     const oldText = `${fmtDateShort(new Date(ot.date))} ${ot.hourStart}-${ot.hourEnd}`;
     ot.editRequest = {date, hourStart, hourEnd, reason, requestedAt:new Date().toISOString()};
-    await saveOtRow(ot);
+    // เวลาใหม่ต้องตรงกับเวลาสแกนด้วย (ตรวจก่อนส่ง · ตอนอนุมัติฐานข้อมูลตรวจซ้ำอีกชั้น)
+    const editBad = await otScanOutWarnings([ot.employeeId], date, hourStart, hourEnd);
+    if(editBad && editBad.length){ ot.editRequest = null; msg.className='msg err'; msg.textContent='เวลาสแกนออกไม่ตรงกับช่วง OT ใหม่: '+editBad[0].text; return; }
+    const savedReq = await saveOtRow(ot);
+    if(!savedReq.ok){ ot.editRequest = null; msg.className='msg err'; msg.textContent='ส่งคำขอแก้ไขไม่สำเร็จ: '+dbErrText(savedReq); return; }
     msg.className='msg ok'; msg.textContent='ส่งคำขอแก้ไขเรียบร้อย รออนุมัติจากหัวหน้า/HR';
     renderOtTab();
     const br = currentBranch(emp);
@@ -4667,9 +4672,15 @@ document.getElementById('submitOtBtn').onclick = async ()=>{
   }
   const groupId = uid();
   const rows = selectedIds.map(empId => ({id:uid(), employeeId:empId, date, hourStart, hourEnd, reason, status:'pending', requestedAt:new Date().toISOString(), groupId, requestedByEmployeeId:emp.id}));
-  db.otRequests.push(...rows);
-  await Promise.all(rows.map(r=>saveOtRow(r)));
-  msg.className='msg ok'; msg.textContent='ส่งคำขอ OT เรียบร้อย รออนุมัติจากหัวหน้า/HR';
+  const savedOt = await Promise.all(rows.map(r=>saveOtRow(r)));
+  const okRows = rows.filter((r,i)=>savedOt[i].ok);
+  db.otRequests.push(...okRows);
+  if(okRows.length < rows.length){
+    msg.className='msg err';
+    msg.textContent = 'ส่งคำขอ OT ไม่สำเร็จ'+(okRows.length?` ${rows.length-okRows.length} คน`:'')+': '+dbErrText(savedOt.find(r=>!r.ok));
+    renderOtTab();
+    if(!okRows.length) return;
+  } else { msg.className='msg ok'; msg.textContent='ส่งคำขอ OT เรียบร้อย รออนุมัติจากหัวหน้า/HR'; }
   showSubmitSuccessPopup(`OT วันที่ ${date} เวลา ${hourStart}-${hourEnd}\nไม่ต้องส่งซ้ำ — ระบบส่งคำขอเข้ากลุ่มรออนุมัติแล้ว`);
   renderOtTab();
   const br = currentBranch(emp);
@@ -4774,7 +4785,16 @@ async function decideOtGroup(groupId, status){
 async function applyOtDecision(groupId, items, status){
   const decidedAt = new Date().toISOString();
   const approverName = session.role==='admin' ? 'เจ้าของ/HR' : (currentApprover()?.name || 'ผู้บริหาร');
-  for(const ot of items){ ot.status = status; ot.decidedAt = decidedAt; await saveOtRow(ot); await markOtForResync(ot.id); }
+  const failed = [];
+  for(const ot of [...items]){
+    const prev = {status:ot.status, decidedAt:ot.decidedAt};
+    ot.status = status; ot.decidedAt = decidedAt;
+    const r = await saveOtRow(ot);
+    if(!r.ok){ Object.assign(ot, prev); failed.push(dbErrText(r)); items.splice(items.indexOf(ot),1); continue; }
+    await markOtForResync(ot.id);
+  }
+  if(failed.length) alert(`${status==='approved'?'อนุมัติ':'ปฏิเสธ'} OT ไม่สำเร็จ ${failed.length} รายการ:\n`+failed.join('\n'));
+  if(!items.length) return;
   await logAudit(status, 'ot_group', groupId, `${status==='approved'?'อนุมัติ':'ปฏิเสธ'} OT กลุ่ม ${items.length} คน วันที่ ${items[0].date}`);
   const first = items[0];
   const br = db.branches.find(b=>b.id===db.employees.find(e=>e.id===first.employeeId)?.branchId);
@@ -4928,8 +4948,10 @@ document.getElementById('saveAdminOtEditBtn').onclick = async ()=>{
   if(!adminEditingOtId) return;
   const ot = db.otRequests.find(o=>o.id===adminEditingOtId); if(!ot) return;
   const before = `${ddmmyyyy(ot.date)} ${ot.hourStart}-${ot.hourEnd} (${otStatusLabel(ot.status)})`;
+  const keepOt = {date:ot.date, hourStart:ot.hourStart, hourEnd:ot.hourEnd, reason:ot.reason, status:ot.status, decidedAt:ot.decidedAt};
   Object.assign(ot, {date, hourStart, hourEnd, reason, status, decidedAt: status==='pending' ? null : (ot.decidedAt||new Date().toISOString())});
-  await saveOtRow(ot);
+  const savedAdminOt = await saveOtRow(ot);
+  if(!savedAdminOt.ok){ Object.assign(ot, keepOt); msg.className='msg err'; msg.textContent='บันทึกไม่สำเร็จ: '+dbErrText(savedAdminOt); return; }
   await markOtForResync(ot.id);
   await logAudit('edit_by_admin', 'ot', ot.id, `HR แก้ไขรายการ OT โดยตรง: ${before} → ${ddmmyyyy(date)} ${hourStart}-${hourEnd} (${otStatusLabel(status)})`);
   document.getElementById('adminOtEditOverlay').classList.remove('show');
@@ -4987,8 +5009,16 @@ document.getElementById('submitManagerOtGroupBtn').onclick = async ()=>{
   const groupId = uid();
   const nowIso = new Date().toISOString();
   const rows = selectedIds.map(empId => ({id:uid(), employeeId:empId, date, hourStart, hourEnd, reason, status:finalStatus, requestedAt:nowIso, decidedAt: finalStatus==='pending'?null:nowIso, groupId}));
-  db.otRequests.push(...rows);
-  await Promise.all(rows.map(r=>saveOtRow(r)));
+  const savedGroup = await Promise.all(rows.map(r=>saveOtRow(r)));
+  const okGroup = rows.filter((r,i)=>savedGroup[i].ok);
+  db.otRequests.push(...okGroup);
+  if(okGroup.length < rows.length){
+    msg.className='msg err';
+    msg.textContent = `บันทึกไม่สำเร็จ ${rows.length-okGroup.length} คน: `+savedGroup.filter(r=>!r.ok).map(dbErrText).join(' · ');
+    renderOtLists();
+    if(!okGroup.length) return;
+    selectedIds.splice(0, selectedIds.length, ...okGroup.map(r=>r.employeeId));
+  }
   const branchIds = [...new Set(selectedIds.map(id=>db.employees.find(e=>e.id===id)?.branchId))];
   const branchLabel = branchIds.length===1 ? (db.branches.find(b=>b.id===branchIds[0])?.name||'-') : `${branchIds.length} สาขา`;
   const actorLabel = isAdminTier() ? 'HR' : 'ผู้จัดการ';
@@ -4999,6 +5029,7 @@ document.getElementById('submitManagerOtGroupBtn').onclick = async ()=>{
     if(db.settings.notifyTypes.otSubmit && otRoomChatId()) await tgSendMessage(db.settings.centralToken, otRoomChatId(), text);
     await Promise.all(selectedIds.map(empId => pushNotification(empId, `มีคำขอ OT ยื่นแทนโดย${actorLabel}`, `${date} เวลา ${hourStart}-${hourEnd} กำลังรอการอนุมัติ`)));
   }
+  if(okGroup.length < rows.length){ renderOtLists(); renderOverviewStats(); return; } // ให้อ่านข้อความก่อน ไม่ปิดหน้าต่าง
   msg.className='msg ok'; msg.textContent = finalStatus==='pending' ? 'ส่งคำขอ OT เรียบร้อย รออนุมัติจากเจ้าของ/HR' : 'บันทึกเรียบร้อย';
   renderOtLists(); renderOverviewStats();
   setTimeout(()=>{ document.getElementById('managerOtGroupOverlay').classList.remove('show'); }, 900);
@@ -7527,12 +7558,14 @@ async function decideOtEdit(id, decision){
   const er = ot.editRequest;
   const oldText = `${fmtDateShort(new Date(ot.date))} ${ot.hourStart}-${ot.hourEnd}`;
   const emp = db.employees.find(e=>e.id===ot.employeeId);
+  const keepOt = {date:ot.date, hourStart:ot.hourStart, hourEnd:ot.hourEnd, reason:ot.reason, editRequest:er};
   if(decision==='approved'){
     Object.assign(ot, {date:er.date, hourStart:er.hourStart, hourEnd:er.hourEnd, reason:er.reason});
   }
   const newText = `${fmtDateShort(new Date(ot.date))} ${ot.hourStart}-${ot.hourEnd}`;
   ot.editRequest = null;
-  await saveOtRow(ot);
+  const savedEditOt = await saveOtRow(ot);
+  if(!savedEditOt.ok){ Object.assign(ot, keepOt); alert('บันทึกไม่สำเร็จ: '+dbErrText(savedEditOt)); return; }
   if(decision==='approved') await markOtForResync(ot.id);
   await logAudit(decision==='approved'?'approve_edit':'reject_edit', 'ot', ot.id,
     decision==='approved' ? `อนุมัติการแก้ไข OT: ${oldText} → ${newText}` : `ปฏิเสธการแก้ไข OT (คงค่าเดิม: ${oldText})`);
