@@ -1917,7 +1917,7 @@
      so the employee is in no doubt the request actually went through and won't resubmit it -->
 <div class="overlay" id="submitSuccessOverlay">
   <div class="modal" style="text-align:center;max-width:340px;">
-    <div style="font-size:52px;line-height:1;margin-bottom:8px;">✅</div>
+    <div id="submitSuccessIcon" style="font-size:52px;line-height:1;margin-bottom:8px;">✅</div>
     <h3 id="submitSuccessTitle" style="margin-bottom:6px;">ส่งคำขอเรียบร้อย</h3>
     <div id="submitSuccessBody" style="color:var(--muted);font-size:14px;margin-bottom:16px;"></div>
     <button class="btn block" id="closeSubmitSuccessBtn">รับทราบ</button>
@@ -4277,7 +4277,33 @@ function openLeaveForm(leaveId){
 }
 document.getElementById('openLeaveFormBtn').onclick = ()=> openLeaveForm(null);
 document.getElementById('closeLeaveBtn').onclick = ()=> document.getElementById('leaveOverlay').classList.remove('show');
+// ใบลาซ้ำ = คนเดียวกัน ช่วงวันทับกัน (เต็มวันกับเต็มวัน) หรือวันเดียวกันเวลาทับกัน (ชั่วโมงกับชั่วโมง)
+// ใบลาชั่วโมง + ใบลาเต็มวันวันเดียวกันยังส่งได้ (เคยมีจริง: ลาชั่วโมงแล้วขอเปลี่ยนเป็นเต็มวัน) · ฐานข้อมูลตรวจซ้ำอีกชั้น (ERP 00316)
+function findDuplicateLeave(empId, kind, from, to, hourStart, hourEnd, exceptId){
+  const hourly = HOURLY_KINDS.includes(kind);
+  return db.leaves.find(l=>{
+    if(l.employeeId!==empId || l.id===exceptId || !['pending','approved'].includes(l.status)) return false;
+    if(!(l.from<=to && from<=l.to)) return false;
+    const lHourly = HOURLY_KINDS.includes(l.kind);
+    if(hourly!==lHourly) return false;
+    if(!hourly) return true;
+    return l.from===from && (l.hourStart||'') < (hourEnd||'') && (hourStart||'') < (l.hourEnd||'');
+  });
+}
+function showDuplicateLeavePopup(dup){
+  const st = dup.status==='approved' ? 'อนุมัติแล้ว' : 'รออนุมัติ';
+  showSubmitSuccessPopup(`มีใบลาวันนี้อยู่แล้ว: ${leaveLabel(dup.kind)} ${leaveRangeText(dup)} (${st})\nไม่ต้องส่งใหม่ ถ้าต้องการเปลี่ยนให้กดแก้ไขใบเดิม`, 'ส่งข้อมูลซ้ำ', true);
+}
+let leaveSubmitBusy = false; // กันกดส่งซ้ำระหว่างรอระบบ (เคยเกิดใบลาซ้ำห่างกันไม่ถึงวินาที)
 document.getElementById('submitLeaveBtn').onclick = async ()=>{
+  if(leaveSubmitBusy) return;
+  const btn = document.getElementById('submitLeaveBtn');
+  const btnText = btn.textContent;
+  leaveSubmitBusy = true; btn.disabled = true; btn.textContent = 'กำลังส่ง...';
+  try{ await submitLeaveForm(); }
+  finally{ leaveSubmitBusy = false; btn.disabled = false; btn.textContent = btnText; }
+};
+async function submitLeaveForm(){
   const emp = currentEmployee();
   const kind = document.getElementById('leaveType').value;
   const isHourly = HOURLY_KINDS.includes(kind);
@@ -4304,14 +4330,19 @@ document.getElementById('submitLeaveBtn').onclick = async ()=>{
     if(holidayDates.length !== nDays){ msg.className='msg err'; msg.textContent=`กรุณาเลือกวันหยุดประเพณีที่จะใช้ ${nDays} วัน ให้เท่ากับจำนวนวันที่ลา (เลือกแล้ว ${holidayDates.length} วัน)`; return; }
   }
   const holidayLine = holidayDates && holidayDates.length ? `\n▪️ใช้สิทธิ์วันหยุด: ${holidayDates.map(ddmmyyyy).join(', ')}` : '';
+  const dupLeave = findDuplicateLeave(emp.id, kind, from, to, hourStart, hourEnd, requestingEditLeaveId || editingLeaveId);
+  if(dupLeave){ msg.className='msg err'; msg.textContent='ส่งข้อมูลซ้ำ: มีใบลาช่วงนี้อยู่แล้ว'; showDuplicateLeavePopup(dupLeave); return; }
+  msg.className='msg'; msg.textContent='กำลังส่ง กรุณารอสักครู่...';
   if(requestingEditLeaveId){
     const leave = db.leaves.find(l=>l.id===requestingEditLeaveId);
     if(!leave || leave.status!=='approved'){ msg.className='msg err'; msg.textContent='ไม่สามารถขอแก้ไขได้ (สถานะเปลี่ยนไปแล้ว)'; return; }
     const oldRangeText = leaveRangeText(leave);
     const oldKind = leave.kind;
     leave.editRequest = {kind, from, to, hourStart, hourEnd, reason, holidayDates, requestedAt:new Date().toISOString()};
-    await saveLeaveRow(leave);
+    const savedReq = await saveLeaveRow(leave);
+    if(!savedReq.ok){ leave.editRequest = null; msg.className='msg err'; msg.textContent='ส่งคำขอแก้ไขไม่สำเร็จ: '+dbErrText(savedReq); return; }
     msg.className='msg ok'; msg.textContent='ส่งคำขอแก้ไขเรียบร้อย รออนุมัติจาก HR';
+    showSubmitSuccessPopup(`${leaveLabel(kind)} ${leaveRangeText({from, to, hourStart, hourEnd, kind})}\nไม่ต้องส่งซ้ำ ระบบบันทึกคำขอแก้ไขแล้ว`, 'ส่งสำเร็จ รออนุมัติ');
     renderLeaveTab();
     const br = currentBranch(emp);
     const newRangeText = leaveRangeText({from, to, hourStart, hourEnd, kind});
@@ -4327,7 +4358,7 @@ document.getElementById('submitLeaveBtn').onclick = async ()=>{
     const keep = {kind:leave.kind, from:leave.from, to:leave.to, hourStart:leave.hourStart, hourEnd:leave.hourEnd, reason:leave.reason, holidayDates:leave.holidayDates};
     Object.assign(leave, {kind, from, to, hourStart, hourEnd, reason, holidayDates});
     const savedEdit = await saveLeaveRow(leave);
-    if(!savedEdit.ok){ Object.assign(leave, keep); msg.className='msg err'; msg.textContent='บันทึกไม่สำเร็จ: '+dbErrText(savedEdit); return; }
+    if(!savedEdit.ok){ Object.assign(leave, keep); msg.className='msg err'; msg.textContent='บันทึกไม่สำเร็จ: '+dbErrText(savedEdit); if(dbErrText(savedEdit).includes('ส่งข้อมูลซ้ำ')) showSubmitSuccessPopup(dbErrText(savedEdit), 'ส่งข้อมูลซ้ำ', true); return; }
     if(evidenceFile){
       const caption = `<b>${notifyName(emp)}</b> แก้ไขหลักฐาน${leaveLabel(kind)} ${leaveRangeText(leave)} (♻️ รูปแก้ไข)\nเหตุผล: ${reason||'-'}`;
       const r = await tgSendPhoto(db.settings.centralToken, db.settings.centralChatId, evidenceFile, caption);
@@ -4336,6 +4367,7 @@ document.getElementById('submitLeaveBtn').onclick = async ()=>{
     }
     await saveLeaveRow(leave);
     msg.className='msg ok'; msg.textContent='บันทึกการแก้ไขเรียบร้อย';
+    showSubmitSuccessPopup(`${leaveLabel(kind)} ${leaveRangeText(leave)}\nไม่ต้องส่งซ้ำ ระบบบันทึกการแก้ไขแล้ว`, 'ส่งสำเร็จ รออนุมัติ');
     renderLeaveTab();
     await pushNotification(emp.id, 'แก้ไขใบลาแล้ว', `${leaveLabel(kind)} ${leaveRangeText(leave)}`);
     setTimeout(()=>{ document.getElementById('leaveOverlay').classList.remove('show'); editingLeaveId=null; }, 900);
@@ -4350,11 +4382,15 @@ document.getElementById('submitLeaveBtn').onclick = async ()=>{
   }
   const leave = {id:uid(), employeeId:emp.id, kind, from, to, hourStart, hourEnd, reason, holidayDates, status:'pending', requestedAt:new Date().toISOString(), evidenceSent:null, evidenceFileId:null, locationLat, locationLng, locationAddress};
   const savedNew = await saveLeaveRow(leave);
-  if(!savedNew.ok){ msg.className='msg err'; msg.textContent='ส่งใบลาไม่สำเร็จ: '+dbErrText(savedNew); return; }
+  if(!savedNew.ok){
+    msg.className='msg err'; msg.textContent='ส่งใบลาไม่สำเร็จ: '+dbErrText(savedNew);
+    if(dbErrText(savedNew).includes('ส่งข้อมูลซ้ำ')) showSubmitSuccessPopup(dbErrText(savedNew)+'\nไม่ต้องส่งใหม่', 'ส่งข้อมูลซ้ำ', true);
+    return;
+  }
   db.leaves.push(leave);
   clearLeaveDraft();
   msg.className='msg ok'; msg.textContent='ส่งใบลาเรียบร้อย รออนุมัติจาก HR';
-  showSubmitSuccessPopup(`${leaveLabel(kind)} ${leaveRangeText(leave)}\nไม่ต้องส่งซ้ำ — ระบบส่งคำขอเข้ากลุ่มรออนุมัติแล้ว`);
+  showSubmitSuccessPopup(`${leaveLabel(kind)} ${leaveRangeText(leave)}\nไม่ต้องส่งซ้ำ — ระบบส่งคำขอเข้ากลุ่มรออนุมัติแล้ว`, 'ส่งสำเร็จ รออนุมัติ');
   renderLeaveTab();
   const br = currentBranch(emp);
   const rangeText = leaveRangeText(leave);
@@ -4378,7 +4414,7 @@ document.getElementById('submitLeaveBtn').onclick = async ()=>{
   }
   await pushNotification(emp.id, 'ส่งใบลาแล้ว', `${leaveLabel(kind)} ${rangeText} กำลังรอการอนุมัติ`);
   setTimeout(()=>{ document.getElementById('leaveOverlay').classList.remove('show'); }, 900);
-};
+}
 
 // -- แนบหลักฐานการลาภายหลัง (สำหรับลาป่วย/ลากิจ ที่ยื่นไปก่อนโดยยังไม่มีรูป) --
 let lateEvidenceLeaveId = null;
@@ -6496,7 +6532,9 @@ document.getElementById('submitManualCheckinBtn').onclick = async ()=>{
 };
 // ป้ายกำกับสรุปการยื่นคำขอสำเร็จ — แทนที่ alert() เดิมด้วยป็อปอัปที่เห็นชัดกว่า มีปุ่มให้กดรับทราบ
 // เพราะพนักงานหลายคนไม่ทันสังเกตว่ายื่นสำเร็จแล้วหรือไม่ (เคยชินว่ายื่นลาปุ๊บต้องเข้าเทเลแกรมทันที)
-function showSubmitSuccessPopup(body, title){
+function showSubmitSuccessPopup(body, title, warn){
+  const icon = document.getElementById('submitSuccessIcon');
+  icon.textContent = warn ? '!' : '✅'; icon.style.color = warn ? '#c0392b' : ''; icon.style.fontWeight = warn ? '700' : '';
   document.getElementById('submitSuccessTitle').textContent = title || 'ส่งคำขอเรียบร้อย';
   document.getElementById('submitSuccessBody').textContent = body || 'ไม่ต้องส่งซ้ำ ระบบบันทึกคำขอไว้แล้ว รอ HR อนุมัติ';
   document.getElementById('submitSuccessOverlay').classList.add('show');
