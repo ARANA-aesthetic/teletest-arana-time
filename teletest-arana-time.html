@@ -4659,11 +4659,24 @@ document.getElementById('openOtFormBtn').onclick = ()=>{
   setDateVal('otDate',''); document.getElementById('otHourStart').value=''; document.getElementById('otHourEnd').value=''; document.getElementById('otReason').value='';
   const emp = currentEmployee();
   const br = currentBranch(emp);
-  const branchEmps = db.employees.filter(e=>e.active!==false && e.branchId===emp.branchId);
-  document.getElementById('otEmpChecklist').innerHTML = branchEmps.map(e=>`
+  // ผู้จัดการเขต ขอ OT ให้พนักงานได้ทุกสาขา (ออม 25/11/2569) · คนอื่นเฉพาะสาขาตัวเองเหมือนเดิม
+  const areaManager = /ผู้จัดการเขต/.test(emp.jobTitle||'');
+  const otRow = e=>`
     <label style="display:flex;align-items:center;gap:8px;padding:6px 0;font-size:13px;cursor:pointer;">
       <input type="checkbox" data-otemp="${e.id}" ${e.id===emp.id?'checked':''}> ${e.name}${e.nickname?` (${e.nickname})`:''}
-    </label>`).join('');
+    </label>`;
+  if(areaManager){
+    const brOrder = [emp.branchId, ...db.branches.map(b=>b.id).filter(id=>id!==emp.branchId)];
+    document.getElementById('otEmpChecklist').innerHTML = brOrder.map(bid=>{
+      const list = db.employees.filter(e=>e.active!==false && e.branchId===bid).sort((a,b)=>a.name.localeCompare(b.name,'th'));
+      if(!list.length) return '';
+      const bn = db.branches.find(b=>b.id===bid)?.name || '-';
+      return `<div style="font-size:12px;font-weight:800;color:var(--muted);margin:8px 0 2px;">สาขา${bn}</div>` + list.map(otRow).join('');
+    }).join('');
+  } else {
+    const branchEmps = db.employees.filter(e=>e.active!==false && e.branchId===emp.branchId);
+    document.getElementById('otEmpChecklist').innerHTML = branchEmps.map(otRow).join('');
+  }
   document.getElementById('otOverlay').classList.add('show');
 };
 function openOtEditRequestForm(otId){
