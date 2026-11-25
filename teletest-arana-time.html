@@ -2911,6 +2911,18 @@ function addDaysKey(dateStr, n){ const d = new Date(dateStr+'T00:00:00'); d.setD
 function todayKey(d=new Date()){ return d.toDateString(); }
 function isHoliday(date){ return db.settings.holidays.some(h=>h.date===dateKey(date)); }
 function todayStatus(empId){
+  // ออกงานหลังเที่ยงคืน (ออม 25/11/2569): 00:00–05:59 ยังไม่มีสแกนของวันนี้ + เมื่อวานเข้างานแล้วยังไม่ออก → สแกนครั้งนี้ = ออกงานของเมื่อวาน
+  const nowD = new Date();
+  if(nowD.getHours() < 6){
+    const todayAny = db.logs.some(l=>l.employeeId===empId && (l.type==='IN'||l.type==='OUT') && todayKey(new Date(l.time))===todayKey());
+    if(!todayAny){
+      const y = new Date(nowD.getFullYear(), nowD.getMonth(), nowD.getDate()-1);
+      const yLogs = db.logs.filter(l=>l.employeeId===empId && (l.type==='IN'||l.type==='OUT') && todayKey(new Date(l.time))===todayKey(y));
+      const yIn = yLogs.filter(l=>l.type==='IN').sort((a,b)=>new Date(b.time)-new Date(a.time))[0];
+      const yOut = yLogs.filter(l=>l.type==='OUT').sort((a,b)=>new Date(b.time)-new Date(a.time))[0];
+      if(yIn && (!yOut || new Date(yOut.time) < new Date(yIn.time))) return { inTime: yIn.time, outTime: null, overnight: true };
+    }
+  }
   const logs = db.logs.filter(l=>l.employeeId===empId && (l.type==='IN'||l.type==='OUT') && todayKey(new Date(l.time))===todayKey());
   const ins = logs.filter(l=>l.type==='IN').sort((a,b)=>new Date(b.time)-new Date(a.time));
   const outs = logs.filter(l=>l.type==='OUT').sort((a,b)=>new Date(b.time)-new Date(a.time));
