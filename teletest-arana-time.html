@@ -2466,8 +2466,8 @@ const warningLetterToRow = w => ({ id:w.id, employee_id:w.employeeId, company_id
 const rowToCompany = r => ({ id:r.id, name:r.name||'', logoBase64:r.logo_base64||null, createdAt:r.created_at });
 const companyToRow = c => ({ id:c.id, name:c.name||null, logo_base64:c.logoBase64||null, created_at:c.createdAt });
 
-const rowToLeave = r => ({ id:r.id, employeeId:r.employee_id, kind:r.kind, from:r.from_date, to:r.to_date, hourStart:r.from_time||null, hourEnd:r.to_time||null, reason:r.reason||'', status:r.status, requestedAt:r.requested_at, decidedAt:r.decided_at||null, evidenceSent:r.evidence_sent??null, evidenceFileId:r.evidence_file_id||null, editRequest:r.edit_request||null, locationLat:r.location_lat??null, locationLng:r.location_lng??null, locationAddress:r.location_address||null, holidayDates:r.holiday_dates||null });
-const leaveToRow = l => ({ id:l.id, employee_id:l.employeeId, kind:l.kind, from_date:l.from, to_date:l.to, from_time:l.hourStart||null, to_time:l.hourEnd||null, reason:l.reason||null, status:l.status, requested_at:l.requestedAt, decided_at:l.decidedAt||null, evidence_sent:l.evidenceSent??null, evidence_file_id:l.evidenceFileId||null, edit_request:l.editRequest||null, location_lat:l.locationLat??null, location_lng:l.locationLng??null, location_address:l.locationAddress||null, holiday_dates:(l.kind==='traditional' && l.holidayDates && l.holidayDates.length) ? l.holidayDates : null, days: (l.from && l.to) ? (Math.round((new Date(l.to)-new Date(l.from))/86400000)+1) : null });
+const rowToLeave = r => ({ id:r.id, employeeId:r.employee_id, kind:r.kind, from:r.from_date, to:r.to_date, hourStart:r.from_time||null, hourEnd:r.to_time||null, reason:r.reason||'', status:r.status, requestedAt:r.requested_at, decidedAt:r.decided_at||null, evidenceSent:r.evidence_sent??null, evidenceFileId:r.evidence_file_id||null, evidencePath:r.evidence_path||null, editRequest:r.edit_request||null, locationLat:r.location_lat??null, locationLng:r.location_lng??null, locationAddress:r.location_address||null, holidayDates:r.holiday_dates||null });
+const leaveToRow = l => ({ id:l.id, employee_id:l.employeeId, kind:l.kind, from_date:l.from, to_date:l.to, from_time:l.hourStart||null, to_time:l.hourEnd||null, reason:l.reason||null, status:l.status, requested_at:l.requestedAt, decided_at:l.decidedAt||null, evidence_sent:l.evidenceSent??null, evidence_file_id:l.evidenceFileId||null, ...(l.evidencePath?{evidence_path:l.evidencePath}:{}), edit_request:l.editRequest||null, location_lat:l.locationLat??null, location_lng:l.locationLng??null, location_address:l.locationAddress||null, holiday_dates:(l.kind==='traditional' && l.holidayDates && l.holidayDates.length) ? l.holidayDates : null, days: (l.from && l.to) ? (Math.round((new Date(l.to)-new Date(l.from))/86400000)+1) : null });
 
 const rowToOt = r => ({ id:r.id, employeeId:r.employee_id, date:r.date, hourStart:r.hour_start, hourEnd:r.hour_end, reason:r.reason||'', status:r.status, requestedAt:r.requested_at, decidedAt:r.decided_at||null, groupId:r.group_id||null, editRequest:r.edit_request||null, requestedByEmployeeId:r.requested_by_employee_id||null });
 const otToRow = o => ({ id:o.id, employee_id:o.employeeId, date:o.date, hour_start:o.hourStart, hour_end:o.hourEnd, reason:o.reason||null, status:o.status, requested_at:o.requestedAt, decided_at:o.decidedAt||null, group_id:o.groupId||null, edit_request:o.editRequest||null, requested_by_employee_id:o.requestedByEmployeeId||null });
@@ -2793,6 +2793,36 @@ async function tgSendPhoto(token, chatId, blob, caption){
   const sizes = r.data?.result?.photo;
   r.fileId = sizes && sizes.length ? sizes[sizes.length-1].file_id : null;
   return r;
+}
+/* รูปหลักฐานการลา: เก็บในระบบก่อน แล้วค่อยส่งเข้ากลุ่ม (ออม 25/11/2569 · ERP 00335)
+   เดิมรูปอยู่ที่เทเลแกรมอย่างเดียว ถ้าแอปไม่ได้รับคำตอบกลับ (เน็ตสะดุด/สลับแอป) ใบลาจะไม่มีรูปทั้งที่รูปเข้ากลุ่มแล้ว
+   ย่อรูปก่อน (ด้านยาวสุด 1600px) ให้ส่งเร็ว ไฟล์เล็ก · ย่อไม่ได้ (เช่น HEIC บางเครื่อง) ใช้ไฟล์เดิม */
+async function shrinkImage(blob, max=1600, q=0.82){
+  try{
+    const bmp = await createImageBitmap(blob);
+    const s = Math.min(1, max/Math.max(bmp.width, bmp.height));
+    if(s===1 && blob.size < 1500000) return blob;
+    const c = document.createElement('canvas');
+    c.width = Math.round(bmp.width*s); c.height = Math.round(bmp.height*s);
+    c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+    const out = await new Promise(r=>c.toBlob(r, 'image/jpeg', q));
+    return out || blob;
+  }catch(e){ return blob; }
+}
+// คืน path ในระบบ (null = เก็บไม่สำเร็จ) · บันทึกลงใบลาทันที (evidence_path + evidence_sent)
+async function uploadLeaveEvidence(leaveId, blob){
+  try{
+    const ext = /png/i.test(blob.type||'') ? 'png' : 'jpg';
+    const path = `${leaveId}/${Date.now()}.${ext}`;
+    const res = await fetch(`${SUPABASE_URL}/storage/v1/object/staff-leave-evidence/${path}`, {
+      method:'POST',
+      headers:{ apikey:SUPABASE_ANON_KEY, Authorization:`Bearer ${SUPABASE_ANON_KEY}`, 'Content-Type': blob.type || 'image/jpeg', 'x-upsert':'false' },
+      body: blob
+    });
+    if(!res.ok){ console.error('uploadLeaveEvidence', res.status, await res.text().catch(()=> '')); return null; }
+    const saved = await sbPatchRow('leaves', leaveId, { evidence_path:path, evidence_sent:true });
+    return saved.ok ? path : null;
+  }catch(e){ console.error('uploadLeaveEvidence', e); return null; }
 }
 async function tgSendPhotoById(token, chatId, fileId, caption){
   if(!token||!chatId||!fileId) return {ok:false, reason:'ข้อมูลไม่ครบ'};
@@ -4361,7 +4391,10 @@ async function submitLeaveForm(){
     if(!savedEdit.ok){ Object.assign(leave, keep); msg.className='msg err'; msg.textContent='บันทึกไม่สำเร็จ: '+dbErrText(savedEdit); if(dbErrText(savedEdit).includes('ส่งข้อมูลซ้ำ')) showSubmitSuccessPopup(dbErrText(savedEdit), 'ส่งข้อมูลซ้ำ', true); return; }
     if(evidenceFile){
       const caption = `<b>${notifyName(emp)}</b> แก้ไขหลักฐาน${leaveLabel(kind)} ${leaveRangeText(leave)} (♻️ รูปแก้ไข)\nเหตุผล: ${reason||'-'}`;
-      const r = await tgSendPhoto(db.settings.centralToken, db.settings.centralChatId, evidenceFile, caption);
+      const small = await shrinkImage(evidenceFile);
+      const path = await uploadLeaveEvidence(leave.id, small); // เก็บในระบบก่อน (00335)
+      if(path){ leave.evidencePath = path; leave.evidenceSent = true; }
+      const r = await tgSendPhoto(db.settings.centralToken, db.settings.centralChatId, small, caption);
       if(r.ok){ leave.evidenceFileId = r.fileId || leave.evidenceFileId; leave.evidenceSent = true; }
       await logAudit('correct_photo', 'leave_evidence', leave.id, `แก้ไขรูปหลักฐาน${leaveLabel(kind)} ${leaveRangeText(leave)}`);
     }
@@ -4389,6 +4422,14 @@ async function submitLeaveForm(){
   }
   db.leaves.push(leave);
   clearLeaveDraft();
+  // เก็บรูปในระบบก่อนขึ้นว่าส่งสำเร็จ (00335) — ส่งเข้ากลุ่มทีหลัง ถ้ากลุ่มสะดุด รูปก็ยังอยู่ในใบลา
+  let smallEvidence = null, evidencePathOk = false;
+  if(evidenceFile){
+    msg.textContent='กำลังบันทึกรูปหลักฐาน...';
+    smallEvidence = await shrinkImage(evidenceFile);
+    const path = await uploadLeaveEvidence(leave.id, smallEvidence);
+    if(path){ leave.evidencePath = path; leave.evidenceSent = true; evidencePathOk = true; }
+  }
   msg.className='msg ok'; msg.textContent='ส่งใบลาเรียบร้อย รออนุมัติจาก HR';
   showSubmitSuccessPopup(`${leaveLabel(kind)} ${leaveRangeText(leave)}\nไม่ต้องส่งซ้ำ — ระบบส่งคำขอเข้ากลุ่มรออนุมัติแล้ว`, 'ส่งสำเร็จ รออนุมัติ');
   renderLeaveTab();
@@ -4401,13 +4442,14 @@ async function submitLeaveForm(){
   }
   if(db.settings.notifyTypes.leaveSubmit && db.settings.centralChatId){
     if(evidenceFile){
-      const r = await tgSendPhoto(db.settings.centralToken, db.settings.centralChatId, evidenceFile, text);
-      leave.evidenceSent = r.ok; leave.evidenceFileId = r.fileId || null;
-      await saveLeaveRow(leave); renderLeaveTab();
+      const r = await tgSendPhoto(db.settings.centralToken, db.settings.centralChatId, smallEvidence || evidenceFile, text);
+      leave.evidenceSent = evidencePathOk || r.ok; leave.evidenceFileId = r.fileId || null;
+      // PATCH เฉพาะช่องรูป ไม่เขียนทับทั้งแถว (กันค่าค้างทับของคนอื่น)
+      await sbPatchRow('leaves', leave.id, { evidence_sent: leave.evidenceSent, evidence_file_id: leave.evidenceFileId }); renderLeaveTab();
       // บันทึกไว้ใน audit log แยกต่างหาก เผื่อค่า evidence_file_id ในแถวใบลาถูกเขียนทับหายทีหลัง
       // (จากจุดบันทึกอื่นที่ข้อมูลค้างเก่า) HR จะยังมีร่องรอยให้เช็คว่าเคยส่งสำเร็จจริงหรือไม่
       await logAudit(r.ok?'evidence_sent':'evidence_send_failed', 'leave', leave.id,
-        `${r.ok?'ส่งหลักฐานการลาสำเร็จตอนยื่นคำขอ':'ส่งหลักฐานการลาไม่สำเร็จตอนยื่นคำขอ'}: ${leaveLabel(kind)} ${rangeText}`);
+        `${r.ok?'ส่งหลักฐานการลาสำเร็จตอนยื่นคำขอ':'ส่งหลักฐานการลาเข้ากลุ่มไม่สำเร็จตอนยื่นคำขอ'}: ${leaveLabel(kind)} ${rangeText}${evidencePathOk?' (รูปเก็บในระบบแล้ว)':' (เก็บรูปในระบบไม่สำเร็จ)'}`);
     } else {
       await tgSendMessage(db.settings.centralToken, db.settings.centralChatId, text);
     }
@@ -4440,17 +4482,21 @@ lateEvidenceInput.addEventListener('change', async (e)=>{
   // ใบลาที่ยังไม่อนุมัติ ห้ามส่งรูปเข้ากลุ่ม "ผลอนุมัติลา" ก่อน (กลุ่มนั้นไว้เก็บเฉพาะใบลาที่ตัดสินใจแล้ว)
   // ต้องส่งเข้ากลุ่ม "รออนุมัติ" กลุ่มเดียวกับตอนยื่นคำขอแทน จนกว่า HR จะอนุมัติ
   const targetChatId = leave.status==='approved' ? br?.chatIdLeaveApproval : db.settings.centralChatId;
-  const r = await tgSendPhoto(db.settings.centralToken, targetChatId, file, caption);
+  const small = await shrinkImage(file);
+  const path = await uploadLeaveEvidence(leave.id, small); // เก็บในระบบก่อน (00335)
+  if(path){ leave.evidencePath = path; }
+  const r = await tgSendPhoto(db.settings.centralToken, targetChatId, small, caption);
   leave.evidenceFileId = r.fileId || leave.evidenceFileId;
-  leave.evidenceSent = r.ok;
-  await saveLeaveRow(leave);
+  leave.evidenceSent = !!path || r.ok;
+  await sbPatchRow('leaves', leave.id, { evidence_sent: leave.evidenceSent, evidence_file_id: leave.evidenceFileId || null });
   // บันทึกไว้ใน audit log แยกต่างหาก เผื่อค่า evidence_file_id ในแถวใบลาถูกเขียนทับหายทีหลัง
   // (จากจุดบันทึกอื่นที่ข้อมูลค้างเก่า) HR จะยังมีร่องรอยให้เช็คว่าเคยส่งสำเร็จจริงหรือไม่
-  await logAudit(r.ok?'evidence_sent':'evidence_send_failed', 'leave', leave.id,
-    `${r.ok?'แนบหลักฐานการลาภายหลังสำเร็จ':'แนบหลักฐานการลาภายหลังไม่สำเร็จ'}: ${leaveLabel(leave.kind)} ${ddmmyyyy(leave.from)}`);
+  const okAny = !!path || r.ok;
+  await logAudit(okAny?'evidence_sent':'evidence_send_failed', 'leave', leave.id,
+    `${okAny?'แนบหลักฐานการลาภายหลังสำเร็จ':'แนบหลักฐานการลาภายหลังไม่สำเร็จ'}: ${leaveLabel(leave.kind)} ${ddmmyyyy(leave.from)}${path?'':' (เก็บรูปในระบบไม่สำเร็จ)'}${r.ok?'':' (ส่งเข้ากลุ่มไม่สำเร็จ)'}`);
   renderLeaveTab();
-  await pushNotification(emp.id, r.ok ? 'ส่งหลักฐานการลาแล้ว' : 'ส่งหลักฐานการลาไม่สำเร็จ',
-    r.ok ? `${leaveLabel(leave.kind)} ${ddmmyyyy(leave.from)} — ส่งเข้ากลุ่มอนุมัติเรียบร้อย` : 'ลองใหม่อีกครั้ง');
+  await pushNotification(emp.id, okAny ? 'ส่งหลักฐานการลาแล้ว' : 'ส่งหลักฐานการลาไม่สำเร็จ',
+    okAny ? `${leaveLabel(leave.kind)} ${ddmmyyyy(leave.from)} — บันทึกรูปเรียบร้อย` : 'ลองใหม่อีกครั้ง');
   lateEvidenceSending = false;
 });
 
